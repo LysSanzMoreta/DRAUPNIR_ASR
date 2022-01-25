@@ -1,5 +1,13 @@
 # Object file
 *.o
-
+__pycache*
 # Ada Library Information
 *.ali
+datasets/*
+.idea/*
+Benchmark_Results/*
+!Benchmark_Results/PhyloBayes/PhyloBayes_Parser.py
+!Benchmark_Results/PAML/Parse_PAML_rst2.py
+!Benchmark_Results/PAML/Merge_tables2.py
+!Benchmark_Results/PAML/FastML_Parser.py
+!Benchmark_Results/PAML/IQTree_Parser.py
