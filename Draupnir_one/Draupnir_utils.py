@@ -29,6 +29,7 @@ import matplotlib
 import argparse
 import dendropy
 import dill
+import ast
 try:
     import jax.numpy as np_jax
     import jax.random as random
@@ -52,6 +53,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio import Phylo
 from Bio import BiopythonWarning
 from Bio import AlignIO, SeqIO
+import Bio.Align
 import warnings
 import numpy as np
 import numpy.random as npr
@@ -97,7 +99,7 @@ def validate_sequence_alphabet(seq):
         aa_probs = 24
         return aa_probs
 def aminoacid_names_dict(aa_probs):
-    "I splitted them so that we avoid making too many plots, such as the amino acid replacements ones"
+    """In: aa-probs, amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_names
@@ -109,7 +111,6 @@ def aminoacid_names_dict(aa_probs):
         return aminoacid_names
 def Create_Blosum(aa_prob,subs_matrix):
     """Substitution matrices, available at /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data"""
-    import Bio.Align
 
     if aa_prob > 21 and not subs_matrix.startswith("PAM"):
         warnings.warn("Your dataset contains special amino acids. Switching your substitution matrix to PAM70")
@@ -134,7 +135,7 @@ def Create_Blosum(aa_prob,subs_matrix):
     Subs_matrix_array = np.concatenate((names[None,:],Subs_matrix_array),axis=0)
 
     return Subs_matrix_array, Subs_dict
-def divide_into_monophyletic_clades(tree,name,storage_folder):
+def divide_into_monophyletic_clades(tree,storage_folder,name):
     """Divide the tree into monophyletic clades:
     See https://www.mun.ca/biology/scarr/Taxon_types.html
     Implementation based on: https://www.biostars.org/p/97409/
@@ -360,8 +361,9 @@ def Convert_to_pandas(DistanceMatrix):
     b = b + b_transpose
     df = pd.DataFrame(b, index=DistanceMatrix.names, columns=DistanceMatrix.names)
     return  df
+
+
 def infer_tree(alignment, alignment_file_name,name_file,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
-    import pandas as pd
     if tree_file:
         print("Using given tree file...")
         tree = TreeEte3(tree_file,format=1,quoted_node_names=True)
@@ -440,7 +442,7 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
     from Bio.Align.Applications import MafftCommandline
     print("Analyzing alignment...")
     if alignment_file: #The alignment file should contain the polypeptides of the PDB structures and sequences without structures
-        print("Reading alignment file ...")
+        print("Reading given alignment file ...")
         # Read the aligned sequences
         alignment = AlignIO.read("{}".format(alignment_file), "fasta")
         alignment_ids = []
@@ -555,91 +557,204 @@ def calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,t
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
             print("Patristic matrix file already exists, not calculated")
-def create_dataset(name_file,
-                   one_hot_encoding,
-                   min_len=30,
-                   fasta_file=None,
-                   PDB_folder=None,
-                   alignment_file=None,
-                   tree_file = None,
-                   pfam_dict= None,
-                   method="iqtree",
-                   aa_probs=21,
-                   rename_internal_nodes=False,
-                   storage_folder="datasets/default"):
-    """Reads in PDB files and extracts from the first chain (usually named chain A), it's phi,psi, omega angles and the bond angles
-    in:
-        name_file : dataset name
-        one_hot_encoding: {True,False} WARNING: One hot encoding is faulty, needs to be
-        min_len: minimum length of the sequence, drops out sequences smaller than this
-        fasta_file: path to fasta with unaligned sequences
-        PDB_folder: Folder with PDB files from where to extract sequences and angles
-        alignment_file: path to fasta with aligned sequences
-        tree_file: path to newick tree
-        pfam_dict: dictionary with pDB files names
-        method: tree inference methodology
-        aa_probs: amino acid probabilities
-        rename_internal_nodes: {True,False} use different names for the internal/ancestral nodes from the ones given in the tree
-        storage_folder: "datasets/default" or "datasets/custom"
-    out:
 
-        if one_hot_encoding: where gap is [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-               Tensor with size: [Nsequences]x[Alignment length + 2]x[30] --> [[length,tree_position,dist_to_root,?,0,0,0...],[GIT vector],[aa1 one hot, phi, psi],[aa2 one hot, phi, psi],....[]]
-        else: Aa are named from 1-20, 0 means gap
-               Tensor with size: [Nsequences]x[Alignment length + 3]x[30] --> [[length,tree_position,dist_to_root,0,0,0,0...],[GIT vector],[aa1 number, phi, psi],[aa2 number, phi, psi],....[]]
-    """
+def my_layout(node):
+    "Adds the internal nodes names"
+    if node.is_leaf():
+        # If terminal node, draws its name
+        name_face = AttrFace("name",fsize=8,fgcolor="blue")
+    else:
+        # If internal node, draws label with smaller font size
+        name_face = AttrFace("name", fsize=8,fgcolor="red")
+    # Adds the name face to the image at the preferred position
+    faces.add_face_to_node(name_face, node, column=0, position="branch-right")
 
-    warnings.simplefilter('ignore', BiopythonWarning)
-    one_hot_label= ["onehot" if one_hot_encoding else "integers"]
-    if one_hot_encoding:
-        raise ValueError("There is some bug in one hot encoding yet to be fixed, do not use yet. Please set one_hot_encoding=False")
+def render_tree(tree,storage_folder,name_file):
+    ts = TreeStyle()
+    ns = NodeStyle()
+    #Make thicker lines
+    ns["vt_line_width"] = 5
+    ns["hz_line_width"] = 5
+    # Do not add leaf names automatically
+    ts.show_leaf_name = False
+    # Use my custom layout
+    ts.layout_fn = my_layout
+    ts.show_branch_length = True
+    for n in tree.traverse():
+            n.set_style(ns)
+    try:
+        tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file),w=1000, units="mm",tree_style=ts)
+    except:
+        tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
 
+def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
+    "Rename the internal nodes of an ete3 tree to a label I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
+    print("Renaming tree from simulations")
+    leafs_names = tree.get_leaf_names()
+    edge = len(leafs_names)
+    internal_nodes_names = []
+    if with_indexes:
+        for idx,node in enumerate(tree.traverse()):  # levelorder (nodes are visited in zig zag order from root to leaves)
+            if not node.is_leaf():
+                node.name = "I" + node.name + "/{}".format(idx)
+                internal_nodes_names.append(node.name)
+                edge += 1
+            else:
+                node.name = node.name + "/{}".format(idx)
+                #edge += 1
+    else:
+        for node in tree.traverse():  # levelorder (nodes are visited in zig zag order from root to leaves)
+            if not node.is_leaf():
+                node.name = "I" + node.name
+                internal_nodes_names.append(node.name)
+                edge += 1
+    return tree
+
+def rename_tree_internal_nodes(tree):
+    """Rename the internal nodes of a tree to a label A + number, unless the given newick file already has the names on it"""
+
+    #Rename the internal nodes
+    leafs_names = tree.get_leaf_names()
+    edge = len(leafs_names)
+    internal_nodes_names = []
+    for node in tree.traverse(): #levelorder (nodes are visited in zig zag order from root to leaves)
+        if not node.is_leaf():
+            node.name = "A%d" % edge
+            internal_nodes_names.append(node.name)
+            edge += 1
+    return tree
+
+def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
     parser = PDB.PDBParser()
-    ppb = PPBuilder()
+    #ppb = PPBuilder()
     capp = CaPPBuilder()
     prot_info_dict = {}
     prot_aa_dict = {}
-    if PDB_folder:# and not alignment_file:---> Think about this, although then it does not allow having datasets with structure and without
-        print("Creating dataset from PDB files...")
-        aminoacid_names = aminoacid_names_dict(aa_probs) #TODO: generalize to include all types of aa. For onehot encodings simply use aa_names_dict.keys()
+    aminoacid_names = aminoacid_names_dict(aa_probs)  # TODO: generalize to include all types of amino acids. For onehot encodings simply use aa_names_dict.keys()
+    files_list = [f for f in listdir(PDB_folder) if isfile(join(PDB_folder, f))]
+    duplicates = []
+    for i, PDB_file in enumerate(files_list):
+        structure = parser.get_structure('{}'.format(PDB_file), join(PDB_folder, PDB_file))
+        if pfam_dict:  # contains information on which chain to take and which residues to select from the PDB file
+            chain_name = pfam_dict[PDB_file[3:7].upper()]["Chain"]
+            Chain_0 = structure[0][chain_name]
+            start_residue, end_residue = pfam_dict[PDB_file[3:7].upper()]["Residues"].split("-")
+            list_residues = list(range(int(start_residue), int(end_residue) + 1))
+        else:  # when there is not Information not available on which chains to pick
+            chains = [chain for chain in structure[0]]
+            Chain_0 = chains[0]
+        polypeptides = capp.build_peptides(Chain_0)  # C_alpha-C-alpha polypeptide
+        angles_list = []
+        aa_list_embedded = []
+        aa_list = []
+        # coordinates_list = []
+        for poly_index, poly in enumerate(polypeptides):
+            if not pfam_dict:
+                list_residues = [residue.get_id()[1] for residue in poly]  # TODO: Change to .get_resname()?
+            correspondence_index = [index for index, residue in enumerate(poly) if residue.get_id()[1] in list_residues]
+            phipsi_list = poly.get_phi_psi_list()
+            # Gotta chop also the angles list according to the range of desired residues
+            if correspondence_index and pfam_dict:
+                angles_list += phipsi_list[correspondence_index[0]:correspondence_index[
+                                                                       -1] + 1]  # chop also the angles_list according to the selected residues
+            elif not correspondence_index and pfam_dict:  # if there is not a corresponding residue do not append anything
+                angles_list += []
+            else:  # keep appending all residues in the polypeptide
+                angles_list += phipsi_list
+            for residue in poly:
+                residue_position = residue.get_id()[1]
+                if residue_position in list_residues:  # Only get the desired residues (though, if pfam_dict is absent it will append the entire polypeptide)
+                    aa_name = protein_letters_3to1[residue.get_resname()]
+                    if aa_name not in aminoacid_names.keys():
+                        raise ValueError("Please select aa_probs > 21 , in order to allow using special amino acids")
+                    if one_hot_encoding:
+                        aa_name_index = aminoacid_names[aa_name]
+                        one_hot = np.zeros(aa_probs)  # one position, one character
+                        one_hot[aa_name_index] = 1.0
+                        aa_list_embedded.append(one_hot)
+                    else:
+                        aa_name_index = aminoacid_names[aa_name]
+                        aa_list_embedded.append(aa_name_index)
+                    aa_list.append(protein_letters_3to1[residue.get_resname()])
+        # Replace None values from NT and CT angles by npr.normal(np.pi,0.1)----> actually, perhaps just chop them, too much missinformation
+        angles_list_filled = []
+        for tpl in angles_list:
+            tpl = list(tpl)
+            if None in tpl:
+                tpl[np.where(np.array(tpl) == None)[0][0]] = npr.normal(np.pi, 0.1)
+            angles_list_filled.append(tpl)
+        seq_len = len(angles_list_filled)
+        aa_info = np.zeros(
+            (seq_len + 2, 30))  # will contain information about all the aminoacids in this current sequence
+        # aa_info[0] = [seq_len, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0]
+        aa_info[0] = [seq_len] + [0] * 29
+        for index in range(2,
+                           seq_len + 2):  # First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
+            if one_hot_encoding:
+                aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 7])
+            else:
+                aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 27])
+        if seq_len > min_len and not all(v == (None, None) for v in
+                                         angles_list):  # skip the proteins that are empty or too small | skip the proteins with all None values in the angles
+            if "".join(aa_list) not in duplicates:
+                prot_info_dict[files_list[i][3:7]] = aa_info
+                prot_aa_dict[files_list[i][3:7]] = aa_list
+                duplicates.append("".join(aa_list))
+    return prot_aa_dict,prot_info_dict
+
+class CreateDataset():
+    def __init__(self):
+        super(CreateDataset, self).__init__()
+
+    def process_pdb_files(PDB_folder, aa_probs, pfam_dict, one_hot_encoding, min_len):
+        parser = PDB.PDBParser()
+        # ppb = PPBuilder()
+        capp = CaPPBuilder()
+        prot_info_dict = {}
+        prot_aa_dict = {}
+        aminoacid_names = aminoacid_names_dict(
+            aa_probs)  # TODO: generalize to include all types of amino acids. For onehot encodings simply use aa_names_dict.keys()
         files_list = [f for f in listdir(PDB_folder) if isfile(join(PDB_folder, f))]
         duplicates = []
         for i, PDB_file in enumerate(files_list):
             structure = parser.get_structure('{}'.format(PDB_file), join(PDB_folder, PDB_file))
-            if pfam_dict:#contains information on which chain to take and which residues to select from the PDB file
+            if pfam_dict:  # contains information on which chain to take and which residues to select from the PDB file
                 chain_name = pfam_dict[PDB_file[3:7].upper()]["Chain"]
                 Chain_0 = structure[0][chain_name]
                 start_residue, end_residue = pfam_dict[PDB_file[3:7].upper()]["Residues"].split("-")
-                list_residues = list(range(int(start_residue),int(end_residue)+1))
-            else:  #when there is not Information not available on which chains to pick
+                list_residues = list(range(int(start_residue), int(end_residue) + 1))
+            else:  # when there is not Information not available on which chains to pick
                 chains = [chain for chain in structure[0]]
                 Chain_0 = chains[0]
-            polypeptides = capp.build_peptides(Chain_0) #C_alpha-C-alpha polypeptide
+            polypeptides = capp.build_peptides(Chain_0)  # C_alpha-C-alpha polypeptide
             angles_list = []
             aa_list_embedded = []
             aa_list = []
-            #coordinates_list = []
+            # coordinates_list = []
             for poly_index, poly in enumerate(polypeptides):
                 if not pfam_dict:
-                    list_residues = [residue.get_id()[1] for residue in poly] #TODO: Change to .get_resname()?
-                correspondence_index = [index for index, residue in enumerate(poly) if residue.get_id()[1] in list_residues]
+                    list_residues = [residue.get_id()[1] for residue in poly]  # TODO: Change to .get_resname()?
+                correspondence_index = [index for index, residue in enumerate(poly) if
+                                        residue.get_id()[1] in list_residues]
                 phipsi_list = poly.get_phi_psi_list()
-                #Gotta chop also the angles list according to the range of desired residues
+                # Gotta chop also the angles list according to the range of desired residues
                 if correspondence_index and pfam_dict:
-                    angles_list += phipsi_list[correspondence_index[0]:correspondence_index[-1]+1] #chop also the angles_list according to the selected residues
-                elif not correspondence_index and pfam_dict: #if there is not a corresponding residue do not append anything
+                    angles_list += phipsi_list[correspondence_index[0]:correspondence_index[
+                                                                           -1] + 1]  # chop also the angles_list according to the selected residues
+                elif not correspondence_index and pfam_dict:  # if there is not a corresponding residue do not append anything
                     angles_list += []
-                else: #keep appending all residues in the polypeptide
+                else:  # keep appending all residues in the polypeptide
                     angles_list += phipsi_list
                 for residue in poly:
                     residue_position = residue.get_id()[1]
-                    if residue_position in list_residues: #Only get the desired residues (if pfam_dict is absent it will be all of the polypeptide though)
+                    if residue_position in list_residues:  # Only get the desired residues (though, if pfam_dict is absent it will append the entire polypeptide)
                         aa_name = protein_letters_3to1[residue.get_resname()]
                         if aa_name not in aminoacid_names.keys():
-                            raise ValueError("Please select aa_probs > 21 , in order to allow using special amino acids")
+                            raise ValueError(
+                                "Please select aa_probs > 21 , in order to allow using special amino acids")
                         if one_hot_encoding:
                             aa_name_index = aminoacid_names[aa_name]
-                            one_hot = np.zeros(aa_probs) #one position, one character
+                            one_hot = np.zeros(aa_probs)  # one position, one character
                             one_hot[aa_name_index] = 1.0
                             aa_list_embedded.append(one_hot)
                         else:
@@ -654,18 +769,73 @@ def create_dataset(name_file,
                     tpl[np.where(np.array(tpl) == None)[0][0]] = npr.normal(np.pi, 0.1)
                 angles_list_filled.append(tpl)
             seq_len = len(angles_list_filled)
-            aa_info = np.zeros((seq_len + 2, 30))  #will contain information about all the aminoacids in this current sequence
-            aa_info[0] = [seq_len, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0]
-            for index in range(2, seq_len +2): #First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
+            aa_info = np.zeros(
+                (seq_len + 2, 30))  # will contain information about all the aminoacids in this current sequence
+            # aa_info[0] = [seq_len, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0]
+            aa_info[0] = [seq_len] + [0] * 29
+            for index in range(2,
+                               seq_len + 2):  # First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
                 if one_hot_encoding:
                     aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 7])
                 else:
-                    aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2],[0] * 27])
-            if seq_len > min_len and not all(v == (None,None) for v in angles_list): #skip the proteins that are empty or too small | skip the proteins with all None values in the angles
+                    aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 27])
+            if seq_len > min_len and not all(v == (None, None) for v in
+                                             angles_list):  # skip the proteins that are empty or too small | skip the proteins with all None values in the angles
                 if "".join(aa_list) not in duplicates:
                     prot_info_dict[files_list[i][3:7]] = aa_info
                     prot_aa_dict[files_list[i][3:7]] = aa_list
                     duplicates.append("".join(aa_list))
+        return prot_aa_dict, prot_info_dict
+
+def create_dataset(name_file,
+                   one_hot_encoding,
+                   min_len=30,
+                   fasta_file=None,
+                   PDB_folder=None,
+                   alignment_file=None,
+                   tree_file = None,
+                   pfam_dict= None,
+                   method="iqtree",
+                   aa_probs=21,
+                   rename_internal_nodes=False,
+                   storage_folder="datasets/default"):
+    """ Complex function to create the dataset and additional files (i.e dictionaries) that Draupnir uses for inference
+    in:
+        :param str name_file : dataset name
+        :param bool one_hot_encoding: {True,False} WARNING: One hot encoding is faulty, needs to be fixed, DO NOT USE
+        :param int min_len: minimum length of the sequence, drops out sequences smaller than this
+        :param str fasta_file: path to fasta with unaligned sequences
+        :param str PDB_folder: Folder with PDB files from where to extract sequences and angles
+        :param str alignment_file: path to fasta with aligned sequences
+        :param str tree_file: path to newick tree, format 1 (ete3 nomenclature)
+        :param dict pfam_dict: dictionary with PDB files names
+        :param str method: tree inference methodology,
+                          "iqtree": for ML tree inference by IQtree (make sure is installed globally),
+                          "nj": for neighbour joining unrooted tree inference (biopython),
+                          "nj_rooted": for NJ rooted tree inference (selects a root based on the distances beetwen nodes) (biopython),
+                          "upgma": UPGMA (biopython),
+                          "rapidnj": inference of Fast NJ unrooted inference (make sure is installed globally),
+        aa_probs: amino acid probabilities
+        rename_internal_nodes: {True,False} use different names for the internal/ancestral nodes from the ones given in the tree
+        storage_folder: "datasets/default" or "datasets/custom"
+    out:
+        if one_hot_encoding: where gap is [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+               Tensor with size: [Nsequences]x[Alignment length + 2]x[30] --> [[length,tree_position,dist_to_root,?,0,0,0...],[GIT vector],[aa1 one hot, phi, psi],[aa2 one hot, phi, psi],....[]]
+        else: Amino acids are assigned numbers from 1-20, 0 means gap
+               Tensor with size: [Nsequences]x[Alignment length + 3]x[30] --> [[length,tree_position,dist_to_root,0,0,0,0...],[GIT vector],[aa1 number, phi, psi],[aa2 number, phi, psi],....[]]
+    """
+
+    warnings.simplefilter('ignore', BiopythonWarning)
+    one_hot_label= ["onehot" if one_hot_encoding else "integers"]
+    if one_hot_encoding:
+        raise ValueError("There is some bug in one hot encoding yet to be fixed, do not use yet. Please set one_hot_encoding=False")
+
+    prot_info_dict = {}
+    prot_aa_dict = {}
+    if PDB_folder:# and not alignment_file:---> We allow to have sequences that have 3D structure and not
+        print("Creating dataset from PDB files...")
+        prot_aa_dict,prot_info_dict = process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len)
+
     #Remove duplicated sequences in both dictionaries
     if prot_aa_dict:
         print("Writing polypeptides to fasta file")
@@ -727,78 +897,17 @@ def create_dataset(name_file,
     else:
         Combined_dict = dict_alignment_2
 
-    def Renaming():
-        "Rename the internal nodes to A + number, unless the given newick file already has the names on it"
-        #Rename the internal nodes
-        leafs_names = tree.get_leaf_names()
-        edge = len(leafs_names)
-        internal_nodes_names = []
-        for node in tree.traverse(): #levelorder (nodes are visited in zig zag order from root to leaves)
-            if not node.is_leaf():
-                node.name = "A%d" % edge
-                internal_nodes_names.append(node.name)
-                edge += 1
-
-    def Renaming_simulations(with_indexes=False):
-        "Rename the internal nodes to I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
-        print("Renaming tree from simulations")
-        leafs_names = tree.get_leaf_names()
-        edge = len(leafs_names)
-        internal_nodes_names = []
-        if with_indexes:
-            for idx,node in enumerate(tree.traverse()):  # levelorder (nodes are visited in zig zag order from root to leaves)
-                if not node.is_leaf():
-                    node.name = "I" + node.name + "/{}".format(idx)
-                    internal_nodes_names.append(node.name)
-                    edge += 1
-                else:
-                    node.name = node.name + "/{}".format(idx)
-                    #edge += 1
-        else:
-            for node in tree.traverse():  # levelorder (nodes are visited in zig zag order from root to leaves)
-                if not node.is_leaf():
-                    node.name = "I" + node.name
-                    internal_nodes_names.append(node.name)
-                    edge += 1
-
     if rename_internal_nodes:
-        if name_file.startswith("simulations"): Renaming_simulations(with_indexes=False)
-        else:Renaming()
-    def my_layout(node):
-        "Adds the internal nodes names"
-        if node.is_leaf():
-            # If terminal node, draws its name
-            name_face = AttrFace("name",fsize=8,fgcolor="blue")
+        if name_file.startswith("simulations"):
+           tree = rename_tree_internal_nodes_simulations(tree,with_indexes=False)
         else:
-            # If internal node, draws label with smaller font size
-            name_face = AttrFace("name", fsize=8,fgcolor="red")
-        # Adds the name face to the image at the preferred position
-        faces.add_face_to_node(name_face, node, column=0, position="branch-right")
+           tree = rename_tree_internal_nodes(tree)
 
-    def Render_tree(tree):
-        ts = TreeStyle()
-        ns = NodeStyle()
-        #Make thicker lines
-        ns["vt_line_width"] = 5
-        ns["hz_line_width"] = 5
-        # Do not add leaf names automatically
-        ts.show_leaf_name = False
-        # Use my custom layout
-        ts.layout_fn = my_layout
-        ts.show_branch_length = True
-        for n in tree.traverse():
-                n.set_style(ns)
-        try:
-            tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file),w=1000, units="mm",tree_style=ts)
-        except:
-            tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
-
-    #print(tree.get_ascii(show_internal=True))
     leafs_names = tree.get_leaf_names()
-    pickle.dump(leafs_names,open('{}/{}_leafs_names_list.p'.format(storage_folder,name_file), 'wb'))
+    pickle.dump(leafs_names,open('{}/{}_Leafs_names_list.p'.format(storage_folder,name_file), 'wb'))
     if len(leafs_names) <= 200:
         print("Rendering tree...")
-        Render_tree(tree)
+        render_tree(tree, storage_folder, name_file)
     internal_nodes_names = [node.name for node in tree.traverse() if not node.is_leaf()]
 
     ancestors_all =[]
@@ -840,7 +949,7 @@ def create_dataset(name_file,
     calculate_descendants(name_file,tree,storage_folder)
     print("Ready and saved!")
     print("Building clades (warning: collapses the original tree!)")
-    divide_into_monophyletic_clades(tree,tree_file,name_file)
+    divide_into_monophyletic_clades(tree,storage_folder,name_file)
     np.save("{}/{}_dataset_numpy_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset)
     max_lenght_not_aligned = max([int(sequence[0][0]) for idx,sequence in Combined_dict.items()]) #Find the largest sequence without being aligned
     print("Creating not aligned dataset...")
@@ -857,6 +966,7 @@ def create_dataset(name_file,
         if one_hot_encoding:
             Dataset_not_aligned[i, (int(Combined_dict[key][0][0]) + 3):] = np.array([1]+[0]*29)
     np.save("{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset_not_aligned)
+
 def symmetrize_and_clean(matrix,ancestral=True):
     if not ancestral:#Drop the ancestral nodes information
         matrix = matrix[~matrix.index.str.contains('^A{1}[0-9]+(?![A-Z])+')]  # repeat with [a-z] if problems
@@ -2417,7 +2527,22 @@ def translate_sequence(seq_file):
     for seq in sequences:
         f.write("{}\n".format(seq.translate().seq))
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1','True'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0','False'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+def str2None(v):
 
+    if v.lower() in ('None'):
+        return None
+    else:
+        v = ast.literal_eval(v)
+        return v
 
 
 

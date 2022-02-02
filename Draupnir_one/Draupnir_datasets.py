@@ -45,20 +45,25 @@ def available_datasets():
 
 
 
-def create_dataset(name,use_custom,build=False,fasta_file=None,tree_file=None,alignment_file=None):
-    """Input:
-    name: Dataset name
-    script_dir: Working directory of Draupnir
-    build: Activates the construction of the dataset, might take a while if it requires to build tree, so it's recommended to use the pre-saved files
-    returns:
-    build_config:
-        alignment-file
-        use_ancestral: bool, if ancestral is true, patristic_matrix_train = patristic_matrix_full, otherwise we remove the ancestral nodes from patristic_matrix_train. Necessary for some datasets
-        n_test: percentage of train/leaves sequences to be used as test, i-e n_test = 20 ---> 20% leaves will be th etest datasets
-        build_graph: make a graph for CNN
-        aa_prob: preselected aa probabilities for the Categorical, it's updated if the selection sis not correct
-        triTSNE: Whether to plot TSNE in 3D (True) or not
-        leaves_testing: Activate to use all the leaves for training and building the latent space, but only observing/mapping some of them."""
+def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_file=None,alignment_file=None):
+    """In:
+    :param str name: Dataset name
+    :param bool use_custom: True (uses a custom dataset, located in datasets/custom/"folder_name" ) or False (uses a Draupnir default dataset (used in the publication))
+    :param str script_dir: Working directory of Draupnir #TODO: remove
+    :param bool build: Activates the construction of the dataset, might take a while if it requires to build tree, so it's recommended to use the pre-saved files
+    :param str fasta_file: Path to NOT aligned sequences
+    :param str tree_file: Path to Newick tree, format 1 in ete3
+    :param str alignment_file: Path to pre-aligned sequences
+    :returns namedtuple build_config:
+        :str alignment-file:
+        :bool use_ancestral: True (patristic_matrix_train = patristic_matrix_full (leaves + ancestors)), False (patristic_matrix_train = patristic_matrix) otherwise we remove the ancestral nodes from patristic_matrix_train. Necessary for some datasets
+        :int n_test: percentage of train/leaves sequences to be used as test, i-e n_test = 20 ---> 20% leaves will be th etest datasets
+        build_graph: make a graph for CNN #TODO: remove?
+        :int aa_prob: Number of amino acid probabilities (21 or 24), depends on the different types of amino acids in the sequence alignment
+        triTSNE: Whether to plot TSNE in 3D (True) or not #TODO: Remove
+        :bool leaves_testing: True (uses all the leaf's evolutionary distances for training, it only observes (n-n_test) leafsequences. USE WITH n_test), False (uses all the leaf's evolutionary distances for training
+                            and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
+        """
     BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
     SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq", "uniprot"])
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -213,9 +218,17 @@ def create_dataset(name,use_custom,build=False,fasta_file=None,tree_file=None,al
     else:
         warnings.warn("You have selected to use a custom dataset")
         assert any(v is not None for v in [fasta_file,alignment_file,tree_file]) != False,"Provide at least 1 file path: fasta_file or alignment_file or alignment_file + tree_file"
-        build_config = BuildConfig(alignment_file=alignment_file,use_ancestral=False,n_test=0,build_graph=False,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
+        build_config = BuildConfig(alignment_file=alignment_file,
+                                   use_ancestral=False,
+                                   n_test=0,
+                                   build_graph=False,
+                                   aa_prob=21,
+                                   triTSNE=False,
+                                   leaves_testing=False,
+                                   script_dir=script_dir,
+                                   no_testing=False)
         if build:
-            if fasta_file is not None:
+            if fasta_file is not None and alignment_file is None:
                 alignment_file = tree_file = None
                 storage_folder = os.path.dirname(fasta_file)
             else:

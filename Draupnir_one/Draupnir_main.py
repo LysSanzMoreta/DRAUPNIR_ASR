@@ -27,7 +27,7 @@ import pyro
 from pyro.infer import SVI, config_enumerate,infer_discrete
 from pyro.infer.autoguide import AutoMultivariateNormal, AutoDiagonalNormal,AutoDelta,AutoNormal
 from pyro.infer import Trace_ELBO, JitTrace_ELBO,TraceMeanField_ELBO,JitTraceMeanField_ELBO,TraceEnum_ELBO
-#sys.path.insert(0,'/content/drive/MyDrive/DRAUPNIR')
+from Draupnir_utils import str2bool,str2None
 import Draupnir_utils as DraupnirUtils
 import Draupnir_models as DraupnirModels
 import Draupnir_guides as DraupnirGuides
@@ -2145,8 +2145,8 @@ def generate_config():
         "gru_hidden_dim": np.random.choice([60, 70, 80, 90,100]),
     }
     return config
-def config_build(parameter_search):
-    if parameter_search:
+def config_build(args):
+    if args.parameter_search:
         config = json.loads(args.config_dict)
     else:
         "Default hyperparameters (Clipped Adam optimizer), z dim and GRU"
@@ -2162,7 +2162,7 @@ def config_build(parameter_search):
             "gru_hidden_dim": 60, #60
         }
     return config
-def Manual_Random_Search():
+def manual_random_search():
     #sys.stdout = open('Random_Search_results.txt', 'w')
     # if click.confirm('Do you want to delete previous files? Otherwise results will be appended', default=True):
     #     print("Deleting previous run ...")
@@ -2175,94 +2175,9 @@ def Manual_Random_Search():
         print(config)
         proc= subprocess.Popen(args=[sys.executable,"Draupnir.py","--parameter-search","False","--config-dict",str(config).replace("'", '"')],stdout=open('Random_Search_results.txt', 'a')) #stdout=open(os.devnull, 'wb'),stderr=open(os.devnull, 'wb')
         proc.communicate()
-def main(config):
+def draupnir_main(args,params_config,settings_config,build_config):
 
-    global build_config,name,RESULTS_DIR,max_seq_len,full_name
-
-
-    datasets = {0:["benchmark_randall", None, None, None],  #the tree is inferred
-                1:["benchmark_randall_original",None, None,None],  #uses the original tree but changes the naming of the nodes (because the original tree was not rooted)
-                2:["benchmark_randall_original_naming",None,None,None],  #uses the original tree and it's original node naming
-                3:["SH3_pf00018_larger_than_30aa",None,None,None],  #SRC kinases domain SH3 ---> Leaves and angles testing
-                4:["simulations_blactamase_1",1,"BLactamase","BetaLactamase_seq"],  #EvolveAGene4 Betalactamase simulation # 32 leaves
-                5:["simulations_src_sh3_1",1, "SRC_simulations","SRC_SH3"],  #EvolveAGene4 SRC SH3 domain simulation 1 #100 leaves
-                6:["simulations_src_sh3_2",2, "SRC_simulations","SRC_SH3"],  #EvolveAGene4 SRC SH3 domain simulation 2 #800 leaves
-                7: ["simulations_src_sh3_3", 3, "SRC_simulations", "SRC_SH3"],# EvolveAGene4 SRC SH3 domain simulation 2 #200 leaves
-                8: ["simulations_sirtuins_1",1, "Sirtuin_simulations", "Sirtuin_seq"],  # EvolveAGene4 Sirtuin simulation #150 leaves
-                9: ["simulations_calcitonin_1", 1, "Calcitonin_simulations", "Calcitonin_seq"],# EvolveAGene4 Calcitonin simulation #50 leaves
-                10: ["simulations_mciz_1",1, "Mciz_simulations","Mciz_seq"],  # EvolveAGene4 MciZ simulation # 1600 leaves, pseudo big alignment
-                11:["Douglas_SRC",None,None,None],  #Douglas's Full SRC Kinases #Highlight: The tree is not similar to the one in the paper, therefore the sequences where splitted in subtrees according to the ancetral sequences in the paper
-                12:["ANC_A1_subtree",None,None,None],  #highlight: 3D structure not available #TODO: only working at dragon server
-                13:["ANC_A2_subtree",None,None,None],  #highlight: 3D structure not available
-                14:["ANC_AS_subtree",None,None,None],
-                15:["ANC_S1_subtree",None,None,None],  #highlight: 3D structure not available
-                16:["Coral_Faviina",None,None,None],  #Faviina clade from coral sequences
-                17:["Coral_all",None,None,None],  # All Coral sequences (includes Faviina clade and additional sequences)
-                18:["Cnidarian",None,None,None],  # All Coral sequences plus other fluorescent cnidarians #Highlight: The tree is too different to certainly locate the all-coral / all-fav ancestors
-                19:["PKinase_PF07714",None,None,None],
-                20:["simulations_CNP_1", 1, "CNP_simulations", "CNP_seq"],  # EvolveAGene4 CNP simulation # 1000 leaves
-                22:["PF01038_msa",None,None,None],
-                23: ["simulations_insulin_1", 1, "Insulin_simulations", "Insulin_seq"],# EvolveAGene4 Insulin simulation #50 leaves
-                24: ["simulations_insulin_2", 2, "Insulin_simulations", "Insulin_seq"],# EvolveAGene4 Insulin simulation #400 leaves
-                25: ["simulations_PIGBOS_1", 1, "PIGBOS_simulations", "PIGBOS_seq"],# EvolveAGene4 PIGBOS simulation #300 leaves
-                26: ["PF00271",None,None,None],
-                27: ["PF00400",None,None,None],
-                28: ["aminopeptidase",None,None,None],
-                29: ["PF01038_lipcti_msa_fungi",None,None,None],
-                30: ["PF00096",None,None,None],
-                31: ["PF00400_200",None, None, None]}
-    #/home/lys/Dropbox/PhD/DRAUPNIR/NovozDataset/PF01038_lipcti_msa_fungi.fasta
-    datasets_full_names = {"benchmark_randall":"Randall's Coral fluorescent proteins (CFP) benchmark dataset",  # the tree is inferred
-                "benchmark_randall_original":"Randall's Coral fluorescent proteins (CFP) benchmark dataset",
-                "benchmark_randall_original_naming":"Randall's Coral fluorescent proteins (CFP) benchmark dataset",  # uses the original tree and it's original node naming
-                "SH3_pf00018_larger_than_30aa":"PF00018 Pfam family of Protein Tyrosine Kinases SH3 domains",  # SRC kinases domain SH3 ---> Leaves and angles testing
-                "simulations_blactamase_1":"32 leaves Simulation Beta-Lactamase",  # EvolveAGene4 Betalactamase simulation
-                "simulations_src_sh3_1":"100 leaves Simulation SRC-Kinase SH3 domain",  # EvolveAGene4 SRC SH3 domain simulation
-                "simulations_src_sh3_2": "800 leaves Simulation SRC-Kinase SH3 domain",
-                "simulations_src_sh3_3": "200 leaves Simulation SRC-Kinase SH3 domain",
-                "simulations_sirtuins_1": "150 leaves Simulation Sirtuin 1",
-                "simulations_insulin_1": "50 leaves Simulation Insulin Growth Factor",
-                "simulations_insulin_2": "400 leaves Simulation Insulin Growth Factor",
-                "simulations_calcitonin_1": "50 leaves Simulation Calcitonin peptide",
-                "simulations_mciz_1": "1600 leaves Simulation MciZ Factor",
-                "simulations_CNP_1": "1000 leaves Simulation natriuretic peptide C",
-                "simulations_PIGBOS_1": "300 leaves parser.add_argument('-use-cuda', type=str2bool, nargs='?',const=True, default=True, help='Use GPU')simulation PIGB Opposite Strand regulator",
-                "Douglas_SRC":"Protein Tyrosin Kinases.",
-                "ANC_A1_subtree":"Protein Tyrosin Kinases ANC-A1 clade",
-                "ANC_A2_subtree":"Protein Tyrosin Kinases ANC-A2 clade",
-                "ANC_AS_subtree":"Protein Tyrosin Kinases ANC-AS clade",
-                "ANC_S1_subtree":"Protein Tyrosin Kinases ANC-S1 clade",
-                "Coral_Faviina":"Coral fluorescent proteins (CFP) Faviina clade",  # Faviina clade from coral sequences
-                "Coral_all":"Coral fluorescent proteins (CFP) clade",  # All Coral sequences (includes Faviina clade and additional sequences)
-                "Cnidarian":"Cnidarian fluorescent proteins (CFP) clade",# All Coral sequences plus other fluorescent cnidarians #Highlight: The tree is too different to certainly locate the all-coral / all-fav ancestors
-                "PKinase_PF07714":"PF07714 Pfam family of Protein Tyrosin Kinases",
-                "PF01038_msa":"PF01038 Pfam family",
-                "PF00271": "Helicase conserved C-terminal domain",
-                "PF00400":"WD40 125 sequences",
-                "aminopeptidase":"Amino Peptidase",
-                "PF01038_lipcti_msa_fungi": "PF01038 Pfam lipcti fungi family ",
-                "PF00096":"PF00096 protein kinases",
-                "PF00400_200":"WD40 200 sequences"}
-
-    name,dataset_number,simulation_folder,root_sequence_name = datasets[args.dataset_number]
-    full_name = datasets_full_names[name]
-    RESULTS_DIR = "{}/PLOTS_GP_VAE_{}_{}_{}epochs_{}".format(script_dir,name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs,args.select_guide)
-
-    build_config= DraupnirDatasets.create_dataset(name,
-                                                 script_dir,
-                                                 build=args.build_dataset,#Activate build in order to create the dataset again, not recommended if the dataset already exists
-                                                 dataset_number=dataset_number,
-                                                 simulation_folder=simulation_folder,
-                                                 root_sequence_name=root_sequence_name)
-    if args.build_dataset:
-        exit()
-
-
-    settings_config = SettingsConfig(one_hot_encoding=False,
-                             model_design="GP_VAE",
-                             aligned_seq=True,
-                             uniprot=False)
-
+    global params_config,build_config,name,RESULTS_DIR,max_seq_len,full_name
 
     print("Loading datasets....")
     train_load,test_load,additional_load,build_config = load_data(settings_config,build_config)
@@ -2270,7 +2185,7 @@ def main(config):
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,RESULTS_DIR,args,build_config)
     train_load,test_load,additional_load= datasets_pretreatment(train_load,test_load,additional_load,build_config,device,name,simulation_folder,root_sequence_name,dataset_number,settings_config)
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(RESULTS_DIR))
-    print("Training....")
+    print("Starting Draupnir ...")
     print("Dataset: {}".format(name))
     print("Number epochs: {}".format(args.num_epochs))
     print("Z/latent Size: {}".format(config["z_dim"]))
@@ -2299,89 +2214,7 @@ def main(config):
         draupnir_train(train_load,test_load,additional_load,additional_info,build_config,settings_config,args.n_samples,graph_coo,clades_dict)
 
     return RESULTS_DIR
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1','True'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0','False'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
-def str2None(v):
 
-    if v.lower() in ('None'):
-        return None
-    else:
-        v = ast.literal_eval(v)
-        return v
-if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Draupnir args")
-    parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
-    parser.add_argument('-dn','--dataset-number', default=2, type=int, help='choose a dataset. see inside main() function')
-    parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
-                        help='Create and store the dataset from an alignment file /tree or just sequences. Add your configuration to Draupnir_Datasets.py')
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
-                                                                'If set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
-                                                                'If set to None it automatically suggests a batch size. '
-                                                                'If batch_by_clade=True: 1 batch= 1 clade (given by clades_dict).'
-                                                                'Else set the batchsize to the given number')
-    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available "delta_map" or "diagonal_normal" or "variational"')
-    parser.add_argument('-bbc','--batch-by-clade', type=str2bool, nargs='?',const=False, default=False, help='Use the leaves divided by their corresponding clades into batches. Do not use with leaf-testing')
-    parser.add_argument('-angles','--infer-angles', type=str2bool, nargs='?',const=False, default=False,help='Additional Inference of angles')
-    parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY, not the latent space). Remember to set plating size, otherwise it is done automatically')
-    parser.add_argument('-plate-size','--plating_size', type=str2None, nargs='?',default=None,help='Set plating/subsampling size '
-                                                                    'If set to None it automatically suggests a plate size, only if args.plating is TRUE!. Otherwise it remains as None and no plating occurs '
-                                                                    'Else it sets the plate size to a given integer')
-    parser.add_argument('-plate-idx-shuffle','--plate-unordered', type=str2bool, nargs='?',const=None, default=False,help='When subsampling/plating, shuffle (True) or not (False) the idx of the sequences which are given in tree level order')
-    parser.add_argument('-SRU','--use-SRU',  type=str2bool, nargs='?', default=False, help='Use SRU mapping instead of GRU')
-    parser.add_argument('-Transformer', '--use-Transformer', type=str2bool, nargs='?', default=False,help='Use Transformer mapping instead of GRU')
-    parser.add_argument('-MLP', '--use-MLP', type=str2bool, nargs='?', default=False,help='Use MLP mapping instead of GRU')
-
-    parser.add_argument('-aa-prob', default=21, type=int, help='20 amino acids,1 gap probabilities')
-    parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples')
-    parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
-    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
-    #TODO: Highlight: HERE YOU CHANGE THE PATH
-    parser.add_argument('-load-predictions', '--load-trained-predictions', type=str2bool, nargs='?', default=False,help='Load predictions (indicate the folder path) from previous run (complete or incomplete)')
-    parser.add_argument('-load-predictions-path', '--load-trained-predictions-path', type=str, nargs='?',
-                        default="",help='Load predictions (folder path)')
-    #TODO: Highlight: SAMPLING!!!!
-    parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (Draupnir Checkpoints) and generate new samples')
-    parser.add_argument('-use-trained-logits','--use-trained-logits', type=str2bool, nargs='?', default=False,help='Load fixed pretrained logits (i.e train_info_dict.torch) and generate new samples')
-    parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_GP_VAE_PF00400_2021_12_14_17h50min17s847480ms_23000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
-
-    parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
-    parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
-    parser.add_argument('-position-embedding-dim', default=30, type=int, help='Tree position embedding dim')
-    parser.add_argument('-max-indel-size', default=5, type=int, help='maximum insertion deletion size (not used)')
-    parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True, help='Use GPU') #not working for encoder
-    parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training')
-    parser.add_argument('-activate-elbo-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the elbo loss is met')
-    parser.add_argument('-activate-entropy-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the sequence entropy is met')
-    parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency during training')
-    parser.add_argument('-d', '--config-dict', default=None,type=str)
-    parser.add_argument('--parameter-search', default=True, type=str) #TODO: Change to something that makes more sense
-    args = parser.parse_args()
-
-    if args.use_cuda:
-        torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        torch.set_default_tensor_type(torch.DoubleTensor)
-        device = "cpu"
-    pyro.set_rng_seed(0) #TODO: Different seeds---> not needed, torch is already running with different seeds
-    #torch.manual_seed(0)
-    pyro.enable_validation(False)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-
-    #Highlight: Activate Random parameter search when saying parameter_search = True
-    parameter_search = False
-    if parameter_search and ast.literal_eval(str(args.parameter_search)):
-        Manual_Random_Search()
-    else:
-        config = config_build(parameter_search)
-        main(config)
 
 

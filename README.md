@@ -1,1 +1,0 @@
-DRAUPNIR_ASR
