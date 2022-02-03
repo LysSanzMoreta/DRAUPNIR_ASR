@@ -4,10 +4,13 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
+import sys
 import pyro
 import torch
+sys.path.append("./draupnir")
 import draupnir
 import argparse
+import os
 from draupnir import str2bool,str2None
 
 def main():
@@ -16,21 +19,17 @@ def main():
     # fasta_file = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF00096.fasta"
     # name = "blob"
     draupnir.available_datasets()
-    build_config,settings_config = draupnir.create_draupnir_dataset(args.dataset_name,
+    build_config,settings_config, root_sequence_name = draupnir.create_draupnir_dataset(args.dataset_name,
                                                            use_custom=args.use_custom,
                                                            build=args.build_dataset,
                                                            fasta_file=args.fasta_file,
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
-    print(build_config)
-    print(settings_config)
-    exit()
     if args.parameter_search:
         draupnir.manual_random_search()
     else:
-        params_config = draupnir.config_build(args)
-        draupnir.draupnir_main(args,params_config,settings_config,build_config)
-
+        #params_config = draupnir.config_build(args)
+        draupnir.draupnir_main(args.dataset_name,args,device,settings_config,build_config,script_dir)
 
 if __name__ == "__main__":
 

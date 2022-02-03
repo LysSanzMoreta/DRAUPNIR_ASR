@@ -217,6 +217,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
 
     else:
         warnings.warn("You have selected to use a custom dataset")
+        root_sequence_name = None
         assert any(v is not None for v in [fasta_file,alignment_file,tree_file]) != False,"Provide at least 1 file path: fasta_file or alignment_file or alignment_file + tree_file"
         build_config = BuildConfig(alignment_file=alignment_file,
                                    use_ancestral=False,
@@ -253,4 +254,4 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                              uniprot=False)
 
 
-    return build_config,settings_config
+    return build_config,settings_config, root_sequence_name

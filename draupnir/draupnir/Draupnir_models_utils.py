@@ -16,11 +16,6 @@ import torch
 from pyro import distributions as dist
 from pyro.distributions.torch_distribution import TorchDistribution
 from torch.distributions import constraints
-#from sru import SRU, SRUCell#--- it's making some weird endless loop error---> re-install?
-try:
-    from seq_conv_ import SeqConv #remember the change!!!! n-nodes=3
-    from torch_geometric_temporal.nn.recurrent import DCRNN
-except:pass
 
 
 class RNNEncoder(nn.Module):
