@@ -65,7 +65,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                             and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
         """
     BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
-    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq", "uniprot"])
+    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder"])
     script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
         name, root_sequence_name = available_datasets()[0][name]
@@ -251,7 +251,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
     settings_config = SettingsConfig(one_hot_encoding=False,
                              model_design="GP_VAE",
                              aligned_seq=True,
-                             uniprot=False)
+                             data_folder=["datasets/custom" if use_custom else "datasets/default"][0])
 
 
     return build_config,settings_config, root_sequence_name

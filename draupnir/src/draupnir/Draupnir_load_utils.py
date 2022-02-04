@@ -1,5 +1,5 @@
 from collections import defaultdict
-import os
+import os,sys
 import numpy as np
 import pandas as pd
 import torch
@@ -7,6 +7,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Seq import Seq
 from Bio import SeqIO
+sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 from collections import namedtuple
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])

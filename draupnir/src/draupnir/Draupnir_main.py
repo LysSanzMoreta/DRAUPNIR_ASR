@@ -50,7 +50,7 @@ AdditionalLoad = namedtuple("AdditionalLoad",
                             ["patristic_matrix_full", "cladistic_matrix_full","children_array", "ancestor_info_numbers", "alignment_length",
                              "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies",
                              "correspondence_dict","special_nodes_dict","full_name"])
-SettingsConfig = namedtuple("SettingsConfig",["one_hot_encoding", "model_design","aligned_seq","uniprot"])
+SettingsConfig = namedtuple("SettingsConfig",["one_hot_encoding", "model_design","aligned_seq","data_folder"])
 ModelLoad = namedtuple("ModelLoad",["z_dim","max_seq_len","device","args","build_config","leaves_nodes","n_tree_levels","gru_hidden_dim","pretrained_params","aa_frequencies","blosum",
                                     "blosum_max","blosum_weighted","dataset_train_blosum","variable_score","internal_nodes","graph_coo","nodes_representations_array","dgl_graph","children_dict",
                                     "closest_leaves_dict","descendants_dict","clades_dict_all","leaves_testing","plate_unordered","one_hot_encoding"])
@@ -58,7 +58,7 @@ BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test
 
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
-def load_data(name,settings_config,build_config,results_dir,script_dir,args):
+def load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args):
     """return
     Train and Test Datasets arrays: [n_seqs, max_len + 2, 30]
         For dimension 2:
@@ -67,10 +67,11 @@ def load_data(name,settings_config,build_config,results_dir,script_dir,args):
             Rest of columns = [integer or one hot encoded amino acid sequence]"""
 
     aligned = ["aligned" if settings_config.aligned_seq else "NOT_aligned"]
-    one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "Integers"]
-    uniprot = ["_UNIPROT" if settings_config.uniprot else ""]
+    one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "integers"]
     #TODO: Fix the dataset load issue
-    dataset = np.load("{}/Datasets_Folder/Dataset_numpy_{}_{}_{}{}.npy".format(script_dir,aligned[0], one_hot[0], name, uniprot[0]),allow_pickle=True)
+
+    dataset = np.load("{}/{}/{}/{}_dataset_numpy_{}_{}.npy".format(script_dir,settings_config.data_folder,name,name,aligned[0], one_hot[0]),allow_pickle=True)
+
     DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
     DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)
     DraupnirUtils.folders(("{}/ReplacementPlots_Train/".format(ntpath.basename(results_dir))), script_dir)
@@ -167,9 +168,9 @@ def load_data(name,settings_config,build_config,results_dir,script_dir,args):
         text_file.write("Alignment length: {} \n".format(alignment_length))
         text_file.write("Max seq length: {} \n".format(max_seq_len))
         text_file.write("Min seq length: {} \n".format(min_seq_len))
-        text_file.write("Learning Rate: {} \n".format(config["lr"]))
-        text_file.write("Z dimension: {} \n".format(config["z_dim"]))
-        text_file.write("GRU hidden size: {} \n".format(config["gru_hidden_dim"]))
+        text_file.write("Learning Rate: {} \n".format(param_config["lr"]))
+        text_file.write("Z dimension: {} \n".format(param_config["z_dim"]))
+        text_file.write("GRU hidden size: {} \n".format(param_config["gru_hidden_dim"]))
         text_file.write("Kappa addition: {} \n".format(args.kappa_addition))
         text_file.write("Amino acid possibilities + gap: {} \n".format(build_config.aa_prob))
         text_file.write("Substitution matrix : {} \n".format(args.subs_matrix))
@@ -185,15 +186,15 @@ def load_data(name,settings_config,build_config,results_dir,script_dir,args):
         text_file.write(str(config) + "\n")
 
     hyperparameters()
-    patristic_matrix = pd.read_csv("{}/Datasets_Folder/Patristic_distance_matrix_{}.csv".format(script_dir, name), low_memory=False)
+    patristic_matrix = pd.read_csv("{}/{}/{}/{}_patristic_distance_matrix.csv".format(script_dir,settings_config.data_folder,name,name), low_memory=False)
     patristic_matrix = patristic_matrix.rename(columns={'Unnamed: 0': 'rows'})
     patristic_matrix.set_index('rows',inplace=True)
     try:
-        cladistic_matrix = pd.read_csv("{}/Datasets_Folder/Cladistic_distance_matrix_{}.csv".format(script_dir,name), index_col="rows",low_memory=False)
+        cladistic_matrix = pd.read_csv("{}/{}/{}/{}_cladistic_distance_matrix.csv".format(script_dir,settings_config.data_folder,name,name), index_col="rows",low_memory=False)
     except: #Highlight: For larger datasets , I do not calculate the cladistic matrix, because there is not a fast method. So no cladistic matrix and consequently , no patrocladistic matrix = evolutionary matrix
         cladistic_matrix = None
 
-    ancestor_info = pd.read_csv("{}/Datasets_Folder/Tree_LevelOrderInfo_{}_{}.csv".format(script_dir,one_hot[0], name), sep="\t",index_col=False,low_memory=False)
+    ancestor_info = pd.read_csv("{}/Datasets_Folder/{}_tree_levelorder_info.csv".format(script_dir,settings_config.data_folder,name,name), sep="\t",index_col=False,low_memory=False)
     ancestor_info["0"] = ancestor_info["0"].astype(str)
     ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
     nodes_names = ancestor_info["0"].tolist()
@@ -2039,17 +2040,18 @@ def manual_random_search():
         print(config)
         proc= subprocess.Popen(args=[sys.executable,"Draupnir.py","--parameter-search","False","--config-dict",str(config).replace("'", '"')],stdout=open('Random_Search_results.txt', 'a')) #stdout=open(os.devnull, 'wb'),stderr=open(os.devnull, 'wb')
         proc.communicate()
-def draupnir_main(name,args,device,settings_config,build_config,script_dir):
+def draupnir_main(name,root_sequence_name,args,device,settings_config,build_config,script_dir):
 
     #global params_config,build_config,name,results_dir,max_seq_len,full_name
     results_dir = "{}/PLOTS_GP_VAE_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),
                                                              args.num_epochs, args.select_guide)
     print("Loading datasets....")
-    train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,results_dir,script_dir,args)
+    param_config = config_build(args)
+    train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
     exit()
     #max_seq_len = additional_load.alignment_length
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
-    train_load,test_load,additional_load= datasets_pretreatment(train_load,test_load,additional_load,build_config,device,name,settings_config)
+    train_load,test_load,additional_load= datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,name,settings_config)
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))
     print("Starting Draupnir ...")
     print("Dataset: {}".format(name))

@@ -11,3 +11,4 @@ Benchmark_Results/*
 !Benchmark_Results/PAML/Merge_tables2.py
 !Benchmark_Results/PAML/FastML_Parser.py
 !Benchmark_Results/PAML/IQTree_Parser.py
+README.md
