@@ -1,0 +1,31 @@
+Metadata-Version: 2.1
+Name: draupnir
+Version: 0.0.11
+Summary: Ancestral sequence reconstruction using a tree structured Ornstein Uhlenbeck variational autoencoder
+Home-page: https://github.com/LysSanzMoreta/DRAUPNIR_ASR
+Author: Lys Sanz Moreta
+Author-email: lys.sanz.moreta@outlook.com
+License: UNKNOWN
+Project-URL: Changelog, https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/master/CHANGELOG.rst
+Project-URL: Issue Tracker, https://github.com/LysSanzMoreta/DRAUPNIR_ASR/issues
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3 :: Only
+Requires-Python: >=3.6, <4
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+DRAUPNIR: "I am a very Beta version, do not use me"
+
+
+
+
+
+
+
+
+
+
+

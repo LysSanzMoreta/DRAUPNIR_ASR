@@ -1,7 +1,8 @@
-import os, itertools
+import os, itertools,sys
 from collections import defaultdict
 import torch
 import numpy as np
+sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 import Draupnir_models_utils as DraupnirModelUtils
 import pandas as pd

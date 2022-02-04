@@ -1,4 +1,6 @@
 import torch
+import sys
+sys.path.append("./draupnir/draupnir")
 from pyro.contrib.easyguide import EasyGuide
 import pyro
 import pyro.distributions as dist

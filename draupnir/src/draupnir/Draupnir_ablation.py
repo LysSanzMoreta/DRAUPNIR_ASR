@@ -10,7 +10,6 @@ import time
 #import easydict
 import warnings
 from collections import namedtuple
-
 import dill
 import matplotlib.pyplot as plt
 import numpy as np

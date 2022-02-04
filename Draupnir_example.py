@@ -35,16 +35,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="blah",
+                        default="PF0096",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=True,
                         help='Use a custom dataset (datasets/custom) or a default dataset (shown in paper) (datasets/default)')
     parser.add_argument('--alignment-file', type=str, nargs='?',
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/blah.mafft",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF0096.mafft",
                         help='Path to alignment in fasta format')
     parser.add_argument('--tree-file', type=str, nargs='?',
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/blah.mafft.treefile",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF0096.mafft.treefile",
                         help='Path to newick tree (format 1 from ete3)')
     parser.add_argument('--fasta-file', type=str, nargs='?',
                         default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF00096.fasta",

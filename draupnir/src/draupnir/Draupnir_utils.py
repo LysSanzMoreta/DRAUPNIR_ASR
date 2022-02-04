@@ -43,6 +43,7 @@ import statistics
 import seaborn as sns
 from collections import defaultdict
 import pickle
+sys.path.append("./draupnir/draupnir")
 import Draupnir_models_utils as DraupnirModelUtils
 from collections import namedtuple
 import Bio.PDB as PDB
@@ -109,7 +110,7 @@ def aminoacid_names_dict(aa_probs):
     elif aa_probs > 22:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
         return aminoacid_names
-def Create_Blosum(aa_prob,subs_matrix):
+def create_blosum(aa_prob,subs_matrix):
     """Substitution matrices, available at /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data"""
 
     if aa_prob > 21 and not subs_matrix.startswith("PAM"):
@@ -1782,7 +1783,7 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
             graph_coo=None
             edge_weight_matrix=None
             dgl_graph = None
-        blosum_array,blosum_dict = Create_Blosum(build_config.aa_prob,args.subs_matrix)
+        blosum_array,blosum_dict = create_blosum(build_config.aa_prob,args.subs_matrix)
 
         #dgl_graph.ndata['x'] = torch.zeros((3, 5)) #to add later in the model it will be the latent space that gets transformed to logits
         #G.nodes[[0, 2]].data['x'] = th.ones((2, 5))
@@ -1856,10 +1857,10 @@ def Plot_Entropy(train_entropy,results_dict,test_frequency=1):
         plt.title("Shanon Entropy Convergence")
         plt.savefig("{}/Entropy_convergence.png".format(results_dict))
         plt.close(fig)
-def calculate_aa_frequencies(Dataset,freq_bins):
-    freqs = torch.stack([ torch.bincount(x, minlength=freq_bins) for i, x in enumerate(torch.unbind(Dataset, dim=1), 0)], dim=0)
-    freqs = freqs / Dataset.shape[0]
-    return freqs
+# def calculate_aa_frequencies(Dataset,freq_bins):
+#     freqs = torch.stack([ torch.bincount(x, minlength=freq_bins) for i, x in enumerate(torch.unbind(Dataset, dim=1), 0)], dim=0)
+#     freqs = freqs / Dataset.shape[0]
+#     return freqs
 class MyDataset(Dataset):#TODO: remove
     def __init__(self,labels,data_arrays):
         self.labels = labels
@@ -1949,16 +1950,16 @@ def setup_data_loaders_Family(Family_datasets,Family_labels, batchsize, use_cuda
 
     print(' Train_loader size: ', len(train_loader), 'batches')
     return train_loader
-def setup_data_loaders(Dataset,Patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
+def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
     '''If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used'''
     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-    Patristic_matrix_train = Patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader
-    n_seqs = Dataset.shape[0]
+    patristic_matrix_train = patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader
+    n_seqs = dataset.shape[0]
     if method == "batch_dim_0":
         if args.batch_size == 1 : #only 1 batch // plating
 
-            train_loader = DataLoader(Dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
+            train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
                 train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
         else:
@@ -1970,12 +1971,12 @@ def setup_data_loaders(Dataset,Patristic_matrix_train,clades_dict,blosum,build_c
             batch_blosums_max = []
             batch_blosums_weighted = []
             for block_idx in blocks:
-                batch_data = Dataset[int(block_idx[0]):int(block_idx[1])]
+                batch_data = dataset[int(block_idx[0]):int(block_idx[1])]
                 batch_datasets.append(batch_data.cpu())
                 batch_nodes = batch_data[:,0,1]
-                patristic_indexes = (Patristic_matrix_train[:, 0][..., None] == batch_nodes.cpu()).any(-1)
+                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == batch_nodes.cpu()).any(-1)
                 patristic_indexes[0] = True  # To re-add the node names
-                batch_patristic = Patristic_matrix_train[patristic_indexes]
+                batch_patristic = patristic_matrix_train[patristic_indexes]
                 batch_patristic = batch_patristic[:,patristic_indexes]
                 batch_patristics.append(batch_patristic)
 
@@ -2007,16 +2008,16 @@ def setup_data_loaders(Dataset,Patristic_matrix_train,clades_dict,blosum,build_c
         for key,values in clades_dict.items():
             clade_labels.append(key)
             if isinstance(values,list) and len(values) > 1:
-                clades_indexes = (Dataset[:, 0,1][..., None] == torch.Tensor(values)).any(-1)
-                patristic_indexes = (Patristic_matrix_train[:, 0][..., None] == torch.Tensor(values).cpu()).any(-1)
+                clades_indexes = (dataset[:, 0,1][..., None] == torch.Tensor(values)).any(-1)
+                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == torch.Tensor(values).cpu()).any(-1)
             else:
-                clades_indexes = (Dataset[:, 0, 1][..., None] == values).any(-1)
-                patristic_indexes = (Patristic_matrix_train[:, 0][..., None] == values).any(-1)
+                clades_indexes = (dataset[:, 0, 1][..., None] == values).any(-1)
+                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == values).any(-1)
 
             clade_dataset = Dataset[clades_indexes]
             clades_datasets.append(clade_dataset.cpu())
             patristic_indexes[0] = True # To re-add the node names
-            clade_patristic = Patristic_matrix_train[patristic_indexes]
+            clade_patristic = patristic_matrix_train[patristic_indexes]
             clade_patristic = clade_patristic[:,patristic_indexes]
             clades_patristic.append(clade_patristic)
             clade_aa_frequencies = calculate_aa_frequencies(clade_dataset[:,2:,0].cpu().numpy(),build_config.aa_prob)
@@ -2037,90 +2038,90 @@ def setup_data_loaders(Dataset,Patristic_matrix_train,clades_dict,blosum,build_c
     print(' Train_loader size: ', len(train_loader), 'batches')
 
     return train_loader
-def setup_data_loaders_Pretrain(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
-    '''Load each famility one at the time
-    Family_datasets = Dictionary containing information (torch.array) on each of the families
-    '''
-    # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-    kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-    n_seqs = Train_data.shape[0]
-    max_seq_len = Train_data.shape[1]
-    # Generate selection indexes
-    blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
-    blosum = torch.from_numpy(Create_Blosum(aa_probs))
-    #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
-    #Split the patristic matrix into block matrices
-    family_labels = ["family_{}".format(i) for i in range(len(blocks))]
-    family_datasets = []
-    family_patristics = []
-    family_aa_freqs = []
-    family_blosums_max = []
-    family_blosums_weighted = []
-    for block_idx in blocks:
-        family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
-        family_datasets.append(family_data)
-        family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
-        family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
-        family_patristics.append(family_patristic)
-        aa_frequencies = calculate_aa_frequencies(family_data,aa_probs)
-        family_aa_freqs.append(aa_frequencies)
-        family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
-        family_blosums_max.append(family_blosum_max)
-        family_blosums_weighted.append(family_blosum_weighted)
-
-    Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
-    train_loader = DataLoader(Families_Datasets, **kwargs)
-    for batch_number, dataset in enumerate(train_loader):
-        for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
-            family_dataset.to('cuda', non_blocking=True)
-            family_patristic.to('cuda', non_blocking=True)
-            family_aa_freqs.to('cuda', non_blocking=True)
-            family_blosum_max.to('cuda', non_blocking=True)
-            family_blosum_weighted.to('cuda',non_blocking=True)
-    print(' Train_loader size: ', len(train_loader), 'batches')
-    return train_loader
-def setup_data_loaders_Pretrain_VAE(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
-    '''Load each famility one at the time
-    Family_datasets = Dictionary containing information (torch.array) on each of the families
-    '''
-    # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-    kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-    n_seqs = Train_data.shape[0]
-    max_seq_len = Train_data.shape[1]
-    # Generate selection indexes
-    blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
-    blosum = torch.from_numpy(Create_Blosum(aa_probs))
-    #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
-    #Split the patristic matrix into block matrices
-    family_labels = ["family_{}".format(i) for i in range(len(blocks))]
-    family_datasets = []
-    family_patristics = []
-    family_aa_freqs = []
-    family_blosums_max = []
-    family_blosums_weighted = []
-    for block_idx in blocks:
-        family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
-        family_datasets.append(family_data)
-        family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
-        family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
-        family_patristics.append(family_patristic)
-        aa_frequencies = calculate_aa_frequencies(family_data,aa_probs) #TODO: change to aa_frequencies()
-        family_aa_freqs.append(aa_frequencies)
-        family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
-        family_blosums_max.append(family_blosum_max)
-        family_blosums_weighted.append(family_blosum_weighted)
-
-    Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
-    train_loader = DataLoader(Families_Datasets, **kwargs)
-    for batch_number, dataset in enumerate(train_loader):
-        for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
-            family_dataset.to('cuda', non_blocking=True)
-            family_patristic.to('cuda', non_blocking=True)
-            family_aa_freqs.to('cuda', non_blocking=True)
-            family_blosum_max.to('cuda', non_blocking=True)
-            family_blosum_weighted.to('cuda',non_blocking=True)
-    print(' Train_loader size: ', len(train_loader), 'batches')
-    return train_loader
+# def setup_data_loaders_Pretrain(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
+#     '''Load each famility one at the time
+#     Family_datasets = Dictionary containing information (torch.array) on each of the families
+#     '''
+#     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
+#     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
+#     n_seqs = Train_data.shape[0]
+#     max_seq_len = Train_data.shape[1]
+#     # Generate selection indexes
+#     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
+#     blosum = torch.from_numpy(create_blosum(aa_probs))
+#     #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
+#     #Split the patristic matrix into block matrices
+#     family_labels = ["family_{}".format(i) for i in range(len(blocks))]
+#     family_datasets = []
+#     family_patristics = []
+#     family_aa_freqs = []
+#     family_blosums_max = []
+#     family_blosums_weighted = []
+#     for block_idx in blocks:
+#         family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
+#         family_datasets.append(family_data)
+#         family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
+#         family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
+#         family_patristics.append(family_patristic)
+#         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs)
+#         family_aa_freqs.append(aa_frequencies)
+#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
+#         family_blosums_max.append(family_blosum_max)
+#         family_blosums_weighted.append(family_blosum_weighted)
+#
+#     Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
+#     train_loader = DataLoader(Families_Datasets, **kwargs)
+#     for batch_number, dataset in enumerate(train_loader):
+#         for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
+#             family_dataset.to('cuda', non_blocking=True)
+#             family_patristic.to('cuda', non_blocking=True)
+#             family_aa_freqs.to('cuda', non_blocking=True)
+#             family_blosum_max.to('cuda', non_blocking=True)
+#             family_blosum_weighted.to('cuda',non_blocking=True)
+#     print(' Train_loader size: ', len(train_loader), 'batches')
+#     return train_loader
+# def setup_data_loaders_Pretrain_VAE(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
+#     '''Load each famility one at the time
+#     Family_datasets = Dictionary containing information (torch.array) on each of the families
+#     '''
+#     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
+#     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
+#     n_seqs = Train_data.shape[0]
+#     max_seq_len = Train_data.shape[1]
+#     # Generate selection indexes
+#     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
+#     blosum = torch.from_numpy(create_blosum(aa_probs))
+#     #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
+#     #Split the patristic matrix into block matrices
+#     family_labels = ["family_{}".format(i) for i in range(len(blocks))]
+#     family_datasets = []
+#     family_patristics = []
+#     family_aa_freqs = []
+#     family_blosums_max = []
+#     family_blosums_weighted = []
+#     for block_idx in blocks:
+#         family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
+#         family_datasets.append(family_data)
+#         family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
+#         family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
+#         family_patristics.append(family_patristic)
+#         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs) #TODO: change to aa_frequencies()
+#         family_aa_freqs.append(aa_frequencies)
+#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
+#         family_blosums_max.append(family_blosum_max)
+#         family_blosums_weighted.append(family_blosum_weighted)
+#
+#     Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
+#     train_loader = DataLoader(Families_Datasets, **kwargs)
+#     for batch_number, dataset in enumerate(train_loader):
+#         for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
+#             family_dataset.to('cuda', non_blocking=True)
+#             family_patristic.to('cuda', non_blocking=True)
+#             family_aa_freqs.to('cuda', non_blocking=True)
+#             family_blosum_max.to('cuda', non_blocking=True)
+#             family_blosum_weighted.to('cuda',non_blocking=True)
+#     print(' Train_loader size: ', len(train_loader), 'batches')
+#     return train_loader
 def Covariance(x,y):
     """Computes cross-covariance between vectors, and is defined by cov[X,Y]=E[(X−μX)(Y−μY)T]"""
     A = torch.sqrt(torch.arange(12).reshape(3, 4))  # some 3 by 4 array
@@ -2283,16 +2284,10 @@ def SimulationsDatasetTest(ancestral_file,tree_level_order_names,aligned,train_m
 
     return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
 
-def BenchmarkDatasetTest(scriptdir,inferred=True,original_naming=False,aa_probs=21):
+def randalls_dataset(scriptdir,aa_probs=21):
     "Pick from the ancestral sequences those of interest/available in the Iqtree"
-    if inferred:
-        internal_nodes = [21,30,32,31,22,33,34,35,28,23,36,29,27,24,26,25] #original names --> Highlight: Skip 37, does not have strict equivalent
-    else:
-        if original_naming:
-            internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
-        else:
-            internal_nodes = [37,22,30,23,28,31,32,24,27,29,33,34,25,26,35,36] #original names
-    sequences_file = "{}/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
+    internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
+    sequences_file = "{}/datasets/default/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
     # Select the sequences of only the observed nodes
     full_fasta = SeqIO.parse(sequences_file, "fasta")
     aminoacid_names= aminoacid_names_dict(aa_probs)
@@ -2307,17 +2302,17 @@ def BenchmarkDatasetTest(scriptdir,inferred=True,original_naming=False,aa_probs=
             internal_fasta_dict[int(seq.id)] = [seq.seq,seq_numbers]
     max_length = max([int(len(sequence[0])) for idx,sequence in internal_fasta_dict.items()]) #225
 
-    Dataset = np.zeros((len(internal_fasta_dict), max_length + 1 + 1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +2 (to include git, seqlen)
+    dataset = np.zeros((len(internal_fasta_dict), max_length + 1 + 1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +2 (to include git, seqlen)
     for i, (key,val) in enumerate(internal_fasta_dict.items()):
         # aligned_seq = list(alignment[i].seq.strip(",")) # I don't think this made sense, cause files could be in wrong order?
         aligned_seq = list(internal_fasta_dict[key][0].strip(","))
         no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 2  # plus 2 in order to make the indexes fit in the final dataframe
-        Dataset[i, 0,0] = len(internal_fasta_dict[key][1]) #Insert seq len and git vector
-        Dataset[i,0,1] = key #position in the tree
-        Dataset[i, 0, 2] =  0 #distance to the root? according to the documentation, but is different from the patristic distances
-        Dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
+        dataset[i, 0,0] = len(internal_fasta_dict[key][1]) #Insert seq len and git vector
+        dataset[i,0,1] = key #position in the tree
+        dataset[i, 0, 2] =  0 #fake distance to the root
+        dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
 
-    return Dataset, internal_nodes
+    return dataset, internal_nodes
 def Renaming(tree):
         "Rename the internal nodes, unless the given newick file already has the names on it"
         #Rename the internal nodes
@@ -2428,23 +2423,14 @@ def compare_trees(t1,t2):
     cmd = [command, path2script] + args
     distance = subprocess.check_output(cmd, universal_newlines=True)
     return distance
-def BenchmarkTest_Load(name,Dataset_test, scriptdir):
-    if name == "benchmark_randall": #Highlight: Cannot calculate the MRCA scores because current tree building programs only use the leaves
-        Dataset_test,internal_names_test = BenchmarkDatasetTest(scriptdir,inferred=True)
-        Dataset_test = np.array(Dataset_test,dtype="float64")
-        Dataset_test = torch.from_numpy(Dataset_test)
-    elif name == "benchmark_randall_original":
-        Dataset_test,internal_names_test = BenchmarkDatasetTest(scriptdir,inferred=False)
-        Dataset_test = np.array(Dataset_test, dtype="float64")
-        Dataset_test = torch.from_numpy(Dataset_test)
-    elif name == "benchmark_randall_original_naming":
-        Dataset_test,internal_names_test = BenchmarkDatasetTest(scriptdir,inferred=False,original_naming=True)
-        Dataset_test = np.array(Dataset_test, dtype="float64")
-        Dataset_test = torch.from_numpy(Dataset_test)
-    return Dataset_test,internal_names_test
-def SimulationTest_Load(aligned_seq,max_seq_len,tree_levelorder_names,simulation_folder,root_sequence_name,dataset_number,aa_prob,script_dir):
+def load_randalls_benchmark_ancestral_sequences(scriptdir):
+    dataset_test,internal_names_test = randalls_dataset(scriptdir)
+    dataset_test = np.array(dataset_test, dtype="float64")
+    dataset_test = torch.from_numpy(dataset_test)
+    return dataset_test,internal_names_test
+def load_simulations_ancestral_sequences(name,aligned_seq,max_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
 
-    Dataset_test, leaves_names_test,max_len_test = SimulationsDatasetTest(ancestral_file="{}/Datasets_Simulations/{}/Dataset{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,simulation_folder,dataset_number,root_sequence_name),
+    Dataset_test, leaves_names_test,max_len_test = SimulationsDatasetTest(ancestral_file="{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,name,root_sequence_name),
                                                                            tree_level_order_names=tree_levelorder_names,
                                                                            aligned=aligned_seq,
                                                                            train_max_len=max_seq_len,
@@ -2507,7 +2493,7 @@ def blosum_embedding_encoder(blosum,aa_freqs,max_seq_len,aa_prob,dataset_train, 
     aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
 
     if one_hot_encoding: #TODO: check that this works
-        dataset_train = ConvertToIntegers(dataset_train,aa_prob,axis=2)
+        dataset_train = convert_to_integers(dataset_train,aa_prob,axis=2)
 
     aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_prob,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_prob times]--seems correct
     blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],max_seq_len, 1, 1)  # [N,max_len,aa_prob,aa_prob]

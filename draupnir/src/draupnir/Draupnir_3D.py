@@ -6,13 +6,13 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 """
 import argparse
 import os.path
-
 from Bio.PDB import MMCIFParser, PDBIO
 import pnerf as pnerf
 from collections import namedtuple
 import pymol2
 from SUPERPOSITION import *
 import calculate_coords as nerf
+sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 import datetime
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
