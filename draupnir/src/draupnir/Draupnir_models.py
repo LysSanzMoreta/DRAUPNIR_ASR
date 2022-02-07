@@ -8,7 +8,7 @@ import torch
 import sys
 from collections import defaultdict,namedtuple
 from torch.distributions import constraints, transform_to
-sys.path.append("./draupnir/draupnir")
+sys.path.append("./draupnir/src/draupnir")
 import Draupnir_utils as DraupnirUtils
 from Draupnir_models_utils import *
 #from Draupnir_models_utils_bis import *
@@ -32,7 +32,7 @@ class DRAUPNIRModelClass(nn.Module):
         self.z_dim = ModelLoad.z_dim
         self.leaves_nodes = ModelLoad.leaves_nodes
         self.n_tree_levels = ModelLoad.n_tree_levels
-        self.max_seq_len = ModelLoad.max_seq_len
+        self.align_seq_len = ModelLoad.align_seq_len
         self.aa_prob = ModelLoad.build_config.aa_prob
         self.edge_info = ModelLoad.graph_coo #for the gnn + gru hybrid model
         self.nodes_representations_array = ModelLoad.nodes_representations_array
@@ -75,8 +75,8 @@ class DRAUPNIRModelClass(nn.Module):
             self.h_0_MODEL = nn.Parameter(self.pretrained_params["h_0_MODEL"], requires_grad=False).to(self.device)
         else:
             self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len,self.aa_prob,self.gru_hidden_dim, self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        #self.decoder = RNNDecoder_FCL(self.max_seq_len, self.aa_prob,self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.batch_first)
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len,self.aa_prob,self.gru_hidden_dim, self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        #self.decoder = RNNDecoder_FCL(self.align_seq_len, self.aa_prob,self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.batch_first)
         if ModelLoad.args.use_cuda:
             self.cuda()
     @abstractmethod
@@ -350,7 +350,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
         self.num_layers = 1
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
     def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
@@ -363,10 +363,10 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         latent_space = self.gp_prior(patristic_matrix_sorted)
 
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum) #TODO: Introduce a noise variable to be able to deal with more random mutations?
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional
 
@@ -375,7 +375,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
                 logits = self.decoder.forward(
                     input=latent_space,
                     hidden=decoder_hidden)
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,max_seq_len]
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test2: #MAP estimate
@@ -392,12 +392,12 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_ = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
             logits = self.decoder.forward(
                 input=latent_space_,
                 hidden=decoder_hidden)
@@ -424,7 +424,7 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
     def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
@@ -433,7 +433,7 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional
 
@@ -443,7 +443,7 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),
-                            obs=aminoacid_sequences)  # aa_seq = [n_nodes,max_seq_len]
+                            obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test or use_test2:
@@ -456,9 +456,9 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_ = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
             logits = self.decoder.forward(
                 input=latent_space_,
                 hidden=decoder_hidden)
@@ -486,7 +486,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
         self.num_layers = 2
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
         self.splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.n_leaves), int(self.n_leaves / self.plate_size)) * self.num_epochs)
         if self.plate_unordered:
@@ -503,10 +503,10 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum) #TODO: Introduce a noise variable to be able to deal with more random mutations?
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  #TODO: Should the subsamples are sharing the same initial hidden state?
@@ -516,7 +516,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                 logits = self.decoder.forward(
                     input=latent_space[indx],
                     hidden=decoder_hidden[:,indx])
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,max_seq_len]
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
     def model_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
@@ -528,10 +528,10 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum) #TODO: Introduce a noise variable to be able to deal with more random mutations?
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  #TODO: Should the subsamples are sharing the same initial hidden state?
@@ -542,7 +542,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                 logits = self.decoder.forward(
                     input=latent_space[indx],
                     hidden=decoder_hidden[:,indx])
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,max_seq_len]
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
 
 
@@ -557,12 +557,12 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_b = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_b.shape[0], 1).reshape(latent_space_b.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_b = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_b.shape[0], 1).reshape(latent_space_b.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_b = torch.cat((latent_space_b, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_b = torch.cat((latent_space_b, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1):
             with pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes) as indx:
                 logits = self.decoder.forward(
                     input=latent_space_b[indx],
@@ -591,9 +591,9 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
 
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.num_layers = 1
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
         self.n_splits =  int(self.n_leaves/self.plate_size)
         self.splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.n_leaves), int(self.n_leaves/self.plate_size))*self.num_epochs)
@@ -609,10 +609,10 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        # blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        # blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         # blosum = self.embed(blosum) #TODO: Introduce a noise variable to be able to deal with more random mutations?
-        # latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        # latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2,
                                                latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional #TODO: same hidden state sliced or new hidden states for every subsample
@@ -623,16 +623,16 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
             with pyro.plate("plate_seq", aminoacid_sequences.shape[0], dim=-2,subsample= self.splitted_leaves_indexes.pop(0))as indx:  # Highlight: Ordered subsampling
                 latent_space_subsample = latent_space[indx]
                 aa_frequencies = Draupnir_utils.calculate_aa_frequencies_torch(aminoacid_sequences[indx],self.aa_prob) #TODO, merge in class function
-                blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(self.blosum, aa_frequencies,self.max_seq_len,self.aa_prob)
+                blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(self.blosum, aa_frequencies,self.align_seq_len,self.aa_prob)
                 blosum_embedding = blosum_weighted.repeat(latent_space_subsample.shape[0], 1).reshape(latent_space_subsample.shape[0],
-                                                                                       self.max_seq_len,
+                                                                                       self.align_seq_len,
                                                                                        self.aa_prob)  # [n_nodes,max_seq,21]
                 blosum_embedding = self.embed(blosum_embedding)
-                latent_space_subsample = torch.cat((latent_space_subsample, blosum_embedding), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+                latent_space_subsample = torch.cat((latent_space_subsample, blosum_embedding), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
                 logits = self.decoder.forward(
                         input=latent_space_subsample,
                         hidden=decoder_hidden[:,indx])
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences[indx]) #aa_seq = [n_nodes,max_seq_len]
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences[indx]) #aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test or use_test2:
@@ -645,12 +645,12 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_extended = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_extended = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1):
             with pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
                 logits = self.decoder.forward(
                     input=latent_space_extended,
@@ -677,8 +677,8 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
     def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
@@ -691,13 +691,13 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space of all the leaves
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
         #if clade_blosum is not None: #Highlight: For clade training we only use the blosum information of that part of the alignment that includes the sequences in the clade TODO: Move outside training
-        blosum = clade_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        blosum = clade_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         #else: #blosum embedding is based on the entire alignment
-        #blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        #blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         batch_latent_space = latent_space[batch_indexes] #In order to reduce the load on the GRU memory we split the latent space of the leaves by clades/batch
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2,
                                                batch_latent_space.shape[0],
@@ -706,7 +706,7 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
             logits = self.decoder.forward(
                     input=batch_latent_space,
                     hidden=decoder_hidden)
-            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test:
@@ -723,12 +723,12 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_extended = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_extended = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
             logits = self.decoder.forward(
                     input=latent_space_extended,
                     hidden=decoder_hidden)
@@ -753,8 +753,8 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        self.decoder = RNNDecoder_Tiling(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
     def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
@@ -768,10 +768,10 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space of all the leaves
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2,
                                                latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional
@@ -781,7 +781,7 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
                     hidden=decoder_hidden)
             #Highlight: Observe only some of the leaves
             logits = logits[train_indexes]
-            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test2:
@@ -801,12 +801,12 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
             n_nodes = self.n_leaves
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_extended = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_extended = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
             logits = self.decoder.forward(
                     input=latent_space_extended,
                     hidden=decoder_hidden)
@@ -836,7 +836,7 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
-        self.decoder = RNNDecoder_Tiling_Angles(self.max_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_prob, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_prob,self.embedding_dim, self.pretrained_params)
     def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
@@ -852,11 +852,11 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
 
-        latent_space = latent_space.repeat(1,self.max_seq_len).reshape(latent_space.shape[0],self.max_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
 
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2,
                                                latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional
@@ -867,7 +867,7 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
             logits = logits[train_indexes]
             means = means[train_indexes]
             kappas = kappas[train_indexes]
-            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,align_seq_len]
             pyro.sample("phi",dist.VonMises(loc = means[:,:,0],concentration = kappas[:,:,0]).mask(angles_mask), obs=angles[:,:,0])
             pyro.sample("psi",dist.VonMises(loc = means[:,:,1],concentration = kappas[:,:,1]).mask(angles_mask), obs=angles[:,:,1])
 
@@ -893,12 +893,12 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
                                                latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # Contains 2 hidden states in 1, to be processed by different GRU/SRUs
 
-        latent_space_extended = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.max_seq_len, self.z_dim)
-        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.max_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
+        latent_space_extended = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_extended.shape[0], 1).reshape(latent_space_extended.shape[0], self.align_seq_len,self.aa_prob)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
-        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        latent_space_extended = torch.cat((latent_space_extended, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
 
             logits,means,kappas = self.decoder.forward(
                 input=latent_space_extended,

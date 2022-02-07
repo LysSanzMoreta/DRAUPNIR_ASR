@@ -19,32 +19,7 @@ from sklearn.manifold import TSNE
 import statistics
 import umap
 from scipy import stats
-def Plotting(name,family_data, Dataset_test, aa_sequences_predictions,n_samples, results_directory, leaves_names_test,aa_prob):
-    #TODO: remove
-    ancestor = None
-    children_indexes = Dataset_test[:, 0, 1]  # [493, 500]
-    # Dataset_filtered = Dataset_train[~np.isin(Dataset_train[:, 0, 1], children_indexes)]  # Excluding the test sequences?
-    # Dataset_children_observed = Dataset_train[np.isin(Dataset_train[:, 0, 1], children_indexes)]  # torch.Size([2, , 30])
-    Dataset_children_observed = Dataset_test
-    # Dataset_children_predicted = Dataset_children_observed[:,2:,0].unsqueeze(0).repeat_interleave(10,dim=0) #Highlight: use to plot the observed against themselves
 
-    # Highlight: Reattach all the sequence information (len, node index, distance to root)
-    len_info = Dataset_test[:, 0, 0].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(Dataset_test), 1)
-    node_info = Dataset_test[:, 0, 1].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(Dataset_test), 1)
-    distance_info = Dataset_test[:, 0, 2].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(Dataset_test), 1)
-    aa_sequences_predictions = aa_sequences_predictions.cpu().detach()
-    aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
-    aa_sequences_predictions = aa_sequences_predictions.numpy()
-    Dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], children_indexes), 3:]
-    DraupnirUtils.Build_dataframes_TEST_SVI(Dataset_children_predicted,
-                                            Dataset_children_observed[:, 2:, 0],
-                                            name,
-                                            n_samples,
-                                            ancestor,
-                                            children_indexes,
-                                            results_directory,
-                                            aa_prob,
-                                            leaves_names_test=leaves_names_test)
 def plot_z(latent_space, children_dict, epoch, results_dir):
 
     fig, ax = plt.subplots(figsize=(50, 30))  # 18 for 1 col
@@ -62,7 +37,7 @@ def plot_z(latent_space, children_dict, epoch, results_dir):
     plt.title(r"Latent space ($\mathcal{Z}$) vector coloured by ancestor and respective children nodes",fontsize=40)
     plt.savefig("{}/z_vector_plot".format(results_dir))
 def plotting_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
-    """Dataset test: Observed test sequences"""
+    """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined"""
 
     phi_angles = samples_out.phis
     psi_angles = samples_out.psis
@@ -139,6 +114,10 @@ def save_ancestors_predictions(name,dataset_test,aa_sequences_predictions,n_samp
                 for segment in splitted_seq:
                     f.write("{}\n".format(segment))
 def save_ancestors_predictions_coral(name,test_ordered_nodes,aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_prob):
+    """Transform the tensor containing the sequences predictions to a fasta file
+    :param str name: dataset name
+    :param tensor test_ordered_nodes: Tensor containing the tree-level order of the test sequences (leaves or ancestors depending on the case)
+    :param aa_sequences_predictions: Tensor containing the predictions of the amino acid sequences in numerical form (gap or aa are referred from numbers 0 to 20)"""
     print("Saving ancestor's nodes sequences ...")
     node_info = test_ordered_nodes.repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(test_ordered_nodes), 1)
     node_names = ["{}//{}".format(correspondence_dict[index], index) for index in test_ordered_nodes.tolist()]
@@ -236,7 +215,7 @@ def plotting_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_pre
     DraupnirUtils.incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load)
 
 
-    DraupnirUtils.Heatmaps(dataset_children_predicted,
+    DraupnirUtils.heatmaps(dataset_children_predicted,
                            dataset_test,
                            name,
                            n_samples,
@@ -247,7 +226,7 @@ def plotting_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_pre
                            additional_info,
                            correspondence_dict)
     if replacement_plots:
-        DraupnirUtils.BarPlot_aa_replacement(dataset_children_predicted[:,:,3:],
+        DraupnirUtils.barplot_aa_replacement(dataset_children_predicted[:,:,3:],
                                             dataset_test[:, 2:, 0],
                                             additional_load.full_name,
                                             n_samples,
@@ -276,7 +255,7 @@ def plot_entropies(name,seq_entropies,results_directory,correspondence_dict):
     plt.title("Shannon entropy: {}".format(data_name))
     plt.savefig("{}/Entropy.png".format(results_directory))
     plt.close()
-def Plot_Overlapping_Hist(name,Dataset_train,Dataset_test, aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_prob):
+def plot_overlapping_histogram(name,Dataset_train,Dataset_test, aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_prob):
     #TODO: Fix the device problem if they should be used to see the distances between internal and leaves nodes
     children_indexes = Dataset_test[:, 0, 1].cpu()
     len_info = Dataset_test[:, 0, 0].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(Dataset_test), 1)
@@ -286,7 +265,7 @@ def Plot_Overlapping_Hist(name,Dataset_train,Dataset_test, aa_sequences_predicti
     aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
     aa_sequences_predictions = aa_sequences_predictions.cpu().detach().numpy()
     Dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], children_indexes)]
-    DraupnirUtils.Build_dataframes_OverlappingHistograms(Dataset_children_predicted,
+    DraupnirUtils.build_dataframes_overlapping_histograms(Dataset_children_predicted,
                                                          Dataset_train.cpu(),
                                                          Dataset_test.cpu(),
                                                          name,
@@ -792,7 +771,7 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     exit()
 
 
-def CleanRealign(name,dataset_test,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
+def clean_and_realign_test(name,dataset_test,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
     """a)Select from the predictions only the sequences in the dataset_test.
      b) Convert to sequences
      c) Remove gaps
@@ -919,7 +898,7 @@ def CleanRealign(name,dataset_test,aa_sequences_predictions,test_ordered_nodes,n
 
 
     plot_results()
-def CleanRealign_Train(name,dataset_test,dataset_train,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
+def clean_and_realign_train(name,dataset_test,dataset_train,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
     # Highlight: Heatmap of the test sequences against the train sequences
     node_info = test_ordered_nodes.repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(test_ordered_nodes), 1)
     aa_sequences_predictions = torch.cat((node_info,aa_sequences_predictions),dim=2)

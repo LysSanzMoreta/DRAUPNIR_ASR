@@ -19,13 +19,13 @@ from torch.distributions import constraints
 
 
 class RNNEncoder(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNEncoder, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.n_leaves = n_leaves
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -49,7 +49,7 @@ class RNNEncoder(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
         rnn_output = self.fc1(rnn_output[:,-1]) #pick the last state of the sequence given by the GRU
         output_means = self.linear_means(rnn_output)
         output_std = self.softplus(self.linear_std(rnn_output))
@@ -57,13 +57,13 @@ class RNNEncoder(nn.Module):
 
 
 class RNNEncoder_no_mean(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNEncoder_no_mean, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.n_leaves = n_leaves
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -87,7 +87,7 @@ class RNNEncoder_no_mean(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
         rnn_output = self.fc1(rnn_output[:,-1]) #pick the last state of the sequence given by the GRU
         #output_means = self.linear_means(rnn_output)
         output_std = self.softplus(self.linear_std(rnn_output))
@@ -97,12 +97,12 @@ class RNNEncoder_no_mean(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(MLP, self).__init__()
         self.hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -139,17 +139,17 @@ class MLP(nn.Module):
     def forward(self, input):
 
         MLP_out = self.fc4(self.fc3(self.fc2(self.fc1(input))))
-        output_logits = self.logsoftmax(self.linear_probs(MLP_out))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.linear_probs(MLP_out))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
 
 
 class RNNDecoder_Tiling(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -195,22 +195,22 @@ class RNNDecoder_Tiling(nn.Module):
 
 
     def forward(self, input, hidden):
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
         #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
 
 
 class TransformerDecoder_Tiling(nn.Module):
-    def __init__(self, max_seq_len, aa_prob, gru_hidden_dim, z_dim, rnn_input_size, kappa_addition, num_layers,
+    def __init__(self, align_seq_len, aa_prob, gru_hidden_dim, z_dim, rnn_input_size, kappa_addition, num_layers,
                  pretrained_params):
         super(TransformerDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -245,23 +245,23 @@ class TransformerDecoder_Tiling(nn.Module):
         else:
             self.fc1 = nn.Linear(self.rnn_input_size, self.rnn_input_size)
             self.linear_probs = nn.Linear(self.rnn_input_size, self.aa_prob)
-            self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.max_seq_len, nhead=1,dim_feedforward=self.gru_hidden_dim, dropout=0.1, activation="relu") #d_model / n_heads
+            self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.align_seq_len, nhead=1,dim_feedforward=self.gru_hidden_dim, dropout=0.1, activation="relu") #d_model / n_heads
             self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer,num_layers=self.num_layers,)
 
     def forward(self, sequences, latent):
         #sequences.unsqueeze(-1).permute(1,0,2),
         transformer_output = self.transformer_decoder(tgt=latent.permute(2,0,1),tgt_mask=None, memory=latent.permute(2,0,1))  #TODO: Are the targets the sequences and memory the latent_space?
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(transformer_output.permute(1,2,0))))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.linear_probs(self.fc1(transformer_output.permute(1,2,0))))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
 
 
 class SRUDecoder_Tiling(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(SRUDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -304,18 +304,18 @@ class SRUDecoder_Tiling(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.sru(input.permute(1,0,2))  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output.permute(1,0,2))))  # [n_nodes,max_seq_len,aa_probs]
+        rnn_output, rnn_hidden = self.sru(input.permute(1,0,2))  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output.permute(1,0,2))))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
 #
 
 class RNNDecoder_Tiling_Angles(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = 4
         self.kappa_addition = kappa_addition
@@ -373,22 +373,22 @@ class RNNDecoder_Tiling_Angles(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
         #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output = self.fc1(rnn_output)
-        output_logits = self.logsoftmax(self.fc2_probs((output)))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.fc2_probs((output)))  # [n_nodes,align_seq_len,aa_probs]
         output_means = self.tanh(self.fc2_means(output))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output))
         return output_logits,output_means,output_kappas
 class RNNDecoder_Angles_Single_SRU(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Angles_Single_SRU, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = 6
         self.kappa_addition = kappa_addition
@@ -445,21 +445,21 @@ class RNNDecoder_Angles_Single_SRU(nn.Module):
 
     def forward(self, input, hidden):
         input = input.permute(1,0,2) #[max_len_seq,n_nodes,rnn_input]
-        sru_output, sru_hidden = self.sru(input)  # [max_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
+        sru_output, sru_hidden = self.sru(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
         sru_output = sru_output.permute(1,0,2)
         output_logits = self.fc1_logits(sru_output)
-        output_logits = self.logsoftmax(self.fc2_logits(output_logits))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.fc2_logits(output_logits))  # [n_nodes,align_seq_len,aa_probs]
         output_angles = self.fc1_angles(sru_output)
         output_means = self.tanh(self.fc2_means(output_angles))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output_angles))
         return output_logits,output_means,output_kappas
 class RNNDecoder_Angles_Double_SRU(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Angles_Double_SRU, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = 3
         self.kappa_addition = kappa_addition
@@ -528,24 +528,24 @@ class RNNDecoder_Angles_Double_SRU(nn.Module):
 
     def forward(self, input, hidden):
         input = input.permute(1,0,2) #[max_len_seq,n_nodes,rnn_input]
-        sru_aa_output, sru_aa_hidden = self.sru_aa(input)  # [max_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
-        sru_angles_output, sru_angles_hidden = self.sru_angles(input)  # [max_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
+        sru_aa_output, sru_aa_hidden = self.sru_aa(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
+        sru_angles_output, sru_angles_hidden = self.sru_angles(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
         sru_aa_output = sru_aa_output.permute(1,0,2)
         sru_angles_output = sru_angles_output.permute(1,0,2)
         output_logits = self.fc1_logits(sru_aa_output)
-        output_logits = self.logsoftmax(self.fc2_logits((output_logits)))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.fc2_logits((output_logits)))  # [n_nodes,align_seq_len,aa_probs]
         output_angles = self.fc1_angles(sru_angles_output)
         output_means = self.tanh(self.fc2_means(output_angles))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output_angles))
         return output_logits,output_means,output_kappas
 
 class RNNDecoder_Tiling_AnglesComplex(nn.Module):
-    def __init__(self, max_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_AnglesComplex, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
-        self.max_seq_len = max_seq_len
+        self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
@@ -618,12 +618,12 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,max_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
         #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output = self.fc1(rnn_output)
-        output_logits = self.logsoftmax(self.fc2_probs(self.fc1_probs(output)))  # [n_nodes,max_seq_len,aa_probs]
+        output_logits = self.logsoftmax(self.fc2_probs(self.fc1_probs(output)))  # [n_nodes,align_seq_len,aa_probs]
         output_means = self.tanh(self.fc2_means(self.fc1_means(output)))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas

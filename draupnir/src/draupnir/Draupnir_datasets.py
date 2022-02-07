@@ -4,6 +4,8 @@ Lys Sanz Moreta
 Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
+import sys
+sys.path.append("./draupnir/src/draupnir")
 import Draupnir_utils as DraupnirUtils
 import warnings
 from collections import namedtuple
@@ -65,7 +67,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                             and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
         """
     BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
-    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder"])
+    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name"])
     script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
         name, root_sequence_name = available_datasets()[0][name]
@@ -218,6 +220,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
     else:
         warnings.warn("You have selected to use a custom dataset")
         root_sequence_name = None
+        full_name = name
         assert any(v is not None for v in [fasta_file,alignment_file,tree_file]) != False,"Provide at least 1 file path: fasta_file or alignment_file or alignment_file + tree_file"
         build_config = BuildConfig(alignment_file=alignment_file,
                                    use_ancestral=False,
@@ -227,7 +230,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                    triTSNE=False,
                                    leaves_testing=False,
                                    script_dir=script_dir,
-                                   no_testing=False)
+                                   no_testing=True)
         if build:
             if fasta_file is not None and alignment_file is None:
                 alignment_file = tree_file = None
@@ -251,7 +254,8 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
     settings_config = SettingsConfig(one_hot_encoding=False,
                              model_design="GP_VAE",
                              aligned_seq=True,
-                             data_folder=["datasets/custom" if use_custom else "datasets/default"][0])
+                             data_folder=["datasets/custom" if use_custom else "datasets/default"][0],
+                             full_name=full_name)
 
 
     return build_config,settings_config, root_sequence_name
