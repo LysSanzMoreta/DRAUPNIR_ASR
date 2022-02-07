@@ -63,7 +63,7 @@ def aa_properties(aa_probs,scriptdir):
     "https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html"
 
     aa_types = list(aminoacid_names_dict(aa_probs).keys())
-    aa_properties = pd.read_csv("{}/AA_properties.txt".format(scriptdir),sep="\s+")
+    aa_properties = pd.read_csv("{}/datasets/AA_properties.txt".format(scriptdir),sep="\s+")
     aa_info = defaultdict()
     for indx,aa in aa_properties.iterrows():
         if aa["Abbr."] in aa_types:
@@ -1982,7 +1982,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
 
                 batch_aa_frequencies = calculate_aa_frequencies(batch_data[:,2:,0].cpu().numpy(), build_config.aa_prob)
                 batch_aa_freqs.append(batch_aa_frequencies)
-                batch_blosum_max, batch_blosum_weighted, batch_variable_score = process_blosum(blosum.cpu(), torch.from_numpy(batch_aa_frequencies), build_config.max_seq_len, build_config.aa_prob)
+                batch_blosum_max, batch_blosum_weighted, batch_variable_score = process_blosum(blosum.cpu(), torch.from_numpy(batch_aa_frequencies), build_config.align_seq_len, build_config.aa_prob)
                 batch_blosums_max.append(batch_blosum_max)
                 batch_blosums_weighted.append(batch_blosum_weighted)
 
@@ -2023,7 +2023,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
             clade_aa_frequencies = calculate_aa_frequencies(clade_dataset[:,2:,0].cpu().numpy(),build_config.aa_prob)
             blosum_max, blosum_weighted, variable_score = process_blosum(blosum.cpu(),
                                                                          torch.from_numpy(clade_aa_frequencies),
-                                                                         build_config.max_seq_len,
+                                                                         build_config.align_seq_len,
                                                                          build_config.aa_prob)
             clades_blosums.append(blosum_weighted)
         Clades_Datasets = CladesDataset(clade_labels,clades_datasets,clades_patristic,clades_blosums)
@@ -2045,7 +2045,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
 #     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
 #     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
 #     n_seqs = Train_data.shape[0]
-#     max_seq_len = Train_data.shape[1]
+#     align_seq_len = Train_data.shape[1]
 #     # Generate selection indexes
 #     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
 #     blosum = torch.from_numpy(create_blosum(aa_probs))
@@ -2065,7 +2065,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
 #         family_patristics.append(family_patristic)
 #         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs)
 #         family_aa_freqs.append(aa_frequencies)
-#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
+#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,align_seq_len,aa_probs)
 #         family_blosums_max.append(family_blosum_max)
 #         family_blosums_weighted.append(family_blosum_weighted)
 #
@@ -2087,7 +2087,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
 #     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
 #     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
 #     n_seqs = Train_data.shape[0]
-#     max_seq_len = Train_data.shape[1]
+#     align_seq_len = Train_data.shape[1]
 #     # Generate selection indexes
 #     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
 #     blosum = torch.from_numpy(create_blosum(aa_probs))
@@ -2107,7 +2107,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
 #         family_patristics.append(family_patristic)
 #         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs) #TODO: change to aa_frequencies()
 #         family_aa_freqs.append(aa_frequencies)
-#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,max_seq_len,aa_probs)
+#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,align_seq_len,aa_probs)
 #         family_blosums_max.append(family_blosum_max)
 #         family_blosums_weighted.append(family_blosum_weighted)
 #
@@ -2428,12 +2428,12 @@ def load_randalls_benchmark_ancestral_sequences(scriptdir):
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
     return dataset_test,internal_names_test
-def load_simulations_ancestral_sequences(name,aligned_seq,max_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
+def load_simulations_ancestral_sequences(name,aligned_seq,align_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
 
     Dataset_test, leaves_names_test,max_len_test = SimulationsDatasetTest(ancestral_file="{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,name,root_sequence_name),
                                                                            tree_level_order_names=tree_levelorder_names,
                                                                            aligned=aligned_seq,
-                                                                           train_max_len=max_seq_len,
+                                                                           train_max_len=align_seq_len,
                                                                            aa_probs=aa_prob)
     Dataset_test = np.array(Dataset_test, dtype="float64")
     Dataset_test = torch.from_numpy(Dataset_test)
@@ -2472,15 +2472,15 @@ def convert_to_integers(Dataset,aa_prob,axis):
         b[:, 2:, 0] = integers
         b[:,:2] = Dataset[:,:2]
     return b
-def process_blosum(blosum,aa_freqs,max_seq_len,aa_prob):
+def process_blosum(blosum,aa_freqs,align_seq_len,aa_prob):
     """Returns:
     blosum_max [align_len,aa_prob]: blosum likelihood scores for the most frequent aa in the alignment position
     blosum_weighted [align_len,aa_prob: weighted average of blosum likelihoods according to the aa frequency
     variable_core: [] : counts the number of different elements per alignment position"""
 
     aa_freqs_max = torch.argmax(aa_freqs, dim=1).repeat(aa_prob, 1).permute(1, 0) #[max_len, aa_probs]
-    blosum_expanded = blosum[1:, 1:].repeat(max_seq_len, 1, 1)  # [max_len,aa_prob,aa_prob]
-    blosum_max = blosum_expanded.gather(1, aa_freqs_max.unsqueeze(1)).squeeze(1)  # [max_seq_len,21] Seems correct
+    blosum_expanded = blosum[1:, 1:].repeat(align_seq_len, 1, 1)  # [max_len,aa_prob,aa_prob]
+    blosum_max = blosum_expanded.gather(1, aa_freqs_max.unsqueeze(1)).squeeze(1)  # [align_seq_len,21] Seems correct
 
     blosum_weighted = aa_freqs[:,:,None]*blosum_expanded #--> replace 0 with nans? otherwise the 0 are in the mean as well....
     blosum_weighted = blosum_weighted.mean(dim=1)
@@ -2488,7 +2488,7 @@ def process_blosum(blosum,aa_freqs,max_seq_len,aa_prob):
     variable_score = torch.count_nonzero(aa_freqs, dim=1)/aa_prob #higher score, more variable
 
     return blosum_max,blosum_weighted, variable_score
-def blosum_embedding_encoder(blosum,aa_freqs,max_seq_len,aa_prob,dataset_train, one_hot_encoding):
+def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_prob,dataset_train, one_hot_encoding):
     """Returns:
     aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
 
@@ -2496,7 +2496,7 @@ def blosum_embedding_encoder(blosum,aa_freqs,max_seq_len,aa_prob,dataset_train, 
         dataset_train = convert_to_integers(dataset_train,aa_prob,axis=2)
 
     aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_prob,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_prob times]--seems correct
-    blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],max_seq_len, 1, 1)  # [N,max_len,aa_prob,aa_prob]
+    blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_prob,aa_prob]
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
 
 

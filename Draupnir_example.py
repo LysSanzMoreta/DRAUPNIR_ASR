@@ -7,7 +7,7 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 import sys
 import pyro
 import torch
-sys.path.append("./draupnir")
+sys.path.append("./draupnir/src")
 import draupnir
 import argparse
 import os
@@ -29,7 +29,8 @@ def main():
         draupnir.manual_random_search()
     else:
         #params_config = draupnir.config_build(args)
-        draupnir.draupnir_main(args.dataset_name,args,device,settings_config,build_config,script_dir)
+        #draupnir.draupnir_main(args.dataset_name,args,device,settings_config,build_config,script_dir)
+        draupnir.draupnir_main(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
 
 if __name__ == "__main__":
 
@@ -73,13 +74,13 @@ if __name__ == "__main__":
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
 
-    #TODO: Highlight: HERE YOU CHANGE THE PATH
-    parser.add_argument('-load-predictions', '--load-trained-predictions', type=str2bool, nargs='?', default=False,help='Load predictions (indicate the folder path) from previous run (complete or incomplete)')
-    parser.add_argument('-load-predictions-path', '--load-trained-predictions-path', type=str, nargs='?',
-                        default="",help='Load predictions (folder path)')
+    # #TODO: Highlight: HERE YOU CHANGE THE PATH
+    # parser.add_argument('-load-predictions', '--load-trained-predictions', type=str2bool, nargs='?', default=False,help='Load predictions (indicate the folder path) from previous run (complete or incomplete)')
+    # parser.add_argument('-load-predictions-path', '--load-trained-predictions-path', type=str, nargs='?',
+    #                     default="",help='Load predictions (folder path)')
     #TODO: Highlight: SAMPLING!!!!
     parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (Draupnir Checkpoints) and generate new samples')
-    parser.add_argument('-use-trained-logits','--use-trained-logits', type=str2bool, nargs='?', default=False,help='Load fixed pretrained logits (i.e train_info_dict.torch) and generate new samples')
+    #parser.add_argument('-use-trained-logits','--use-trained-logits', type=str2bool, nargs='?', default=False,help='Load fixed pretrained logits (i.e train_info_dict.torch) and generate new samples')
     parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_GP_VAE_PF00400_2021_12_14_17h50min17s847480ms_23000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
 
 
