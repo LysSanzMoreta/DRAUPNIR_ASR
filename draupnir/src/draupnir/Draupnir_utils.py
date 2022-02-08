@@ -2213,9 +2213,9 @@ def GradientsPlot(gradient_norms,epochs,directory):
     plt.savefig("{}/Gradients_{}_epochs.png".format(directory,epochs))
     plt.clf()
     plt.close()
-def benchmark_dataset(name,aa_prob,inferred=True,original_naming=False):
-    """An experimental phylogeny to benchmark ancestral sequence reconstruction"""
-    observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1]
+def benchmark_dataset(name,aa_prob):
+    """Processing dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction" """
+    observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
     sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
     #Select the sequences of only the observed nodes
     full_fasta = SeqIO.parse(sequences_file, "fasta")
@@ -2250,7 +2250,7 @@ def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
                    one_hot_encoding=False,
                    fasta_file="{}/{}_Observed.fasta".format(name,data_dir),#Alignment file
                    tree_file=tree_file)
-def SimulationsDatasetTest(ancestral_file,tree_level_order_names,aligned,train_max_len,aa_probs):
+def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
     "Load and format the ancestral sequences from the simulations"
     # Select the sequences of only the observed nodes
     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
@@ -2428,16 +2428,16 @@ def load_randalls_benchmark_ancestral_sequences(scriptdir):
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
     return dataset_test,internal_names_test
-def load_simulations_ancestral_sequences(name,aligned_seq,align_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
+def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
 
-    Dataset_test, leaves_names_test,max_len_test = SimulationsDatasetTest(ancestral_file="{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,name,root_sequence_name),
+    dataset_test, leaves_names_test,max_len_test = simulations_dataset_test(ancestral_file="{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name),
                                                                            tree_level_order_names=tree_levelorder_names,
-                                                                           aligned=aligned_seq,
-                                                                           train_max_len=align_seq_len,
+                                                                           aligned=settings_config.aligned_seq,
+                                                                           align_max_len=align_seq_len,
                                                                            aa_probs=aa_prob)
-    Dataset_test = np.array(Dataset_test, dtype="float64")
-    Dataset_test = torch.from_numpy(Dataset_test)
-    return Dataset_test,leaves_names_test,max_len_test
+    dataset_test = np.array(dataset_test, dtype="float64")
+    dataset_test = torch.from_numpy(dataset_test)
+    return dataset_test,leaves_names_test,max_len_test
 def Remove_Stop_Codons(sequence_file):
     from Bio.Seq import Seq
     stop_codons = ["TGA","TAG","TAA"]
