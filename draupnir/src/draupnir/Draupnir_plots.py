@@ -580,7 +580,7 @@ def plot_latent_space_pca_by_clade_leaves(latent_space,additional_load,num_epoch
     plt.savefig("{}/PCA_z_space_epoch_{}.png".format(results_dir, num_epochs))
 
 def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir):
-    "Plot distance between the latent space vectors of 2 linked nodes and the branch length between them"
+    "Plot distance between the latent space vectors of 2 linked nodes vs the branch length between them"
     print("Plotting z distances vs branch lengths...")
     clades_dict_all = additional_load.clades_dict_all
 
@@ -609,7 +609,7 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     distances_list = []
     for node, children in linked_nodes_dict.items():
         if children: #if it has descendants
-            # Highlight: find to which clade does this node belong and use its color---> Lis comprehesion doe snot work
+            # Highlight: find to which clade does this node belong and use its color---> List comprehesion does not work
             for idx, (clades, nodes) in enumerate(clades_dict_all.items()):
                 if node in nodes["internal"] or node in nodes["leaves"]:
                     color_clade = clrs(idx)
@@ -723,7 +723,7 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     latent_space_no_indexes = latent_space[:,1:].detach().cpu().numpy()
     latent_space_indexes = latent_space[:,0]
     latent_space = latent_space.detach().cpu()
-    proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
+    #proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
     #reducer = umap.UMAP()
     #proj = reducer.fit_transform(latent_space[:, 1:])
     fig, ax = plt.subplots(figsize=(22, 15), dpi=200)
@@ -749,10 +749,17 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
                     color_clade = clrs(idx)
             latent_space_distance = distance_fn(leaf_i_z, leaf_j_z)
             nodes_pairs = torch.tensor([leaf_i_idx,leaf_j_idx]).cpu()
+            print("node pairs")
+            print(nodes_pairs)
+            print("patristic matrix train")
+            print(patristic_matrix_train[1:,0])
             branch_length_idx = (patristic_matrix_train[1:,0][..., None] == nodes_pairs).any(-1)
-
+            print("branch length idx")
+            print(branch_length_idx)
             branch_length = patristic_matrix_train_no_indexes[branch_length_idx]
             branch_length = branch_length[:,branch_length_idx]
+            print("branch length")
+            print(branch_length)
             distances_list.append(np.array([branch_length[0,1],latent_space_distance]).T)
             ax.scatter(branch_length[0,1],latent_space_distance,color = color_clade, s=200)
     distances_array = np.vstack(distances_list)
@@ -763,12 +770,13 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     #plt.ylabel("Z vector pairwise distance",fontsize=50)
     plt.ylabel("Euclidean distance", fontsize=50)
     plt.xlabel("Branch length ",fontsize=50)
+    plt.title("GP-VAE: Z {} vs Branch lengths for linked nodes (ancestors and leaves) \n Spearman correlation Coefficient: {}".format(distance_type,spearman_correlation_coefficient),fontsize=20)
+
     #plt.title("TOU-VAE: Z {} vs Branch lengths between leaves. \n Correlation coefficient : {} \n Spearman correlation : {}".format(distance_type,pearson_correlation_coefficient[0,1], spearman_correlation_coefficient),fontsize=40)
     #plt.title("Standard VAE",fontsize=50)
-    plt.title("Draupnir marginal", fontsize=50)
+    #plt.title("Draupnir marginal", fontsize=50)
+    plt.savefig("{}/Distances_GP_VAE_z_vs_branch_lengths_{}_ONLY_LEAVES.png".format(results_dir,distance_type))
 
-    plt.savefig("{}/Distances_VAE_z_vs_branch_lengths_{}_ONLY_LEAVES.png".format(results_dir,distance_type))
-    exit()
 
 
 def clean_and_realign_test(name,dataset_test,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
@@ -811,7 +819,7 @@ def clean_and_realign_test(name,dataset_test,aa_sequences_predictions,test_order
         samples_out_file = os.path.join(results_dir,"samples_plus_true_to_align.fasta")
         SeqIO.write(records, samples_out_file, "fasta")
         alignment_out_file = os.path.join(results_dir,"samples_plus_true_aligned.fasta")
-        dict_alignment, alignment = DraupnirUtils.Infer_alignment(None, samples_out_file, alignment_out_file)
+        dict_alignment, alignment = DraupnirUtils.infer_alignment(None, samples_out_file, alignment_out_file)
         alignment_length = len(alignment[0].seq)
         sampled_sequences = defaultdict()
         true_sequences = defaultdict()
@@ -937,7 +945,7 @@ def clean_and_realign_train(name,dataset_test,dataset_train,aa_sequences_predict
     samples_out_file = os.path.join(results_dir, "test_samples_plus_train_true_to_align.fasta")
     SeqIO.write(records, samples_out_file, "fasta")
     alignment_out_file = os.path.join(results_dir, "test_samples_plus_train_true_aligned.fasta")
-    dict_alignment, alignment = DraupnirUtils.Infer_alignment(None, samples_out_file, alignment_out_file)
+    dict_alignment, alignment = DraupnirUtils.infer_alignment(None, samples_out_file, alignment_out_file)
     alignment_length = len(alignment[0].seq)
     test_sampled_sequences = defaultdict()
     train_true_sequences = defaultdict()

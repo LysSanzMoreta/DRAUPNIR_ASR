@@ -71,10 +71,10 @@ class DRAUPNIRModelClass(nn.Module):
             self.n_all = self.n_leaves + self.n_internal
         self.num_layers = 1 #TODO: Remove
         #self.h_0_GUIDE = nn.Parameter(torch.rand(self.gru_hidden_dim), requires_grad=True).to(self.device)
-        if self.pretrained_params is not None:
-            self.h_0_MODEL = nn.Parameter(self.pretrained_params["h_0_MODEL"], requires_grad=False).to(self.device)
-        else:
-            self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
+        # if self.pretrained_params is not None:
+        #     self.h_0_MODEL = nn.Parameter(self.pretrained_params["h_0_MODEL"], requires_grad=False).to(self.device)
+        # else:
+        self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len,self.aa_prob,self.gru_hidden_dim, self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         #self.decoder = RNNDecoder_FCL(self.align_seq_len, self.aa_prob,self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.batch_first)
         if ModelLoad.args.use_cuda:
@@ -269,19 +269,19 @@ class DRAUPNIRModelClass(nn.Module):
             OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
             OU_covariance_full = OU.forward(patristic_matrix_full)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
-            Inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert Inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
+            inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
+            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
             # Highlight: B.49 Λ−1aa
-            Inverse_internal = Inverse_full[:, internal_indexes, :]
-            Inverse_internal = Inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
-            assert Inverse_internal.shape == (self.z_dim, self.n_internal, self.n_internal)
+            inverse_internal = inverse_full[:, internal_indexes, :]
+            inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.z_dim, self.n_internal, self.n_internal)
             # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
             # Highlight: µa
             OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
             # Highlight: Λab
-            Inverse_internal_leaves = Inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            Inverse_internal_leaves = Inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
-            assert Inverse_internal_leaves.shape == (self.z_dim, self.n_internal, self.n_leaves)
+            inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train]
             if self.leaves_testing:
@@ -290,11 +290,11 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
             # Highlight:µa|b---> Splitted Equation  B-50
-            part1 = torch.matmul(torch.linalg.inv(Inverse_internal), Inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            part1 = torch.matmul(torch.linalg.inv(inverse_internal), inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(Inverse_internal) + 1e-6).to_event(1).sample()
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(inverse_internal) + 1e-6).to_event(1).sample()
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal, self.z_dim)
             return latent_space
@@ -313,19 +313,19 @@ class DRAUPNIRModelClass(nn.Module):
             OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
             OU_covariance_full = OU.forward(patristic_matrix_full)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
-            Inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert Inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
+            inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
+            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
             # Highlight: B.49 Λ−1aa
-            Inverse_internal = Inverse_full[:, internal_indexes, :]
-            Inverse_internal = Inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
-            assert Inverse_internal.shape == (self.z_dim, self.n_internal, self.n_internal)
+            inverse_internal = inverse_full[:, internal_indexes, :]
+            inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.z_dim, self.n_internal, self.n_internal)
             # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
             # Highlight: µa
             OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
             # Highlight: Λab
-            Inverse_internal_leaves = Inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            Inverse_internal_leaves = Inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
-            assert Inverse_internal_leaves.shape == (self.z_dim, self.n_internal, self.n_leaves)
+            inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train]
             if self.leaves_testing:
@@ -334,11 +334,11 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
             # Highlight:µa|b---> Splitted Equation  B-50
-            part1 = torch.matmul(torch.linalg.inv(Inverse_internal), Inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            part1 = torch.matmul(torch.linalg.inv(inverse_internal), inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(Inverse_internal)).to_event(1).sample()
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(inverse_internal)).to_event(1).sample()
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal, self.z_dim)
             return OU_mean.squeeze(-1).T
@@ -363,9 +363,9 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         latent_space = self.gp_prior(patristic_matrix_sorted)
 
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim] #This can maybe be done with new axis solely
         blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_prob) #[n_nodes,max_seq,21]
-        blosum = self.embed(blosum) #TODO: Introduce a noise variable to be able to deal with more random mutations?
+        blosum = self.embed(blosum)
         latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
                                                self.gru_hidden_dim).contiguous()  # bidirectional

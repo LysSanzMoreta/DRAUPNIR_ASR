@@ -11,23 +11,24 @@ import warnings
 from collections import namedtuple
 import pprint
 import os
-def available_datasets():
-    datasets = {0: ["simulations_blactamase_1", "BetaLactamase_seq"],# EvolveAGene4 Betalactamase simulation # 32 leaves
-                1: ["simulations_calcitonin_1", "Calcitonin_seq"],# EvolveAGene4 Calcitonin simulation #50 leaves
-                2: ["simulations_src_sh3_1", "SRC_SH3"],# EvolveAGene4 SRC SH3 domain simulation 1 #100 leaves
-                3: ["simulations_sirtuins_1", "Sirtuin_seq"],# EvolveAGene4 Sirtuin simulation #150 leaves
-                4: ["simulations_src_sh3_3", "SRC_SH3"],# EvolveAGene4 SRC SH3 domain simulation 2 #200 leaves
-                5: ["simulations_PIGBOS_1", "PIGBOS_seq"],# EvolveAGene4 PIGBOS simulation #300 leaves
-                6: ["simulations_insulin_2", "Insulin_seq"],# EvolveAGene4 Insulin simulation #400 leaves
-                7: ["simulations_src_sh3_2","SRC_SH3"],# EvolveAGene4 SRC SH3 domain simulation 2 #800 leaves
-                8: ["benchmark_randall_original_naming", None],# uses the original tree and it's original node naming
-                9: ["SH3_pf00018_larger_than_30aa",  None],# SRC kinases domain SH3 ---> Leaves and angles testing
-                10: ["Coral_Faviina",  None],  # Faviina clade from coral sequences # 35 leaves
-                11: ["Coral_all", None],# All Coral sequences (includes Faviina clade and additional sequences) #71 leaves
-                12: ["PF00400",  None], # 125 real sequences
-                13: ["aminopeptidase",  None], #another real sequences example
-                14: ["PF00096", None]} #another real sequences example
-    pprint.pprint(datasets)
+def available_datasets(print_dict = False):
+    datasets = {"simulations_blactamase_1": "BetaLactamase_seq",# EvolveAGene4 Betalactamase simulation # 32 leaves
+                "simulations_calcitonin_1": "Calcitonin_seq",# EvolveAGene4 Calcitonin simulation #50 leaves
+                "simulations_src_sh3_1": "SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 1 #100 leaves
+                "simulations_sirtuins_1": "Sirtuin_seq",# EvolveAGene4 Sirtuin simulation #150 leaves
+                "simulations_src_sh3_3": "SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 2 #200 leaves
+                "simulations_PIGBOS_1": "PIGBOS_seq",# EvolveAGene4 PIGBOS simulation #300 leaves
+                "simulations_insulin_2": "Insulin_seq",# EvolveAGene4 Insulin simulation #400 leaves
+                "simulations_src_sh3_2":"SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 2 #800 leaves
+                "benchmark_randall_original_naming": None,# uses the original tree and it's original node naming
+                "SH3_pf00018_larger_than_30aa":  None,# SRC kinases domain SH3 ---> Leaves and angles testing
+                "Coral_Faviina":  None,  # Faviina clade from coral sequences # 35 leaves
+                "Coral_all": None,# All Coral sequences (includes Faviina clade and additional sequences) #71 leaves
+                "PF00400": None, # 125 real sequences
+                "aminopeptidase":  None, #another real sequences example
+                "PF00096": None} #another real sequences example
+    if print_dict:
+        pprint.pprint(datasets)
     datasets_full_names = {"benchmark_randall_original_naming":"Randall's Coral fluorescent proteins (CFP) benchmark dataset",  # uses the original tree and it's original node naming
                 "SH3_pf00018_larger_than_30aa":"PF00018 Pfam family of Protein Tyrosine Kinases SH3 domains",  # SRC kinases domain SH3 ---> Leaves and angles testing
                 "simulations_blactamase_1":"32 leaves Simulation Beta-Lactamase",  # EvolveAGene4 Betalactamase simulation
@@ -47,7 +48,7 @@ def available_datasets():
 
 
 
-def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_file=None,alignment_file=None):
+def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=None,tree_file=None,alignment_file=None):
     """In:
     :param str name: Dataset name
     :param bool use_custom: True (uses a custom dataset, located in datasets/custom/"folder_name" ) or False (uses a Draupnir default dataset (used in the publication))
@@ -68,16 +69,13 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
         """
     BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
     SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name"])
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    #script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
-        name, root_sequence_name = available_datasets()[0][name]
+        warnings.warn("You have selected a pre-defined dataset. Otherwise set use_custom to True")
+        root_sequence_name = available_datasets()[0][name]
         full_name = available_datasets()[1][name]
         storage_folder = "datasets/default"
-        warnings.warn("You have selected a pre-defined dataset")
-        if name == "benchmark_randall_original_naming":
-            build_config = BuildConfig(alignment_file=None, use_ancestral=True, n_test=0, build_graph=True,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
-            if build:
-                DraupnirUtils.benchmark_dataset(name, aa_prob=21, inferred=False, original_naming=True) #TODO: fix
+
         # Highlight: Simulation datasets, Simulations might produce stop codons---Use probabilities == 21
         if name.startswith("simulations"):
             # DraupnirUtils.Remove_Stop_Codons("Datasets_Simulations/{}/Dataset{}/{}.txt".format(simulation_folder,dataset_number,root_sequence_name))
@@ -92,18 +90,26 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                rename_internal_nodes=True,
                                storage_folder=storage_folder)
 
-        if name == "SH3_pf00018_larger_than_30aa":# Highlight: SRC Kinases, SH3 domain with PDB structures
+        elif name == "benchmark_randall_original_naming":
+            alignment_file = "{}/{}/{}/benchmark_randall_original_naming.mafft".format(script_dir,storage_folder,name)
+            build_config = BuildConfig(alignment_file=alignment_file, use_ancestral=True, n_test=0, build_graph=True,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
+            if build:
+                DraupnirUtils.benchmark_dataset(name, aa_prob=21)
+
+        elif name == "SH3_pf00018_larger_than_30aa":# Highlight: SRC Kinases, SH3 domain with PDB structures
             alignment_file = "{}/datasets/default/SH3_pf00018_larger_than_30aa/SH3_pf00018_larger_than_30aa.mafft".format(script_dir) #I hope it's the correct one
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
-                                       n_test=10, #i.e n_test = 20 --> 20% sequences for testing
+                                       n_test=0, #i.e n_test = 20 --> 20% sequences for testing---> use with leaves testing True
                                        build_graph=False,
                                        aa_prob=21,
                                        triTSNE=False,
                                        leaves_testing=False,#turn to true to split the leaves into a train and test dataset
                                        script_dir=script_dir,
-                                       no_testing=True) #leave testing activated to use ModelK(full latent space prediction) if False it uses Modeli
-            warnings.warn("Remember with this dataset we use part of the leaves (default 10%) as test and part as training")
+                                       no_testing=True)
+            warnings.warn("Remember with this dataset we use part of the leaves (default 20%) as test and part as training unless leaves_testing == False")
+            if build_config.leaves_testing: assert build_config.n_test > 0, "Please select a % of leaves for testing with n_test"
+            else: assert build_config.n_test == 0; "Please do not test leaves, set n_test = 0"
             if build:
                 family_name = "PF00018;" #protein family name, src-sh3 domain
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,first_match=True,update_pfam=False)
@@ -117,7 +123,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              pfam_dict=pfam_dict,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
-        if name == "PF00096":#PKKinases
+        elif name == "PF00096":#PKKinases
             alignment_file = "{}/datasets/default/PF00096/PF00096.fasta".format(script_dir)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
@@ -137,7 +143,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              rename_internal_nodes=True,
                                              min_len=0,
                                              storage_folder=storage_folder)
-        if name == "aminopeptidase":#
+        elif name == "aminopeptidase":#
             alignment_file = "{}/datasets/default/aminopeptidase/2MAT_BLAST90.fasta".format(script_dir)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
@@ -157,7 +163,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              tree_file="{}/datasets/default/aminopeptidase/2MAT_BLAST90.fasta.treefile".format(script_dir),
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
-        if name == "PF00400":
+        elif name == "PF00400":
             alignment_file = "{}/datasets/default/PF00400/PF00400.mafft".format(script_dir)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
@@ -184,7 +190,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              rename_internal_nodes=True,
                                              min_len=30,
                                              storage_folder=storage_folder)
-        if name == "Coral_Faviina":
+        elif name == "Coral_Faviina":
             alignment_file = "{}/datasets/default/Coral_Faviina/Coral_Faviina_Aligned_Protein.fasta".format(script_dir)
             build_config = BuildConfig(alignment_file=alignment_file,use_ancestral=False,n_test=0,build_graph=False,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
@@ -195,7 +201,7 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              aa_probs=21,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
-        if name == "Coral_all":
+        elif name == "Coral_all":
             alignment_file = "{}/datasets/default/Coral_all/Coral_all_Aligned_Protein.fasta".format(script_dir)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
@@ -215,7 +221,9 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         else:
-             raise NameError("Name not in the available datasets")
+             print("..................")
+             print(name)
+             raise NameError("Name not in the available default datasets")
 
     else:
         warnings.warn("You have selected to use a custom dataset")
@@ -248,8 +256,8 @@ def create_draupnir_dataset(name,use_custom,build=False,fasta_file=None,tree_fil
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         else:
-            assert tree_file is not None, "Please provide a tree file in datasets/custom or first build the tree"
-            assert alignment_file is not None, "Please provide a alignment file in datasets/custom or first build the alignment"
+            assert tree_file is not None, "Please provide a tree file inside datasets/custom/name or first build the tree"
+            assert alignment_file is not None, "Please provide a alignment file inside datasets/custom/name or first build the alignment"
 
     settings_config = SettingsConfig(one_hot_encoding=False,
                              model_design="GP_VAE",

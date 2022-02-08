@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import pickle, os
 
-def Renaming():
+def renaming():
     "Rename the internal nodes, unless the given newick file already has the names on it"
     # Rename the internal nodes
     leafs_names = tree.get_leaf_names()
@@ -19,7 +19,7 @@ def Renaming():
             edge += 1
 
 
-def Renaming_simulations(with_indexes=False):
+def renaming_simulations(with_indexes=False):
     "Rename the internal nodes to I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
     print("Renaming tree from simulations")
     leafs_names = tree.get_leaf_names()
@@ -77,8 +77,8 @@ def colour_tree_by_clades(clades_dict, tree, rename_internal_nodes=True):
             node.set_style(node_style)
 
     if rename_internal_nodes:
-        if name.startswith("simulations"): Renaming_simulations(with_indexes=True)
-        else:Renaming()
+        if name.startswith("simulations"): renaming_simulations(with_indexes=True)
+        else:renaming()
     ts = TreeStyle()
     # Do not add leaf names automatically
     ts.show_leaf_name = False
