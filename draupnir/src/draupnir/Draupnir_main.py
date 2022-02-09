@@ -239,7 +239,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     except:
         linked_nodes_dict = None
     ancestor_info_numbers = DraupnirLoadUtils.convert_ancestor_info(name,ancestor_info,tree_levelorder_names)
-    Dataset,children_array = DraupnirLoadUtils.create_children_array(dataset,ancestor_info_numbers)
+    dataset,children_array = DraupnirLoadUtils.create_children_array(dataset,ancestor_info_numbers)
     sorted_distance_matrix = DraupnirLoadUtils.pairwise_distance_matrix(name,script_dir)
 
     leaves_names_list = pickle.load(open('{}/{}/{}/{}_Leafs_names_list.p'.format(script_dir,settings_config.data_folder,name,name),"rb"))
@@ -258,7 +258,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     position_test, \
     leaves_names_test = DraupnirLoadUtils.processing(
         results_dir,
-        Dataset,
+        dataset,
         patristic_matrix,
         cladistic_matrix,
         sorted_distance_matrix,
@@ -644,37 +644,31 @@ def select_quide(Draupnir,model_load,choice):
     else:
         guide = DraupnirGuides.DRAUPNIRGUIDES(Draupnir.model,model_load,Draupnir) #TODO: How to put inside of the Draupnir class??
         return guide
-def extract_percent_id(dataset,aa_sequences_predictions,n_samples,results_directory,correspondence_dict):
-    "Fast version to calculate %ID among predictions and observed data" #TODO:Apply
-    len_info = dataset[:, 0, 0].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset), 1)
-    node_info = dataset[:, 0, 1].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset), 1)
-    distance_info = dataset[:, 0, 2].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset), 1)
-    node_names = ["{}//{}".format(correspondence_dict[index], index) for index in dataset[:, 0, 1].tolist()]
-    aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
-    "Fast version to calculate %ID among predictions and observed data"
-    align_lenght = dataset[:, 2:, 0].shape[1]
-    # node_names = ["{}//{}".format(correspondence_dict[index], index) for index in Dataset_test[:, 0, 1].tolist()]
-    samples_names = ["sample_{}".format(index) for index in range(n_samples)]
-    equal_aminoacids = (aa_sequences_predictions[:, :, 3:] == dataset[:, 2:,0]).float()  # is correct #[n_samples,n_nodes,L]
-    # Highlight: Incorrectly predicted sites
-    incorrectly_predicted_sites = (~equal_aminoacids.bool()).float().sum(-1)
-    incorrectly_predicted_sites_per_sample = np.concatenate([node_info.cpu().detach().numpy(), incorrectly_predicted_sites.cpu().detach().numpy()[:, :, np.newaxis]],axis=-1)
-    np.save("{}/Incorrectly_Predicted_Sites_Fast".format(results_directory), incorrectly_predicted_sites_per_sample)
-    incorrectly_predicted_sites_df = pd.DataFrame(incorrectly_predicted_sites.T.cpu().detach().numpy(),
-                                                  index=node_names)
-    incorrectly_predicted_sites_df.columns = samples_names
-    incorrectly_predicted_sites_df["Average"] = incorrectly_predicted_sites_df.mean(1).values.tolist()
-    incorrectly_predicted_sites_df["Std"] = incorrectly_predicted_sites_df.std(1).values.tolist()
-    incorrectly_predicted_sites_df.to_csv("{}/Incorrectly_predicted_sites_df.csv".format(results_directory),sep="\t")
-    # Highlight: PERCENT ID
-    equal_aminoacids = equal_aminoacids.sum(-1) / align_lenght  # equal_aminoacids.sum(-1)
-    percent_id_df = pd.DataFrame(equal_aminoacids.T.cpu().detach().numpy() * 100,
-                                 index=node_names)  # [n_nodes, n_samples]
-    percent_id_df.columns = samples_names
-    percent_id_df["Average"] = percent_id_df.mean(1).values.tolist()
-    percent_id_df["Std"] = percent_id_df.std(1).values.tolist()
-    percent_id_df.to_csv("{}/PercentID_df.csv".format(results_directory), sep="\t")
-    return percent_id_df, incorrectly_predicted_sites_df, align_lenght
+def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
+    """Fast version to calculate %ID among predictions and observed data, we are only using 1 sample, could use more but it's more memory expensive
+    :param tensor dataset_true with shape [n_leaves,L+2,30]
+    :param tensor aa_sequences_predictions"""
+
+    #align_lenght = dataset_true[:, 2:, 0].shape[1]
+    #aa_sequences_predictions = torch.cat((node_info, aa_sequences_predictions), dim=2)
+    #aa_sequences_predictions = aa_sequences_predictions.permute(1, 0, 2) #[n_nodes,n_samples,L]
+    equal_aminoacids = (aa_sequences_predictions == dataset_true[:, 2:,0]).float()  # is correct #[n_samples,n_nodes,L] #TODO: Review this is correct because it only works because n-sample = 1
+    equal_aminoacids = (equal_aminoacids.sum(-1) / align_lenght)*100
+    average_pid = equal_aminoacids.mean().cpu().numpy()
+    std_pid = equal_aminoacids.std().cpu().numpy()
+    return average_pid,std_pid
+def plot_percent_id(average_pid_list,std_pid_list,results_dir):
+
+    list_of_epochs = np.arange(0,len(average_pid_list))
+    plt.plot(list_of_epochs,np.array(average_pid_list),color="seagreen")
+    plt.fill_between(list_of_epochs, np.array(average_pid_list) - np.array(std_pid_list), np.array(average_pid_list) + np.array(std_pid_list),color="bisque",alpha=0.2)
+    plt.xlabel("Epochs")
+    plt.ylabel("Average percent %ID")
+    plt.title("Percent ID performance")
+    plt.savefig("{}/Percent_ID.png".format(results_dir))
+    plt.clf()
+    plt.close()
+
 
 def draupnir_sample(train_load,
                     test_load,
@@ -1317,7 +1311,7 @@ def draupnir_train(train_load,
             #Draupnir.train(False)
     load_tune_params(False)
 
-    svi = SVI(Draupnir.model, guide,optim,elbo) #TODO: TraceMeanField_ELBO() http://docs.pyro.ai/en/0.3.0-release/inference_algos.html#pyro.infer.trace_mean_field_elbo.TraceMeanField_ELBO
+    svi = SVI(Draupnir.model, guide,optim,elbo)
     text_file.write("Optimizer :  {} \n".format(optim))
 
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
@@ -1339,7 +1333,9 @@ def draupnir_train(train_load,
     ######################
     train_loss = []
     entropy = []
-    gradient_norms = defaultdict(list)
+    average_pid_list = []
+    std_pid_list = []
+    #gradient_norms = defaultdict(list)
     start_total = time.time()
     epoch = 0
     epoch_count=0
@@ -1349,6 +1345,7 @@ def draupnir_train(train_load,
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirUtils.Plot_ELBO(train_loss, results_dir, test_frequency=1)
             DraupnirUtils.Plot_Entropy(entropy, results_dir, test_frequency=1)
+            plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
         total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
         memory_usage_mib = torch.cuda.max_memory_allocated()*9.5367*1e-7 #convert byte to MiB
@@ -1363,7 +1360,7 @@ def draupnir_train(train_load,
         map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,clade_blosum=None) #only saving 1 sample
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample(map_estimates,
-                                           n_samples,
+                                           1,
                                            dataset_train,
                                            patristic_matrix_full,
                                            cladistic_matrix_train,
@@ -1372,9 +1369,13 @@ def draupnir_train(train_load,
                                            use_test2=False)
         save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide,results_dir)
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),dataset_train.cpu().long()[:,0,1])
-        #percent_id_df, _, _ = extract_percent_id(dataset_train, sample_out_train.aa_sequences, n_samples_dict[folder], results_dir,correspondence_dict)
-        if epoch % args.test_frequency == 0:  # every n epochs --- sample #TODO: remove, only calculate %id of training data
+        #Highlight: Plot entropies
+        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),dataset_train.detach().long()[:,0,1])
+        #Highlight: Plot percent id prediction performance
+        average_pid, std_pid = calculate_percent_id(dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
+        average_pid_list.append(average_pid)
+        std_pid_list.append(std_pid)
+        if epoch % args.test_frequency == 0:  # every n epochs --- sample
             dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
             sample_out_test = Draupnir.sample(map_estimates,
                                               n_samples,
@@ -1417,8 +1418,9 @@ def draupnir_train(train_load,
                                                       use_test=False,
                                                       use_test2=True)
 
-            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
-            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
+            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
+            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
+
             save_samples(dataset_test, patristic_matrix_test,sample_out_test, test_entropies,correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(dataset_test, patristic_matrix_test,sample_out_test_argmax, test_entropies,correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
             save_samples(dataset_train,patristic_matrix_train,sample_out_train,train_entropy_epoch,correspondence_dict,"{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
@@ -1429,12 +1431,15 @@ def draupnir_train(train_load,
             del sample_out_train_argmax
             del sample_out_test
             del sample_out_test_argmax
+            del sample_out_test2
+            del sample_out_test_argmax2
 
         del sample_out_train
         entropy.append(torch.mean(train_entropy_epoch[:,1]).item())
         if epoch == (args.num_epochs-1):
             DraupnirUtils.Plot_ELBO(train_loss, results_dir, test_frequency=1)
             DraupnirUtils.Plot_Entropy(entropy, results_dir, test_frequency=1)
+            plot_percent_id(average_pid_list, std_pid_list, results_dir)
             save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
             if len(train_loss) > 10 and args.activate_elbo_convergence:

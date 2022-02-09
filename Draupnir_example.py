@@ -13,6 +13,8 @@ import argparse
 import os
 from draupnir import str2bool,str2None
 
+
+
 def main():
 
     draupnir.available_datasets(print_dict=True)
@@ -35,7 +37,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="Coral_all",
+                        default="simulations_blactamase_1",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
@@ -75,7 +77,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (Draupnir Checkpoints) and generate new samples')
     #parser.add_argument('-use-trained-logits','--use-trained-logits', type=str2bool, nargs='?', default=False,help='Load fixed pretrained logits (i.e train_info_dict.torch) and generate new samples')
-    parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_GP_VAE_Coral_all_2022_02_08_19h04min58s088757ms_10000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
+    parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_GP_VAE_simulations_blactamase_1_2022_02_09_20h12min18s525670ms_1000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-position-embedding-dim', default=30, type=int, help='Tree position embedding dim')

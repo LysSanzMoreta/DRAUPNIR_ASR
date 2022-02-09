@@ -1823,22 +1823,15 @@ def create_tree_by_levels(children_dict):
     return tree_levels
 def Plot_ELBO(train_elbo,results_dict,test_frequency=1):
     train_elbo = np.array(train_elbo)
-    list_of_epochs=[]
-    for i in range(0,len(train_elbo),test_frequency):
-        list_of_epochs.append(i)
-    list_of_epochs = np.array(list_of_epochs)
-    if np.isnan(train_elbo).any():
-        print("Error loss contains nan")
-        pass
-    else:
-        #train_elbo = np.log(train_elbo) #necessary?
-        data = np.concatenate([list_of_epochs[:, sp.newaxis], train_elbo[:, sp.newaxis]], axis=1)
-        df = pd.DataFrame(data=data, columns=['Epoch', 'Training error loss'])
-        fig = plt.figure()
-        plt.plot( 'Epoch', 'Training error loss', data=df, marker='o', markerfacecolor='blue', markersize=1, color='blue', linewidth=1)
-        plt.title("Training Error Loss (max ELBO, min KL)")
-        plt.savefig("{}/ELBO_error.png".format(results_dict))
-        plt.close(fig)
+    list_epochs = list(range(0,len(train_elbo)))
+
+    plt.plot(list_epochs,train_elbo,color="dodgerblue")
+    plt.xlabel("List of epochs")
+    plt.ylabel("-ELBO")
+    plt.title("Training Error Loss (min -ELBO, min KL)")
+    plt.savefig("{}/ELBO_error.png".format(results_dict))
+    plt.close()
+
 def Plot_Entropy(train_entropy,results_dict,test_frequency=1):
     train_entropy = np.array(train_entropy)
     list_of_epochs=[]
