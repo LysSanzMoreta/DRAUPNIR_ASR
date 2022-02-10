@@ -6,7 +6,7 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 """
 
 import re
-import os,sys
+import os,sys,shutil
 from os import listdir
 from os.path import isfile, join
 import subprocess
@@ -55,6 +55,7 @@ from Bio.PDB.PDBList import PDBList
 import Bio.Align
 from Bio.Align.Applications import MafftCommandline
 from Bio.Phylo.TreeConstruction import *
+from Bio import Phylo
 #Numpy
 import numpy as np
 import numpy.random as npr
@@ -639,7 +640,10 @@ def render_tree(tree,storage_folder,name_file):
         tree.render("{}/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
 
 def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
-    "Rename the internal nodes of an ete3 tree to a label I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
+    """Rename the internal nodes of an ete3 tree to a label I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array
+    :param ete3-tree tree: Ete3 tree
+    :param bool with_indexes: True --> adds the tree level order indexes to the name
+    """
     print("Renaming tree from simulations")
     leafs_names = tree.get_leaf_names()
     edge = len(leafs_names)
@@ -662,7 +666,8 @@ def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
     return tree
 
 def rename_tree_internal_nodes(tree):
-    """Rename the internal nodes of a tree to a label A + number, unless the given newick file already has the names on it"""
+    """Rename the internal nodes of a tree to a label A + number, unless the given newick file already has the names on it
+    :param ete3-tree tree: Ete3 tree constructor"""
 
     #Rename the internal nodes
     leafs_names = tree.get_leaf_names()
@@ -676,6 +681,13 @@ def rename_tree_internal_nodes(tree):
     return tree
 
 def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
+    """"Extract information from the PDB files
+    :param str PDB_folder: path to folder containing the PFB files
+    :param int aa_probs: amino acid probabilities
+    :param dict pfam_dict: dictionary containing the information on how to extract the sequences from the pdb file
+    :param bool one_hot_encoding
+    :param int min_len: Lower bound on the sequence length
+    """
     parser = PDB.PDBParser()
     #ppb = PPBuilder()
     capp = CaPPBuilder()
@@ -752,91 +764,6 @@ def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
                 prot_aa_dict[files_list[i][3:7]] = aa_list
                 duplicates.append("".join(aa_list))
     return prot_aa_dict,prot_info_dict
-
-class CreateDataset():
-    def __init__(self):
-        super(CreateDataset, self).__init__()
-
-    def process_pdb_files(PDB_folder, aa_probs, pfam_dict, one_hot_encoding, min_len):
-        parser = PDB.PDBParser()
-        # ppb = PPBuilder()
-        capp = CaPPBuilder()
-        prot_info_dict = {}
-        prot_aa_dict = {}
-        aminoacid_names = aminoacid_names_dict(
-            aa_probs)  # TODO: generalize to include all types of amino acids. For onehot encodings simply use aa_names_dict.keys()
-        files_list = [f for f in listdir(PDB_folder) if isfile(join(PDB_folder, f))]
-        duplicates = []
-        for i, PDB_file in enumerate(files_list):
-            structure = parser.get_structure('{}'.format(PDB_file), join(PDB_folder, PDB_file))
-            if pfam_dict:  # contains information on which chain to take and which residues to select from the PDB file
-                chain_name = pfam_dict[PDB_file[3:7].upper()]["Chain"]
-                Chain_0 = structure[0][chain_name]
-                start_residue, end_residue = pfam_dict[PDB_file[3:7].upper()]["Residues"].split("-")
-                list_residues = list(range(int(start_residue), int(end_residue) + 1))
-            else:  # when there is not Information not available on which chains to pick
-                chains = [chain for chain in structure[0]]
-                Chain_0 = chains[0]
-            polypeptides = capp.build_peptides(Chain_0)  # C_alpha-C-alpha polypeptide
-            angles_list = []
-            aa_list_embedded = []
-            aa_list = []
-            # coordinates_list = []
-            for poly_index, poly in enumerate(polypeptides):
-                if not pfam_dict:
-                    list_residues = [residue.get_id()[1] for residue in poly]  # TODO: Change to .get_resname()?
-                correspondence_index = [index for index, residue in enumerate(poly) if
-                                        residue.get_id()[1] in list_residues]
-                phipsi_list = poly.get_phi_psi_list()
-                # Gotta chop also the angles list according to the range of desired residues
-                if correspondence_index and pfam_dict:
-                    angles_list += phipsi_list[correspondence_index[0]:correspondence_index[
-                                                                           -1] + 1]  # chop also the angles_list according to the selected residues
-                elif not correspondence_index and pfam_dict:  # if there is not a corresponding residue do not append anything
-                    angles_list += []
-                else:  # keep appending all residues in the polypeptide
-                    angles_list += phipsi_list
-                for residue in poly:
-                    residue_position = residue.get_id()[1]
-                    if residue_position in list_residues:  # Only get the desired residues (though, if pfam_dict is absent it will append the entire polypeptide)
-                        aa_name = protein_letters_3to1[residue.get_resname()]
-                        if aa_name not in aminoacid_names.keys():
-                            raise ValueError(
-                                "Please select aa_probs > 21 , in order to allow using special amino acids")
-                        if one_hot_encoding:
-                            aa_name_index = aminoacid_names[aa_name]
-                            one_hot = np.zeros(aa_probs)  # one position, one character
-                            one_hot[aa_name_index] = 1.0
-                            aa_list_embedded.append(one_hot)
-                        else:
-                            aa_name_index = aminoacid_names[aa_name]
-                            aa_list_embedded.append(aa_name_index)
-                        aa_list.append(protein_letters_3to1[residue.get_resname()])
-            # Replace None values from NT and CT angles by npr.normal(np.pi,0.1)----> actually, perhaps just chop them, too much missinformation
-            angles_list_filled = []
-            for tpl in angles_list:
-                tpl = list(tpl)
-                if None in tpl:
-                    tpl[np.where(np.array(tpl) == None)[0][0]] = npr.normal(np.pi, 0.1)
-                angles_list_filled.append(tpl)
-            seq_len = len(angles_list_filled)
-            aa_info = np.zeros(
-                (seq_len + 2, 30))  # will contain information about all the aminoacids in this current sequence
-            # aa_info[0] = [seq_len, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0]
-            aa_info[0] = [seq_len] + [0] * 29
-            for index in range(2,
-                               seq_len + 2):  # First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
-                if one_hot_encoding:
-                    aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 7])
-                else:
-                    aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 27])
-            if seq_len > min_len and not all(v == (None, None) for v in
-                                             angles_list):  # skip the proteins that are empty or too small | skip the proteins with all None values in the angles
-                if "".join(aa_list) not in duplicates:
-                    prot_info_dict[files_list[i][3:7]] = aa_info
-                    prot_aa_dict[files_list[i][3:7]] = aa_list
-                    duplicates.append("".join(aa_list))
-        return prot_aa_dict, prot_info_dict
 
 def create_dataset(name_file,
                    one_hot_encoding,
@@ -1019,13 +946,17 @@ def create_dataset(name_file,
     np.save("{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset_not_aligned)
 
 def symmetrize_and_clean(matrix,ancestral=True):
+    """Remove, if necessary the ancestral nodes from the train matrix
+    :param pandas-array matrix: patristic or cladistic matrices with columns and indexes as node names """
     if not ancestral:#Drop the ancestral nodes information
         matrix = matrix[~matrix.index.str.contains('^A{1}[0-9]+(?![A-Z])+')]  # repeat with [a-z] if problems
         matrix = matrix.loc[:,~matrix.columns.str.contains('^A{1}[0-9]+(?![A-Z])+')]
     matrix = symmetrize(matrix)
     return matrix
 def rename_axis(matrix,nodes,name_file = None):
-    """nodes: tree level order node names"""
+    """
+    Rename the nodes names to their tree level index
+    nodes: tree level order node names"""
     if len(nodes) != 0 and name_file not in ["benchmark_randall","benchmark_randall_original","benchmark_randall_original_naming"]: #and not name.startswith("simulations"): #use the level order transversal tree information
         #Highlight: If nan (pd.isnull) is found, is because the root name is messed up and missing, just write it down in the patristic matrix file!!!! Or the names in the matrix != names in trevel order
 
@@ -1040,17 +971,22 @@ def rename_axis(matrix,nodes,name_file = None):
     else:
         return matrix
 def sum_matrices(matrix1,matrix2):
+    """Sums cladistic and patristic matrices to form an evolutionary matrix
+    :param: pandas-array matrix1
+    :param: pandas-array matrix2
+    """
     column_names = matrix1.columns.values  # 82 + 1
     column_names = np.concatenate((np.array([float("-inf")]), column_names))  # 82 + 1 (to fit the numpy array
     rows_names = matrix1.index.values  # 82
     matrix1 = matrix1.to_numpy()
     matrix2 = matrix2.to_numpy()
     matrix = matrix1 + matrix2
-    matrix = NormalizeStandarize(matrix)
+    matrix = normalize_standarize(matrix)
     matrix = np.column_stack((rows_names, matrix))
     matrix = np.row_stack((column_names, matrix))
     return matrix
 def pandas_to_numpy(matrix):
+    "Converts pandas array to numpy array, in this case by transforming the nodes names"
     column_names = matrix.columns.values.astype("int")  # 82 + 1
     column_names = np.concatenate((np.array([float("-inf")]), column_names))  # 82 + 1 (to fit the numpy array
     rows_names = matrix.index.values.astype("int")  # 82
@@ -1060,7 +996,9 @@ def pandas_to_numpy(matrix):
 
 
 def convert_to_letters(seq,aa_probs):
-    """Turns numbers into amino acid symbols(letters)"""
+    """Converts back the integers assigned to the amino acids to letters
+    :param seq: seq
+    :param int aa_probs: amino acid probabilities"""
 
     aa_names_dict = aminoacid_names_dict(aa_probs)
     aa_names_dict_reverse = {val:key for key,val in aa_names_dict.items()}
@@ -1072,16 +1010,23 @@ def convert_to_letters(seq,aa_probs):
 
     return ''.join(seq_letters)
 def score_match(pair, matrix):
+    """Returns the corresponding blosum scores between the pair of amino acids
+    :param tuple pair: pair of amino acids to compare
+    :param matrix: Blosum matrix """
     if pair not in matrix:
         return matrix[(tuple(reversed(pair)))]
     else:
         return matrix[pair]
 def score_pairwise(seq1, seq2, matrix, gap_s, gap_e):
     #TODO: https://stackoverflow.com/questions/5686211/is-there-a-function-that-can-calculate-a-score-for-aligned-sequences-given-the-a
-    """gap_s = gap penalty
-       gap_e = mismatch penalty
-       Blosum matrix : Scores within a BLOSUM are log-odds scores that measure, in an alignment, the logarithm for the ratio of the likelihood of two amino acids appearing with a biological sense and the likelihood of the same amino acids appearing by chance.
-       Blosum interpretation: the higher the score, the more likely the corresponding amino-acid substitution is."""
+    """
+    Calculates the blosum score of the true sequence against the predictions
+    :param matrix matrix: Blosum matrix containing the log-odds scores (he logarithm for the ratio of the
+       likelihood of two amino acids appearing with a biological sense and the likelihood of the same amino acids appearing by chance)
+        (the higher the score, the more likely the corresponding amino-acid substitution is)
+    :param int gap_s: gap penalty
+    :param int gap_e : mismatch penalty
+    """
     score = 0
     gap = False
     for i in range(len(seq1)):
@@ -1102,19 +1047,21 @@ def score_pairwise(seq1, seq2, matrix, gap_s, gap_e):
                 score += gap_e
     return score
 def score_pairwise_2(seq1, seq2, matrix, gap_s, gap_e, gap = True):
+    """Alternative method to calculate the blosum score between 2 sequences"""
     for A,B in zip(seq1, seq2):
         diag = ('-'==A) or ('-'==B)
         yield (gap_e if gap else gap_s) if diag else matrix[(A,B)]
         gap = diag
-# def normalize_standarize(x):
-#     "Normalizes and standarizes an input matrix"
-#     norm = np.linalg.norm(x)
-#     normal_array = x / norm
-#     return normal_array
+def normalize_standarize(x):
+    "Normalizes and standarizes an input matrix"
+    norm = np.linalg.norm(x)
+    normal_array = x / norm
+    return normal_array
 def folders(folder_name,basepath):
-    """ Folder for all the generated images It will updated everytime!!! Save the previous folder before running again. Creates folder in current directory"""
-    import os
-    import shutil
+    """ Creates a folder at the indicated location. It rewrites folders with the same name
+    :param str folder_name: name of the folder
+    :param str basepath: indicates the place where to create the folder
+    """
     #basepath = os.getcwd()
 
     if not basepath:
@@ -1133,12 +1080,13 @@ def folders(folder_name,basepath):
         shutil.rmtree(newpath)  # removes all the subdirectories!
         os.makedirs(newpath,0o777)
 def divide_batches(Dataset,number_splits):
-    "Order dataset by sequence size and divide in n splits"
+    """ Divides the training dataset in a given number of splits"""
     Dataset = Dataset[Dataset[:,0,0].argsort()]
     Dataset_splits =np.array_split(Dataset,number_splits)
     return Dataset_splits
 def perc_identity_alignment(aln):
-    "Calculates the %ID of an alignment"
+    """Calculates the %ID of an alignment
+    :param aln: biopython alignment object"""
     i = 0
     for a in range(0,len(aln[0])):
         s = aln[:,a]
@@ -1146,6 +1094,9 @@ def perc_identity_alignment(aln):
             i += 1
     return 100*i/float(len(aln[0]))
 def perc_identity_pair_seq(seq1,seq2):
+    """Calculates the percent identity among a pair of sequences
+    :param str seq1
+    :param str seq2"""
     i = 0
     seq1 =list(seq1)
     seq2=list(seq2)
@@ -1158,6 +1109,7 @@ def perc_identity_pair_seq(seq1,seq2):
             i += 1
     return 100*i/float(len(aln[0]))
 def incorrectly_predicted_aa(seq1,seq2):
+    """"""
     i = 0
     seq1 =list(seq1)
     seq2=list(seq2)
@@ -1173,7 +1125,6 @@ def incorrectly_predicted_aa(seq1,seq2):
 def to_ete3(tree):
     import tempfile
     from ete3 import Tree as EteTree
-    from Bio import Phylo
     with tempfile.NamedTemporaryFile(mode="w") as tmp:
         Phylo.write(tree, tmp, 'newick')
         tmp.flush()
@@ -1872,39 +1823,8 @@ def create_tree_by_levels(children_dict):
         current_nodes = children_nodes
 
     return tree_levels
-def Plot_ELBO(train_elbo,results_dict,test_frequency=1):
-    train_elbo = np.array(train_elbo)
-    list_epochs = list(range(0,len(train_elbo)))
 
-    plt.plot(list_epochs,train_elbo,color="dodgerblue")
-    plt.xlabel("List of epochs")
-    plt.ylabel("-ELBO")
-    plt.title("Training Error Loss (min -ELBO, min KL)")
-    plt.savefig("{}/ELBO_error.png".format(results_dict))
-    plt.close()
-
-def Plot_Entropy(train_entropy,results_dict,test_frequency=1):
-    train_entropy = np.array(train_entropy)
-    list_of_epochs=[]
-    for i in range(0,len(train_entropy),test_frequency):
-        list_of_epochs.append(i)
-    list_of_epochs = np.array(list_of_epochs)
-    if np.isnan(train_entropy).any():
-        print("Entropy contains nan")
-        pass
-    else:
-        #train_entropy = np.log(train_entropy) #necessary?
-        data = np.concatenate([list_of_epochs[:, sp.newaxis], train_entropy[:, sp.newaxis]], axis=1)
-        df = pd.DataFrame(data=data, columns=['Epoch', 'Shanon Entropy'])
-        fig = plt.figure()
-        plt.plot( 'Epoch', 'Shanon Entropy', data=df, marker='o', markerfacecolor='red', markersize=1, color='red', linewidth=1)
-        plt.title("Shanon Entropy Convergence")
-        plt.savefig("{}/Entropy_convergence.png".format(results_dict))
-        plt.close(fig)
-# def calculate_aa_frequencies(Dataset,freq_bins):
-#     freqs = torch.stack([ torch.bincount(x, minlength=freq_bins) for i, x in enumerate(torch.unbind(Dataset, dim=1), 0)], dim=0)
-#     freqs = freqs / Dataset.shape[0]
-#     return freqs
+#
 class MyDataset(Dataset):#TODO: remove
     def __init__(self,labels,data_arrays):
         self.labels = labels
@@ -1917,59 +1837,8 @@ class MyDataset(Dataset):#TODO: remove
     def __len__(self):
         return len(self.labels)
 
-class CladesDataset(Dataset):
-    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum):
-        self.clades_names = clades_names
-        self.clades_data = clades_data
-        self.clades_patristic = clades_patristic
-        self.clades_blosum = clades_blosum
 
-    def __getitem__(self, index): #sets a[i]
-        clade_name = self.clades_names[index]
-        clade_data = self.clades_data[index]
-        clade_patristic = self.clades_patristic[index]
-        clade_blosum = self.clades_blosum[index]
-        return {'clade_name': clade_name, 'clade_data': clade_data,'clade_patristic': clade_patristic ,'clade_blosum':clade_blosum}
-    def __len__(self):
-        return len(self.clades_names)
-
-
-class SplittedDataset(Dataset):
-    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted):
-        self.batches_names = batches_names
-        self.batches_data = batches_data
-        self.batches_patristic = batches_patristic
-        self.batches_blosum_weighted = batches_blosum_weighted
-
-    def __getitem__(self, index):  # sets a[i]
-        batch_name = self.batches_names[index]
-        batch_data = self.batches_data[index]
-        batch_patristic = self.batches_patristic[index]
-        batch_blosum_weighted = self.batches_blosum_weighted[index]
-        return {'batch_name': batch_name, 'batch_data': batch_data, 'batch_patristic': batch_patristic,'batch_blosum_weighted': batch_blosum_weighted}
-
-    def __len__(self):
-        return len(self.batches_names)
-class PretrainDataset(Dataset): #TODO: turn into namedtuple? the first part, but the get item?
-    def __init__(self,labels,data_arrays,patristic_matrix,aa_freqs,blosum_max,blosum_weighted):
-        self.labels = labels
-        self.data_arrays = data_arrays
-        self.patristic_matrix = patristic_matrix
-        self.aa_freqs = aa_freqs
-        self.blosum_max = blosum_max
-        self.blosum_weighted = blosum_weighted
-
-    def __getitem__(self, index):
-        label = self.labels[index]
-        data = self.data_arrays[index]
-        patristic_matrix = self.patristic_matrix[index]
-        aa_freqs = self.aa_freqs[index]
-        blosum_max = self.blosum_max[index]
-        blosum_weighted = self.blosum_weighted[index]
-        return {'family_name': label, 'family_data': data,"family_patristic":patristic_matrix,"family_aa_freqs":aa_freqs,"family_blosums_max":blosum_max,"family_blosums_weighted":blosum_weighted}
-    def __len__(self):
-        return len(self.labels)
-def Define_batch_size(n,batch_size=True, benchmarking=False):
+def define_batch_size(n,batch_size=True, benchmarking=False):
     "Automatic calculation the available divisors of the number of training data points (n). This helps to suggest an appropiate non decimal batch size number, that splits evenly the data"
     if not benchmarking:
         assert n >= 100 ,"Not worth batching, number of sequences is < 100 "
@@ -1979,237 +1848,45 @@ def Define_batch_size(n,batch_size=True, benchmarking=False):
     batchsize = int(DraupnirModelUtils.intervals(n_chunks, n)[0][1])
     if batch_size:return batchsize
     else:return n_chunks
-def setup_data_loaders_Family(Family_datasets,Family_labels, batchsize, use_cuda=True):
-    #TODO: remove
-    '''Load each famility one at the time
-    Family_datasets = Dictionary containing information (torch.array) on each of the families
-    '''
-    # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-    kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-    Family_labels = ["A"]
-    Family_datasets = [Family_datasets.cpu()]
-    Family_datasets = MyDataset(Family_labels,Family_datasets)
 
-    train_loader = DataLoader(Family_datasets,batch_size=len(Family_labels),**kwargs)
 
-    print(' Train_loader size: ', len(train_loader), 'batches')
-    return train_loader
-def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
-    '''If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used'''
-    # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-    kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-    patristic_matrix_train = patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader
-    n_seqs = dataset.shape[0]
-    if method == "batch_dim_0":
-        if args.batch_size == 1 : #only 1 batch // plating
 
-            train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
-            if use_cuda:
-                train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
-        else:
-            blocks = DraupnirModelUtils.intervals(n_seqs//build_config.batch_size, n_seqs) #TODO: make sure it makes sense
-            batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
-            batch_datasets = []
-            batch_patristics = []
-            batch_aa_freqs = []
-            batch_blosums_max = []
-            batch_blosums_weighted = []
-            for block_idx in blocks:
-                batch_data = dataset[int(block_idx[0]):int(block_idx[1])]
-                batch_datasets.append(batch_data.cpu())
-                batch_nodes = batch_data[:,0,1]
-                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == batch_nodes.cpu()).any(-1)
-                patristic_indexes[0] = True  # To re-add the node names
-                batch_patristic = patristic_matrix_train[patristic_indexes]
-                batch_patristic = batch_patristic[:,patristic_indexes]
-                batch_patristics.append(batch_patristic)
-
-                batch_aa_frequencies = calculate_aa_frequencies(batch_data[:,2:,0].cpu().numpy(), build_config.aa_prob)
-                batch_aa_freqs.append(batch_aa_frequencies)
-                batch_blosum_max, batch_blosum_weighted, batch_variable_score = process_blosum(blosum.cpu(), torch.from_numpy(batch_aa_frequencies), build_config.align_seq_len, build_config.aa_prob)
-                batch_blosums_max.append(batch_blosum_max)
-                batch_blosums_weighted.append(batch_blosum_weighted)
-
-            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted)
-            train_loader = DataLoader(Splitted_Datasets, **kwargs)
-            for batch_number, dataset in enumerate(train_loader):
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted in zip(
-                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"], dataset["batch_blosum_weighted"]):
-                    batch_dataset.to('cuda', non_blocking=True)
-                    batch_patristic.to('cuda', non_blocking=True)
-                    batch_blosum_weighted.to('cuda', non_blocking=True)
-
-    elif method == "batch_dim_1": #batching over the length of the alignment #TODO: Remove
-        batchsize = 157#DraupnirModelUtils.printDivisors(Dataset[:,2:].shape[1])
-        train_loader = DataLoader(Dataset[:,2:].permute(1,0,2).cpu(), batch_size=batchsize, shuffle=False, **kwargs)
-        if use_cuda:
-            train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
-    else:
-        clade_labels = []
-        clades_datasets = []
-        clades_patristic = []
-        clades_blosums = []
-        for key,values in clades_dict.items():
-            clade_labels.append(key)
-            if isinstance(values,list) and len(values) > 1:
-                clades_indexes = (dataset[:, 0,1][..., None] == torch.Tensor(values)).any(-1)
-                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == torch.Tensor(values).cpu()).any(-1)
-            else:
-                clades_indexes = (dataset[:, 0, 1][..., None] == values).any(-1)
-                patristic_indexes = (patristic_matrix_train[:, 0][..., None] == values).any(-1)
-
-            clade_dataset = Dataset[clades_indexes]
-            clades_datasets.append(clade_dataset.cpu())
-            patristic_indexes[0] = True # To re-add the node names
-            clade_patristic = patristic_matrix_train[patristic_indexes]
-            clade_patristic = clade_patristic[:,patristic_indexes]
-            clades_patristic.append(clade_patristic)
-            clade_aa_frequencies = calculate_aa_frequencies(clade_dataset[:,2:,0].cpu().numpy(),build_config.aa_prob)
-            blosum_max, blosum_weighted, variable_score = process_blosum(blosum.cpu(),
-                                                                         torch.from_numpy(clade_aa_frequencies),
-                                                                         build_config.align_seq_len,
-                                                                         build_config.aa_prob)
-            clades_blosums.append(blosum_weighted)
-        Clades_Datasets = CladesDataset(clade_labels,clades_datasets,clades_patristic,clades_blosums)
-        train_loader = DataLoader(Clades_Datasets, **kwargs)
-        if use_cuda:
-            #train_loader = [clade_dataset.to('cuda:0', non_blocking=True) for batch_number, dataset in enumerate(train_loader) for clade_name, clade_dataset in zip(dataset["family_name"], dataset["family_data"])]
-            for batch_number, dataset in enumerate(train_loader):
-                for clade_name, clade_dataset,clade_patristic,clade_blosum in zip(dataset["clade_name"], dataset["clade_data"],dataset["clade_patristic"],dataset["clade_blosum"]):
-                        clade_dataset.to('cuda:0', non_blocking=True)
-                        clade_patristic.to('cuda:0', non_blocking=True)
-                        clade_blosum.to('cuda:0', non_blocking=True)
-    print(' Train_loader size: ', len(train_loader), 'batches')
-
-    return train_loader
-# def setup_data_loaders_Pretrain(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
-#     '''Load each famility one at the time
-#     Family_datasets = Dictionary containing information (torch.array) on each of the families
-#     '''
-#     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-#     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-#     n_seqs = Train_data.shape[0]
-#     align_seq_len = Train_data.shape[1]
-#     # Generate selection indexes
-#     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
-#     blosum = torch.from_numpy(create_blosum(aa_probs))
-#     #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
-#     #Split the patristic matrix into block matrices
-#     family_labels = ["family_{}".format(i) for i in range(len(blocks))]
-#     family_datasets = []
-#     family_patristics = []
-#     family_aa_freqs = []
-#     family_blosums_max = []
-#     family_blosums_weighted = []
-#     for block_idx in blocks:
-#         family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
-#         family_datasets.append(family_data)
-#         family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
-#         family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
-#         family_patristics.append(family_patristic)
-#         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs)
-#         family_aa_freqs.append(aa_frequencies)
-#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,align_seq_len,aa_probs)
-#         family_blosums_max.append(family_blosum_max)
-#         family_blosums_weighted.append(family_blosum_weighted)
-#
-#     Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
-#     train_loader = DataLoader(Families_Datasets, **kwargs)
-#     for batch_number, dataset in enumerate(train_loader):
-#         for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
-#             family_dataset.to('cuda', non_blocking=True)
-#             family_patristic.to('cuda', non_blocking=True)
-#             family_aa_freqs.to('cuda', non_blocking=True)
-#             family_blosum_max.to('cuda', non_blocking=True)
-#             family_blosum_weighted.to('cuda',non_blocking=True)
-#     print(' Train_loader size: ', len(train_loader), 'batches')
-#     return train_loader
-# def setup_data_loaders_Pretrain_VAE(Train_data,Patristic_matrix,aa_probs,batch_size,use_cuda=True):
-#     '''Load each famility one at the time
-#     Family_datasets = Dictionary containing information (torch.array) on each of the families
-#     '''
-#     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
-#     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
-#     n_seqs = Train_data.shape[0]
-#     align_seq_len = Train_data.shape[1]
-#     # Generate selection indexes
-#     blocks = DraupnirModelUtils.intervals(batch_size, n_seqs)
-#     blosum = torch.from_numpy(create_blosum(aa_probs))
-#     #dataset = TensorDataset(Train_data,Patristic_matrix) #Highlight: To load simultaneously 2 tensors to be batched on the same dimension
-#     #Split the patristic matrix into block matrices
-#     family_labels = ["family_{}".format(i) for i in range(len(blocks))]
-#     family_datasets = []
-#     family_patristics = []
-#     family_aa_freqs = []
-#     family_blosums_max = []
-#     family_blosums_weighted = []
-#     for block_idx in blocks:
-#         family_data = Train_data[int(block_idx[0]):int(block_idx[1])]
-#         family_datasets.append(family_data)
-#         family_patristic = Patristic_matrix[int(block_idx[0]):int(block_idx[1])]
-#         family_patristic = family_patristic[:,int(block_idx[0]):int(block_idx[1])]
-#         family_patristics.append(family_patristic)
-#         aa_frequencies = calculate_aa_frequencies(family_data,aa_probs) #TODO: change to aa_frequencies()
-#         family_aa_freqs.append(aa_frequencies)
-#         family_blosum_max,family_blosum_weighted = process_blosum(blosum,aa_frequencies,align_seq_len,aa_probs)
-#         family_blosums_max.append(family_blosum_max)
-#         family_blosums_weighted.append(family_blosum_weighted)
-#
-#     Families_Datasets = PretrainDataset(family_labels, family_datasets,family_patristics,family_aa_freqs,family_blosums_max,family_blosums_weighted)
-#     train_loader = DataLoader(Families_Datasets, **kwargs)
-#     for batch_number, dataset in enumerate(train_loader):
-#         for family_label, family_dataset ,family_patristic,family_aa_freqs,family_blosum_max,family_blosum_weighted in zip(dataset["family_name"], dataset["family_data"],dataset["family_patristic"],dataset["family_aa_freqs"],dataset["family_blosums_max"],dataset["family_blosums_weighted"]):
-#             family_dataset.to('cuda', non_blocking=True)
-#             family_patristic.to('cuda', non_blocking=True)
-#             family_aa_freqs.to('cuda', non_blocking=True)
-#             family_blosum_max.to('cuda', non_blocking=True)
-#             family_blosum_weighted.to('cuda',non_blocking=True)
-#     print(' Train_loader size: ', len(train_loader), 'batches')
-#     return train_loader
-def Covariance(x,y):
+def covariance(x,y):
     """Computes cross-covariance between vectors, and is defined by cov[X,Y]=E[(X−μX)(Y−μY)T]"""
     A = torch.sqrt(torch.arange(12).reshape(3, 4))  # some 3 by 4 array
     b = torch.tensor([[2], [4], [5]])  # some 3 by 1 vector
     cov = torch.dot(b.T - b.mean(), A - A.mean(dim=0)) / (b.shape[0] - 1)
     return cov
-def mask_3d(inputs, seq_len, mask_value=0.):
-    batches = inputs.size()[0]
-    print(inputs)
-    exit()
-    assert batches == len(seq_len)
-    max_idx = max(seq_len)
-    for n, idx in enumerate(seq_len):
-        if idx < max_idx.item():
-            if len(inputs.size()) == 3:
-                inputs[n, idx.int():, :] = mask_value
-            else:
-                assert len(inputs.size()) == 2, "The size of inputs must be 2 or 3, received {}".format(inputs.size())
-                inputs[n, idx.int():] = mask_value
-    return inputs
-def Find_nan(array,nan=True):
-    Shape = array.shape
-    tensor_reshaped = array.reshape(Shape[0], -1)
+
+def find_nan(array,nan=True):
+    """Drops rows in a tensor containing any nan values
+    :param tensor array"""
+    shape = array.shape
+    tensor_reshaped = array.reshape(shape[0], -1)
     # Drop all rows containing any nan:
     if not nan:
         tensor_reshaped = tensor_reshaped[~torch.any(tensor_reshaped.isnan(), dim=1)]
     else:
         tensor_reshaped = tensor_reshaped[torch.any(tensor_reshaped.isnan(), dim=1)]
     # Reshape back:
-    array = tensor_reshaped.reshape(tensor_reshaped.shape[0], *Shape[1:])
+    array = tensor_reshaped.reshape(tensor_reshaped.shape[0], *shape[1:])
     return array
-def Ramachandran_plot( Data_angles,save_directory,plot_title, one_hot_encoded = False ):
-    import numpy as np
-    from matplotlib.colors import LogNorm
+def ramachandran_plot( data_angles,save_directory,plot_title, one_hot_encoded = False ):
+    """Plots Ramachandran plots between the phi and psi angles in the dataset
+    :param numpy-array data_angles : 3d array [n_seq, align_len, 30], where columns 1 and 2 or 21 and 22 contain the angles in the case of NOT one-hot encoded and one-hot encoded, respectively
+    :param str save_directory: path to saving directory
+    :param str plot_title
+    :param bool one_hot_encoded
+    """
     plt.clf()
     if one_hot_encoded:
-        phi = Data_angles[:,:,21].reshape((Data_angles.shape[0]*Data_angles.shape[1])).astype(float) #- np.pi
+        phi = data_angles[:,:,21].reshape((data_angles.shape[0]*data_angles.shape[1])).astype(float) #- np.pi
 
-        psi = Data_angles[:,:,22].reshape((Data_angles.shape[0]*Data_angles.shape[1])).astype(float) #- np.pi
+        psi = data_angles[:,:,22].reshape((data_angles.shape[0]*data_angles.shape[1])).astype(float) #- np.pi
     else:
-        phi = Data_angles[:,:,1].reshape((Data_angles.shape[0]*Data_angles.shape[1])).astype(float)
-        psi = Data_angles[:,:,2].reshape((Data_angles.shape[0]*Data_angles.shape[1])).astype(float)
+        phi = data_angles[:,:,1].reshape((data_angles.shape[0]*data_angles.shape[1])).astype(float)
+        psi = data_angles[:,:,2].reshape((data_angles.shape[0]*data_angles.shape[1])).astype(float)
 
-    axes = [[-np.pi, np.pi], [-np.pi, np.pi]]
     fig = plt.figure(figsize=(5,5))
     plt.hist2d( phi, psi, bins = 628, norm = LogNorm())#, cmap = plt.cm.jet )
     plt.ylim(-np.pi, np.pi)
@@ -2221,7 +1898,14 @@ def Ramachandran_plot( Data_angles,save_directory,plot_title, one_hot_encoded = 
     plt.clf()
     plt.close(fig)
 
-def Ramachandran_plot_sampled(phi,psi,save_dict,plot_title,plot_kappas=False):
+def ramachandran_plot_sampled(phi,psi,save_directory,plot_title,plot_kappas=False):
+    """Plots Ramachandran plots between the phi and psi angles in the dataset
+    :param tensor phi
+    :param tensor psi
+    :param str save_directory: path to saving directory
+    :param str plot_title
+    :param bool plot_kappas
+    """
     if isinstance(phi,torch.Tensor):
         phi = phi.view(-1).cpu().detach().numpy()
         psi = psi.view(-1).cpu().detach().numpy()
@@ -2237,9 +1921,10 @@ def Ramachandran_plot_sampled(phi,psi,save_dict,plot_title,plot_kappas=False):
         plt.xlabel('φ')
         plt.ylabel('ψ')
     plt.title(plot_title,fontsize=12)
-    plt.savefig(save_dict)
+    plt.savefig(save_directory)
     plt.clf()
     plt.close()
+
 def gradients_plot(gradient_norms,epochs,directory):
     """Visualization of the gradient descent per model parameter
     :param dict gradient_norms: dictionary with the model parameters and the partial derivatives
@@ -2258,25 +1943,27 @@ def gradients_plot(gradient_norms,epochs,directory):
     plt.savefig("{}/Gradients_{}_epochs.png".format(directory,epochs))
     plt.clf()
     plt.close()
-def benchmark_dataset(name,aa_prob):
-    """Processing dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction" """
-    observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
-    sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
-    #Select the sequences of only the observed nodes
-    full_fasta = SeqIO.parse(sequences_file, "fasta")
-    with open("datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta", "w") as output_handle:
-        observed_fasta = []
-        for seq in full_fasta:
-            if int(seq.id) in observed_nodes:
-                observed_fasta.append(seq)
-        SeqIO.write(observed_fasta, output_handle, "fasta")
-    create_dataset(name,
-                   one_hot_encoding=False,
-                   fasta_file="datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta",
-                   alignment_file="datasets/default/benchmark_randall_original_naming/benchmark_randall_original.mafft",
-                   tree_file="benchmark_randall_original_naming/RandallBenchmarkTree_OriginalNaming.tree",
-                   aa_probs=aa_prob,
-                   rename_internal_nodes=False)
+# def benchmark_dataset(name,aa_prob):
+#     """Processing of the dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
+#     :param str name: project dataset name
+#     :param int aa_prob: amino acid probabilities"""
+#     observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
+#     sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
+#     #Select the sequences of only the observed nodes
+#     full_fasta = SeqIO.parse(sequences_file, "fasta")
+#     with open("datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta", "w") as output_handle:
+#         observed_fasta = []
+#         for seq in full_fasta:
+#             if int(seq.id) in observed_nodes:
+#                 observed_fasta.append(seq)
+#         SeqIO.write(observed_fasta, output_handle, "fasta")
+#     create_dataset(name,
+#                    one_hot_encoding=False,
+#                    fasta_file="datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta",
+#                    alignment_file="datasets/default/benchmark_randall_original_naming/benchmark_randall_original.mafft",
+#                    tree_file="benchmark_randall_original_naming/RandallBenchmarkTree_OriginalNaming.tree",
+#                    aa_probs=aa_prob,
+#                    rename_internal_nodes=False)
 
 # def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
 #     """Processes the leaves from the EvolveAGene4 simulations into a dataset
@@ -2296,70 +1983,72 @@ def benchmark_dataset(name,aa_prob):
 #                    one_hot_encoding=False,
 #                    fasta_file="{}/{}_Observed.fasta".format(name,data_dir),#Alignment file
 #                    tree_file=tree_file)
-def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
-    "Load and format the ancestral sequences from the simulations"
-    # Select the sequences of only the observed nodes
-    ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-    aminoacid_names = aminoacid_names_dict(aa_probs)
-    internal_fasta_dict = {}
-    tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
-
-    for seq in ancestral_fasta:
-            seq_numbers =[]
-            #Highlight: replace all stop codons with a gap and also the sequence coming after it
-            sequence_no_stop_codons = str(seq.seq).split("*", 1)[0]
-            len_diff = len(str(seq.seq)) - len(sequence_no_stop_codons)
-            sequence_no_stop_codons = sequence_no_stop_codons + "-"*len_diff
-            #for aa_name in seq.seq :
-            for aa_name in sequence_no_stop_codons:
-                #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0])
-                aa_number = aminoacid_names[aa_name]
-                seq_numbers.append(aa_number)
-            seq_id = np.where(np.array(tree_level_order_names) == seq.id.strip("Node"))[0][0]
-            #internal_fasta_dict[int(seq_id)] = [seq.seq,seq_numbers]
-            internal_fasta_dict[int(seq_id)] = [sequence_no_stop_codons, seq_numbers]
-
-    max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-    print("Creating aligned TEST simulation dataset...")
-    Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
-    for i, (key, val) in enumerate(internal_fasta_dict.items()):
-        aligned_seq = list(internal_fasta_dict[key][0])
-        Dataset[i, 0, 1] = key  # name in the tree
-        Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
-        Dataset[i, 2:,0] = internal_fasta_dict[key][1]
-
-    return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
-
-def randalls_dataset(scriptdir,aa_probs=21):
-    "Pick from the ancestral sequences those of interest/available in the Iqtree"
-    internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
-    sequences_file = "{}/datasets/default/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
-    # Select the sequences of only the observed nodes
-    full_fasta = SeqIO.parse(sequences_file, "fasta")
-    aminoacid_names= aminoacid_names_dict(aa_probs)
-    internal_fasta_dict = {}
-    for seq in full_fasta:
-        if int(seq.id) in internal_nodes:
-            seq_numbers =[]
-            for aa_name in seq.seq:
-                #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
-                aa_number = aminoacid_names[aa_name]
-                seq_numbers.append(aa_number)
-            internal_fasta_dict[int(seq.id)] = [seq.seq,seq_numbers]
-    max_length = max([int(len(sequence[0])) for idx,sequence in internal_fasta_dict.items()]) #225
-
-    dataset = np.zeros((len(internal_fasta_dict), max_length + 1 + 1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +2 (to include git, seqlen)
-    for i, (key,val) in enumerate(internal_fasta_dict.items()):
-        # aligned_seq = list(alignment[i].seq.strip(",")) # I don't think this made sense, cause files could be in wrong order?
-        aligned_seq = list(internal_fasta_dict[key][0].strip(","))
-        no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 2  # plus 2 in order to make the indexes fit in the final dataframe
-        dataset[i, 0,0] = len(internal_fasta_dict[key][1]) #Insert seq len and git vector
-        dataset[i,0,1] = key #position in the tree
-        dataset[i, 0, 2] =  0 #fake distance to the root
-        dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
-
-    return dataset, internal_nodes
-def Renaming(tree):
+# def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
+#     """Load and format the ancestral sequences from the simulations
+#     :param ancestral_file
+#     """
+#     # Select the sequences of only the observed nodes
+#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
+#     aminoacid_names = aminoacid_names_dict(aa_probs)
+#     internal_fasta_dict = {}
+#     tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
+#
+#     for seq in ancestral_fasta:
+#             seq_numbers =[]
+#             #Highlight: replace all stop codons with a gap and also the sequence coming after it
+#             sequence_no_stop_codons = str(seq.seq).split("*", 1)[0]
+#             len_diff = len(str(seq.seq)) - len(sequence_no_stop_codons)
+#             sequence_no_stop_codons = sequence_no_stop_codons + "-"*len_diff
+#             #for aa_name in seq.seq :
+#             for aa_name in sequence_no_stop_codons:
+#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0])
+#                 aa_number = aminoacid_names[aa_name]
+#                 seq_numbers.append(aa_number)
+#             seq_id = np.where(np.array(tree_level_order_names) == seq.id.strip("Node"))[0][0]
+#             #internal_fasta_dict[int(seq_id)] = [seq.seq,seq_numbers]
+#             internal_fasta_dict[int(seq_id)] = [sequence_no_stop_codons, seq_numbers]
+#
+#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
+#     print("Creating aligned TEST simulation dataset...")
+#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
+#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
+#         aligned_seq = list(internal_fasta_dict[key][0])
+#         Dataset[i, 0, 1] = key  # name in the tree
+#         Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
+#         Dataset[i, 2:,0] = internal_fasta_dict[key][1]
+#
+#     return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
+#
+# def randalls_dataset(scriptdir,aa_probs=21):
+#     "Pick from the ancestral sequences those of interest/available in the Iqtree"
+#     internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
+#     sequences_file = "{}/datasets/default/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
+#     # Select the sequences of only the observed nodes
+#     full_fasta = SeqIO.parse(sequences_file, "fasta")
+#     aminoacid_names= aminoacid_names_dict(aa_probs)
+#     internal_fasta_dict = {}
+#     for seq in full_fasta:
+#         if int(seq.id) in internal_nodes:
+#             seq_numbers =[]
+#             for aa_name in seq.seq:
+#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
+#                 aa_number = aminoacid_names[aa_name]
+#                 seq_numbers.append(aa_number)
+#             internal_fasta_dict[int(seq.id)] = [seq.seq,seq_numbers]
+#     max_length = max([int(len(sequence[0])) for idx,sequence in internal_fasta_dict.items()]) #225
+#
+#     dataset = np.zeros((len(internal_fasta_dict), max_length + 1 + 1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +2 (to include git, seqlen)
+#     for i, (key,val) in enumerate(internal_fasta_dict.items()):
+#         # aligned_seq = list(alignment[i].seq.strip(",")) # I don't think this made sense, cause files could be in wrong order?
+#         aligned_seq = list(internal_fasta_dict[key][0].strip(","))
+#         no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 2  # plus 2 in order to make the indexes fit in the final dataframe
+#         dataset[i, 0,0] = len(internal_fasta_dict[key][1]) #Insert seq len and git vector
+#         dataset[i,0,1] = key #position in the tree
+#         dataset[i, 0, 2] =  0 #fake distance to the root
+#         dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
+#
+#     return dataset, internal_nodes
+def renaming(tree):
         "Rename the internal nodes, unless the given newick file already has the names on it"
         #Rename the internal nodes
         leafs_names = tree.get_leaf_names()
@@ -2380,7 +2069,7 @@ def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,
     aminoacid_names = aminoacid_names_dict(aa_probs)
     root_name = name.replace("_subtree","").replace("_","-")
     tree = TreeEte3(tree_file,format=1)#,quoted_node_names=True)
-    Renaming(tree)
+    renaming(tree)
     root_number = [node.name for node in tree.traverse() if node.is_root()]
 
     nodes_equivalence = {root_name:root_number}
@@ -2405,47 +2094,47 @@ def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,
 
     return torch.from_numpy(Dataset), list(internal_fasta_dict.keys()), max_lenght_internal_aligned, nodes_equivalence
 
-def CFPTest(name,ancestral_file,tree_level_order_names,aa_probs):
-    "Select the root sequence of the Faviina clade as the test sequence"
-    ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-    if name == "Coral_Faviina":
-        root = "A35" #TODO: root detection system?
-        nodes_dict = {"all-fav0":root,"all-fav1":root,"all-fav2":root,"all-fav3":root,"all-fav4":root}
-    elif name == "Coral_all":
-        root = "A71"
-        nodes_dict = {"allcor0": root, "allcor1": root, "allcor2": root, "allcor3": root, "allcor4": root}
-    elif name == "Cnidaria":
-        print("Fix CFPTest for Cnidaria. The tree does not match the original, cannot be used")
-        exit()
-        ancestor_coral = ""
-        ancestor_faviina = ""
-        nodes_dict = {"allcor0": ancestor_coral, "allcor1": ancestor_coral, "allcor2": ancestor_coral, "allcor3": ancestor_coral, "allcor4": ancestor_coral,
-                      "all-fav0":ancestor_faviina,"all-fav1":ancestor_faviina,"all-fav2":ancestor_faviina,"all-fav3":ancestor_faviina,"all-fav4":ancestor_faviina}
-
-    aminoacid_names = aminoacid_names_dict(aa_probs)
-    test_nodes_names = []
-    internal_fasta_dict ={}
-    for seq in ancestral_fasta:
-        if seq.id in nodes_dict.keys():
-            seq_numbers = []
-            for aa_name in seq.seq:
-                #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
-                aa_number = aminoacid_names[aa_name]
-                seq_numbers.append(aa_number)
-            id = nodes_dict[seq.id]
-            seq_id = np.where(np.array(tree_level_order_names) == id)[0][0]
-            test_nodes_names.append(seq_id)
-            internal_fasta_dict[seq.id] = [seq_id,seq.seq, seq_numbers]
-
-    max_lenght_internal_aligned = max([int(len(sequence[1])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-    print("Creating aligned Coral Faviina dataset...")
-    Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=object)
-    for i, (key, val) in enumerate(internal_fasta_dict.items()):
-        Dataset[i, 0, 1] = int(val[0])  # name in the tree
-        Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][1]).replace("-", ""))  # Fill in the sequence lenght
-        Dataset[i, 2:, 0] = internal_fasta_dict[key][2]
-
-    return Dataset.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
+# def CFPTest(name,ancestral_file,tree_level_order_names,aa_probs):
+#     "Select the root sequence of the Faviina clade as the test sequence"
+#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
+#     if name == "Coral_Faviina":
+#         root = "A35" #TODO: root detection system?
+#         nodes_dict = {"all-fav0":root,"all-fav1":root,"all-fav2":root,"all-fav3":root,"all-fav4":root}
+#     elif name == "Coral_all":
+#         root = "A71"
+#         nodes_dict = {"allcor0": root, "allcor1": root, "allcor2": root, "allcor3": root, "allcor4": root}
+#     elif name == "Cnidaria":
+#         print("Fix CFPTest for Cnidaria. The tree does not match the original, cannot be used")
+#         exit()
+#         ancestor_coral = ""
+#         ancestor_faviina = ""
+#         nodes_dict = {"allcor0": ancestor_coral, "allcor1": ancestor_coral, "allcor2": ancestor_coral, "allcor3": ancestor_coral, "allcor4": ancestor_coral,
+#                       "all-fav0":ancestor_faviina,"all-fav1":ancestor_faviina,"all-fav2":ancestor_faviina,"all-fav3":ancestor_faviina,"all-fav4":ancestor_faviina}
+#
+#     aminoacid_names = aminoacid_names_dict(aa_probs)
+#     test_nodes_names = []
+#     internal_fasta_dict ={}
+#     for seq in ancestral_fasta:
+#         if seq.id in nodes_dict.keys():
+#             seq_numbers = []
+#             for aa_name in seq.seq:
+#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
+#                 aa_number = aminoacid_names[aa_name]
+#                 seq_numbers.append(aa_number)
+#             id = nodes_dict[seq.id]
+#             seq_id = np.where(np.array(tree_level_order_names) == id)[0][0]
+#             test_nodes_names.append(seq_id)
+#             internal_fasta_dict[seq.id] = [seq_id,seq.seq, seq_numbers]
+#
+#     max_lenght_internal_aligned = max([int(len(sequence[1])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
+#     print("Creating aligned Coral Faviina dataset...")
+#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=object)
+#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
+#         Dataset[i, 0, 1] = int(val[0])  # name in the tree
+#         Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][1]).replace("-", ""))  # Fill in the sequence lenght
+#         Dataset[i, 2:, 0] = internal_fasta_dict[key][2]
+#
+#     return Dataset.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
 
 def calculate_aa_frequencies(Dataset,freq_bins):
     "Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x."
@@ -2469,23 +2158,8 @@ def compare_trees(t1,t2):
     cmd = [command, path2script] + args
     distance = subprocess.check_output(cmd, universal_newlines=True)
     return distance
-def load_randalls_benchmark_ancestral_sequences(scriptdir):
-    dataset_test,internal_names_test = randalls_dataset(scriptdir)
-    dataset_test = np.array(dataset_test, dtype="float64")
-    dataset_test = torch.from_numpy(dataset_test)
-    return dataset_test,internal_names_test
-def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
 
-    dataset_test, leaves_names_test,max_len_test = simulations_dataset_test(ancestral_file="{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name),
-                                                                           tree_level_order_names=tree_levelorder_names,
-                                                                           aligned=settings_config.aligned_seq,
-                                                                           align_max_len=align_seq_len,
-                                                                           aa_probs=aa_prob)
-    dataset_test = np.array(dataset_test, dtype="float64")
-    dataset_test = torch.from_numpy(dataset_test)
-    return dataset_test,leaves_names_test,max_len_test
-def Remove_Stop_Codons(sequence_file):
-    from Bio.Seq import Seq
+def remove_stop_codons(sequence_file):
     stop_codons = ["TGA","TAG","TAA"]
     seq_file = open(sequence_file, 'r+')
     seq = seq_file.read()
@@ -2497,17 +2171,17 @@ def Remove_Stop_Codons(sequence_file):
     #check = any(item in codons for item in stop_codons)
     seq_file.write("".join(codons))
     seq_file.truncate()  # remove contents
-class LoadFromFile (argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        with values as f:
-            contents = f.read()
-
-        # parse arguments in the file and store them in a blank namespace
-        data = parser.parse_args(contents.split(), namespace=None)
-        for k, v in vars(data).items():
-            # set arguments in the target namespace if they haven’t been set yet
-            if getattr(namespace, k, None) is not None:
-                setattr(namespace, k, v)
+# class LoadFromFile (argparse.Action):
+#     def __call__(self, parser, namespace, values, option_string=None):
+#         with values as f:
+#             contents = f.read()
+#
+#         # parse arguments in the file and store them in a blank namespace
+#         data = parser.parse_args(contents.split(), namespace=None)
+#         for k, v in vars(data).items():
+#             # set arguments in the target namespace if they haven’t been set yet
+#             if getattr(namespace, k, None) is not None:
+#                 setattr(namespace, k, v)
 def convert_to_integers(Dataset,aa_prob,axis):
     if axis==3:#use for predictions
         b = np.argmax(Dataset, axis=axis)
@@ -2548,18 +2222,20 @@ def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_prob,dataset_train
 
     return aa_train_blosum
 
-def translate_sequence(seq_file):
-    """
-    CCDS (Consensus conserved region): https://www.ncbi.nlm.nih.gov/CCDS/CcdsBrowse.cgi?REQUEST=CCDS&DATA=CCDS13294.1
-    https://www.rcsb.org/structure/2SRC
-    GenBank: BC011566.1
-    https://www.ncbi.nlm.nih.gov/nuccore/BC011566.1?report=fasta"""
-    sequences = SeqIO.parse(seq_file, "fasta")
-    f = open("Datasets_Simulations/SRC_simulations/SRC_GenBank_BC011566.1_PROTEIN_full.fasta", "w+")
-    for seq in sequences:
-        f.write("{}\n".format(seq.translate().seq))
+# def translate_sequence(seq_file):
+#     """
+#     CCDS (Consensus conserved region): https://www.ncbi.nlm.nih.gov/CCDS/CcdsBrowse.cgi?REQUEST=CCDS&DATA=CCDS13294.1
+#     https://www.rcsb.org/structure/2SRC
+#     GenBank: BC011566.1
+#     https://www.ncbi.nlm.nih.gov/nuccore/BC011566.1?report=fasta"""
+#     sequences = SeqIO.parse(seq_file, "fasta")
+#     f = open("Datasets_Simulations/SRC_simulations/SRC_GenBank_BC011566.1_PROTEIN_full.fasta", "w+")
+#     for seq in sequences:
+#         f.write("{}\n".format(seq.translate().seq))
 
 def str2bool(v):
+    """Converts a string into a boolean, useful for boolean arguments
+    :param str v"""
     if isinstance(v, bool):
         return v
     if v.lower() in ('yes', 'true', 't', 'y', '1','True'):
@@ -2569,6 +2245,8 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 def str2None(v):
+    """Converts a string into None
+    :param str v"""
 
     if v.lower() in ('None'):
         return None

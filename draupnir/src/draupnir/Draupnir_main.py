@@ -36,6 +36,7 @@ import Draupnir_plots as DraupnirPlots
 import Draupnir_train as DraupnirTrain
 import Draupnir_models_utils as DraupnirModelsUtils
 import Draupnir_load_utils as DraupnirLoadUtils
+import Draupnir_datasets as DraupnirDatasets
 import datetime
 import pickle
 import json
@@ -105,7 +106,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
         #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
     dataset = DraupnirLoadUtils.remove_nan(dataset)
-    DraupnirUtils.Ramachandran_plot(dataset[:, 3:], "{}/TRAIN_OBSERVED_angles".format(results_dir + "/Train_Plots"), "Train Angles",one_hot_encoded=settings_config.one_hot_encoding)
+    DraupnirUtils.ramachandran_plot(dataset[:, 3:], "{}/TRAIN_OBSERVED_angles".format(results_dir + "/Train_Plots"), "Train Angles",one_hot_encoded=settings_config.one_hot_encoding)
     #Highlight: Read the alignment, find the alignment length and positions where there is any gap
     alignment = AlignIO.read(build_config.alignment_file, "fasta")
     alignment_array = np.array(alignment)
@@ -145,8 +146,8 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         subtracted = 0
 
 
-    batch_size = [DraupnirUtils.Define_batch_size(n_seq-subtracted) if not args.batch_size else args.batch_size if args.batch_size > 1 else n_seq-subtracted][0]
-    plate_size = [DraupnirUtils.Define_batch_size(n_seq-subtracted) if not  args.plating_size and args.plating else args.plating_size][0]
+    batch_size = [DraupnirUtils.define_batch_size(n_seq-subtracted) if not args.batch_size else args.batch_size if args.batch_size > 1 else n_seq-subtracted][0]
+    plate_size = [DraupnirUtils.define_batch_size(n_seq-subtracted) if not  args.plating_size and args.plating else args.plating_size][0]
 
     if not args.plating: assert plate_size == None, "Please set plating_size to None if you do not want to do plate subsampling"
     if args.plating: assert args.batch_size == 1, "We are plating, no batching, please set batch_size == 1"
@@ -280,7 +281,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         ancestral=build_config.use_ancestral)
 
     if dataset_test is not None:#Highlight: Dataset_test != None only when the test dataset is extracted from the train (testing leaves)
-        DraupnirUtils.Ramachandran_plot(dataset_test[:, 2:], "{}/TEST_OBSERVED_angles".format(results_dir+"/Test_Plots"),"Test Angles", one_hot_encoded=settings_config.one_hot_encoding)
+        DraupnirUtils.ramachandran_plot(dataset_test[:, 2:], "{}/TEST_OBSERVED_angles".format(results_dir+"/Test_Plots"),"Test Angles", one_hot_encoded=settings_config.one_hot_encoding)
         dataset_test = torch.from_numpy(dataset_test)
         patristic_matrix_test = torch.from_numpy(patristic_matrix_test)
         if cladistic_matrix_test is not None:
@@ -328,7 +329,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
                    special_nodes_dict=None,
                    full_name=settings_config.full_name)
     return train_load,test_load,additional_load, build_config
-
 def save_checkpoint(Draupnir,save_directory, optimizer):
     '''Saves the model and optimizer dict states to disk'''
     save_directory = ("{}/Draupnir_Checkpoints/".format(save_directory))
@@ -353,172 +353,6 @@ def load_checkpoint(model_dict_dir,optim_dir,optim,model):
     if optim_dir is not None:
         print("Loading pretrained Optimizer states...")
         optim.load(optim_dir)
-def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir):
-    """ Constructs and corrects the test and train datasets, parsing sequences when necessary
-    :param str name: dataset_name
-    :param str root_sequence_name: for the default simulated datasets, we need an additional name string to retrieve the ancestral sequences
-    Loads "external" test datasets, depending on the dataset"""
-    #Highlight: Loading for special test datasets
-    if name.startswith("simulation"):
-        dataset_test,internal_names_test,max_len_test = DraupnirUtils.load_simulations_ancestral_sequences(name,
-                                                                                        settings_config,
-                                                                                        build_config.align_seq_len,#TODO: Hopefully this is always correct
-                                                                                        additional_load.tree_levelorder_names,
-                                                                                        root_sequence_name,
-                                                                                        build_config.aa_prob,
-                                                                                        script_dir)
-
-        test_nodes_observed = dataset_test[:, 0, 1].tolist()
-        test_nodes = torch.tensor(test_nodes_observed, device="cpu")
-        patristic_matrix_full = additional_load.patristic_matrix_full
-        cladistic_matrix_full = additional_load.cladistic_matrix_full
-        vals, idx = torch.sort(test_nodes)
-        test_nodes = test_nodes[idx]
-        dataset_test = dataset_test[idx]
-        test_indx_patristic = (patristic_matrix_full[:, 0][..., None] == test_nodes).any(-1)
-        test_indx_patristic[0] = True  # To re-add the node names
-        patristic_matrix_test = patristic_matrix_full[test_indx_patristic]
-        patristic_matrix_test = patristic_matrix_test[:, test_indx_patristic]
-        if cladistic_matrix_full is not None:
-            cladistic_matrix_test = cladistic_matrix_full[test_indx_patristic]
-            cladistic_matrix_test = cladistic_matrix_test[:, test_indx_patristic]
-        else:
-            cladistic_matrix_test = None
-
-        correspondence_dict = special_nodes_dict=None
-
-
-    elif name.startswith("benchmark"):
-        dataset_test, internal_names_test = DraupnirUtils.load_randalls_benchmark_ancestral_sequences(script_dir) #TODO: this directory is not correct
-        test_nodes_observed =  dataset_test[:, 0, 1].tolist()
-        special_nodes_dict=None
-        patristic_matrix_train, \
-        patristic_matrix_test, \
-        cladistic_matrix_train, \
-        cladistic_matrix_test, \
-        dataset_test,\
-        dataset_train,\
-        correspondence_dict = DraupnirLoadUtils.pretreatment_Benchmark(dataset_test,
-                                                                         train_load.dataset_train,
-                                                                         additional_load.patristic_matrix_full,
-                                                                         additional_load.cladistic_matrix_full,
-                                                                         test_nodes_observed,
-                                                                         device, inferred=False,
-                                                                         original_naming=True)
-
-
-
-    elif name in ["Coral_Faviina","Coral_all"]:
-        dataset_test, \
-        internal_names_test , \
-        max_lenght_internal_aligned,\
-        special_nodes_dict =DraupnirUtils.CFPTest(name = name,
-                                                         ancestral_file="{}/datasets/default/{}/Ancestral_Sequences.fasta".format(script_dir,name),
-                                                         tree_level_order_names =additional_load.tree_levelorder_names,
-                                                         aa_probs=build_config.aa_prob)
-
-
-        dataset_test = torch.from_numpy(dataset_test)
-        #test_nodes_observed = dataset_test[:, 0, 1].tolist()
-        #Highlight: here we need to do the opposite to the other datasets. The test patristic distances will be those that are not the train
-        test_nodes = torch.tensor(internal_names_test, device="cpu")
-        patristic_matrix_full = additional_load.patristic_matrix_full
-        cladistic_matrix_full = additional_load.cladistic_matrix_full
-        vals, idx = torch.sort(test_nodes) #unnecessary but leave in case we predict all fav and all coral at the same time
-        test_nodes = test_nodes[idx]
-        dataset_test = dataset_test[idx]
-        train_nodes = train_load.dataset_train[:,0,1]
-        train_indx_patristic = (patristic_matrix_full[:, 0][..., None] == train_nodes).any(-1)
-        #train_indx_patristic[0] = True  # To re-add the node names ---> not necessary because we do the opposite, we keep the False ones
-        patristic_matrix_test = patristic_matrix_full[~train_indx_patristic]
-        patristic_matrix_test = patristic_matrix_test[:, ~train_indx_patristic]
-
-
-        cladistic_matrix_test = cladistic_matrix_full[~train_indx_patristic]
-        cladistic_matrix_test = cladistic_matrix_test[:, ~train_indx_patristic]
-        vals, idx = torch.sort(patristic_matrix_test[:,0])  # unnecessary but leave in case we predict all fav and all coral at the same time
-        patristic_matrix_test = patristic_matrix_test[idx]
-        cladistic_matrix_test = cladistic_matrix_test[idx]
-        correspondence_dict = None
-
-    else: #leave testing, the training dataset has been pre-splitted
-        correspondence_dict = special_nodes_dict = None
-        if not build_config.no_testing:
-            print("Leaf testing: The test dataset is composed by a portion of the leaves")
-            # Highlight: the patristic matrix full has nodes n_leaves + n_internal, where n_internal = n_leaves-1!!!!!!!!!
-            patristic_matrix_test = test_load.patristic_matrix_test
-            cladistic_matrix_test = test_load.cladistic_matrix_test
-            dataset_test = test_load.dataset_test
-            test_nodes = dataset_test[:,0,1]
-            vals, idx = torch.sort(test_nodes)
-            dataset_test = dataset_test[idx]
-            matrix_sorted, matrix_sorted_idx = torch.sort(patristic_matrix_test[:, 0])
-            patristic_matrix_test = patristic_matrix_test[matrix_sorted_idx]  # sorted rows
-            patristic_matrix_test = patristic_matrix_test[:, matrix_sorted_idx]  # sorted columns
-            if cladistic_matrix_test is not None:
-                cladistic_matrix_test = cladistic_matrix_test[matrix_sorted_idx]  # sorted rows
-                cladistic_matrix_test = cladistic_matrix_test[:, matrix_sorted_idx]  # sorted columns
-        else:
-            print("No testing, there is not a test dataset, we will just predict the ancestors without checking their accuracy due to abscence of test data")
-
-            cladistic_matrix_full = additional_load.cladistic_matrix_full
-
-            patristic_matrix_full = additional_load.patristic_matrix_full
-            train_nodes = train_load.dataset_train[:, 0, 1]
-            train_indx_patristic = (patristic_matrix_full[:, 0][..., None] == train_nodes).any(-1)
-            # train_indx_patristic[0] = True  # To re-add the node names ---> not necessary because we do the opposite, we keep the False ones
-            patristic_matrix_test = patristic_matrix_full[~train_indx_patristic]
-            patristic_matrix_test = patristic_matrix_test[:, ~train_indx_patristic]
-            if cladistic_matrix_full is not None:
-                cladistic_matrix_test = cladistic_matrix_full[~train_indx_patristic]
-                cladistic_matrix_test = cladistic_matrix_test[:, ~train_indx_patristic]
-            else:
-                cladistic_matrix_test = None
-
-            matrix_sorted, matrix_sorted_idx = torch.sort(patristic_matrix_test[:, 0])
-            patristic_matrix_test = patristic_matrix_test[matrix_sorted_idx]  # sorted rows
-            patristic_matrix_test = patristic_matrix_test[:, matrix_sorted_idx]  # sorted columns
-            #Highlight: Fake, empty dataset, just with the internal nodes "names"
-            print("Creating empty test dataset ONLY with the internal nodes names (no sequences) ")
-            dataset_test = torch.zeros((patristic_matrix_test.shape[0] - 1, train_load.dataset_train.shape[1], 30))
-            dataset_test[:, 0, 1] = patristic_matrix_test[1:, 0]
-
-    dataset_train,\
-    patristic_matrix_full,\
-    patristic_matrix_train,\
-    cladistic_matrix_full,\
-    cladistic_matrix_train,\
-    aa_frequencies = DraupnirLoadUtils.pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config)
-
-
-    test_load = TestLoad(dataset_test=dataset_test,
-                         evolutionary_matrix_test=test_load.evolutionary_matrix_test,
-                         patristic_matrix_test=patristic_matrix_test,
-                         cladistic_matrix_test=cladistic_matrix_test,
-                         leaves_names_test=test_load.leaves_names_test,
-                         position_test=test_load.position_test,
-                         internal_nodes_indexes=test_load.internal_nodes_indexes)
-    train_load = TrainLoad(dataset_train=dataset_train,
-                           evolutionary_matrix_train=train_load.evolutionary_matrix_train,
-                           patristic_matrix_train=patristic_matrix_train,
-                           cladistic_matrix_train=cladistic_matrix_train)
-    additional_load = AdditionalLoad(patristic_matrix_full=patristic_matrix_full,
-                                     cladistic_matrix_full=cladistic_matrix_full,
-                                     children_array=additional_load.children_array,
-                                     ancestor_info_numbers=additional_load.ancestor_info_numbers,
-                                     tree_levelorder_names=additional_load.tree_levelorder_names,
-                                     clades_dict_leaves =additional_load.clades_dict_leaves,
-                                     closest_leaves_dict=additional_load.closest_leaves_dict,
-                                     clades_dict_all=additional_load.clades_dict_all,
-                                     linked_nodes_dict = additional_load.linked_nodes_dict,
-                                     descendants_dict= additional_load.descendants_dict,
-                                     alignment_length=additional_load.alignment_length,
-                                     aa_frequencies=aa_frequencies,
-                                     correspondence_dict = correspondence_dict,
-                                     special_nodes_dict=special_nodes_dict,
-                                     full_name=additional_load.full_name)
-
-    return train_load,test_load,additional_load
 def save_samples(dataset,patristic,samples_out,entropies,correspondence_dict,results_dir):
     info_dict = { "dataset": dataset,
                   "patristic":patristic,
@@ -627,7 +461,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         guide_text = draupnir_guides_file.readlines()
         guide_file.write("".join(guide_text))
     return Draupnir, patristic_matrix_model
-def convert_to_integers(sample_out,build_config):
+def transform_to_integers(sample_out,build_config):
     sample_out = SamplingOutput(
         aa_sequences=DraupnirUtils.convert_to_integers(sample_out.aa_sequences.cpu(), build_config.aa_prob, axis=3),
         latent_space=sample_out.latent_space,
@@ -675,8 +509,6 @@ def plot_percent_id(average_pid_list,std_pid_list,results_dir):
     plt.savefig("{}/Percent_ID.png".format(results_dir))
     plt.clf()
     plt.close()
-
-
 def draupnir_sample(train_load,
                     test_load,
                     additional_load,
@@ -1027,11 +859,11 @@ def draupnir_sample(train_load,
 
     if settings_config.one_hot_encoding:
         print("Transforming one-hot back to integers")
-        sample_out_train = convert_to_integers(sample_out_train,build_config)
+        sample_out_train = transform_to_integers(sample_out_train,build_config)
         # sample_out_train_argmax = convert_to_integers(sample_out_train_argmax) #argmax sets directly the aa to the highest logit
-        sample_out_test = convert_to_integers(sample_out_test,build_config)
+        sample_out_test = transform_to_integers(sample_out_test,build_config)
         # sample_out_test_argmax = convert_to_integers(sample_out_test_argmax)
-        sample_out_test2 = convert_to_integers(sample_out_test2,build_config)
+        sample_out_test2 = transform_to_integers(sample_out_test2,build_config)
         # sample_out_test_argmax2 = convert_to_integers(sample_out_test_argmax2)
         dataset_train = DraupnirUtils.convert_to_integers(dataset_train.cpu(), build_config.aa_prob, axis=2)
         if build_config.leaves_testing:  # TODO: Check that this works, when one hot encoding is fixed
@@ -1207,6 +1039,7 @@ def draupnir_train(train_load,
                    results_dir,
                    graph_coo=None,
                    clades_dict=None):
+    "Trains draupnir by performing SVI inference"
     align_seq_len = build_config.align_seq_len
     if not additional_load.correspondence_dict:
         correspondence_dict = dict(zip(list(range(len(additional_load.tree_levelorder_names))), additional_load.tree_levelorder_names))
@@ -1324,7 +1157,7 @@ def draupnir_train(train_load,
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
-    train_loader = DraupnirUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
+    train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
     training_method= lambda f, svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args: lambda svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args: f(svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
     if args.batch_by_clade and clades_dict:
         training_function = training_method(DraupnirTrain.train_batch_clade,svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
@@ -1350,8 +1183,8 @@ def draupnir_train(train_load,
     output_file = open("{}/output.log".format(results_dir),"w")
     while epoch < args.num_epochs:
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
-            DraupnirUtils.Plot_ELBO(train_loss, results_dir, test_frequency=1)
-            DraupnirUtils.Plot_Entropy(entropy, results_dir, test_frequency=1)
+            DraupnirPlots.Plot_ELBO(train_loss, results_dir, test_frequency=1)
+            DraupnirPlots.Plot_Entropy(entropy, results_dir, test_frequency=1)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
         total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
@@ -1444,8 +1277,8 @@ def draupnir_train(train_load,
         del sample_out_train
         entropy.append(torch.mean(train_entropy_epoch[:,1]).item())
         if epoch == (args.num_epochs-1):
-            DraupnirUtils.Plot_ELBO(train_loss, results_dir, test_frequency=1)
-            DraupnirUtils.Plot_Entropy(entropy, results_dir, test_frequency=1)
+            DraupnirPlots.Plot_ELBO(train_loss, results_dir, test_frequency=1)
+            DraupnirPlots.Plot_Entropy(entropy, results_dir, test_frequency=1)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
             save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
@@ -1814,9 +1647,9 @@ def draupnir_train(train_load,
 
     if settings_config.one_hot_encoding:
         print("Transforming one-hot back to integers")
-        sample_out_train_argmax = convert_to_integers(sample_out_train_argmax,build_config) #argmax sets directly the aa to the highest logit
-        sample_out_test_argmax = convert_to_integers(sample_out_test_argmax,build_config)
-        sample_out_test_argmax2 = convert_to_integers(sample_out_test_argmax2,build_config)
+        sample_out_train_argmax = transform_to_integers(sample_out_train_argmax,build_config) #argmax sets directly the aa to the highest logit
+        sample_out_test_argmax = transform_to_integers(sample_out_test_argmax,build_config)
+        sample_out_test_argmax2 = transform_to_integers(sample_out_test_argmax2,build_config)
         dataset_train = DraupnirUtils.convert_to_integers(dataset_train.cpu(),build_config.aa_prob,axis=2)
         if build_config.leaves_testing: #TODO: Check that this works
             dataset_test = DraupnirUtils.convert_to_integers(dataset_test.cpu(),build_config.aa_prob,axis=2) #no need to do it with the test of the simulations, never was one hot encoded. Only for testing leaves
@@ -2110,15 +1943,14 @@ def manual_random_search():
 def run(name,root_sequence_name,args,device,settings_config,build_config,script_dir):
 
     #global params_config,build_config,name,results_dir,align_seq_len,full_name
-    results_dir = "{}/PLOTS_GP_VAE_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),
-                                                             args.num_epochs, args.select_guide)
+    results_dir = "{}/PLOTS_GP_VAE_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs, args.select_guide)
     print("Loading datasets....")
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
     #align_seq_len = additional_load.alignment_length
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
     #name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir
-    train_load,test_load,additional_load= datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir)
+    train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir)
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))
     print("Starting Draupnir ...")
     print("Dataset: {}".format(name))

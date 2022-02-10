@@ -19,7 +19,31 @@ from sklearn.manifold import TSNE
 import statistics
 import umap
 from scipy import stats
+def Plot_ELBO(train_elbo,results_dict,test_frequency=1):
+    train_elbo = np.array(train_elbo)
+    list_epochs = list(range(0,len(train_elbo)))
+    if np.isnan(train_elbo).any():
+        print("Error loss contains nan")
+        pass
+    else:
+        plt.plot(list_epochs,train_elbo,color="dodgerblue")
+        plt.xlabel("List of epochs")
+        plt.ylabel("-ELBO")
+        plt.title("Training Error Loss (min -ELBO, min KL)")
+        plt.savefig("{}/ELBO_error.png".format(results_dict))
+        plt.close()
 
+def Plot_Entropy(train_entropy,results_dict,test_frequency=1):
+    train_entropy = np.array(train_entropy)
+    list_epochs = list(range(0, len(train_entropy)))
+    if np.isnan(train_entropy).any():
+        print("Entropy contains nan")
+        pass
+    else:
+        plt.plot(list_epochs, train_entropy, color="tomato")
+        plt.title("Shanon Entropy Convergence")
+        plt.savefig("{}/Entropy_convergence.png".format(results_dict))
+        plt.close()
 def plot_z(latent_space, children_dict, epoch, results_dir):
 
     fig, ax = plt.subplots(figsize=(50, 30))  # 18 for 1 col
@@ -48,10 +72,10 @@ def plotting_angles(samples_out,dataset_test,results_dir,additional_load,additio
     #phi_angles = dataset_test[:,2:,1].repeat(n_samples,1,1)
     #psi_angles = dataset_test[:, 2:, 2].repeat(n_samples, 1, 1)
     Dataset_mask = DraupnirModelUtils.masking(dataset_test[:,2:,0]) #where there is a GAP, aka 0, put a 0 in the mask
-    DraupnirUtils.Ramachandran_plot_sampled(phi_angles, psi_angles,"{}/Angles_Predictions.png".format(results_dir), r"Sampled angles (φ,ψ); {}".format(additional_load.full_name))
-    DraupnirUtils.Ramachandran_plot_sampled(phi_mean, psi_mean, "{}/Angles_MEANS_Predictions.png".format(results_dir),
+    DraupnirUtils.ramachandran_plot_sampled(phi_angles, psi_angles,"{}/Angles_Predictions.png".format(results_dir), r"Sampled angles (φ,ψ); {}".format(additional_load.full_name))
+    DraupnirUtils.ramachandran_plot_sampled(phi_mean, psi_mean, "{}/Angles_MEANS_Predictions.png".format(results_dir),
                                             r"Sampled angles's means (φ,ψ); {}".format(additional_load.full_name))
-    DraupnirUtils.Ramachandran_plot_sampled(phi_kappa, psi_kappa, "{}/Angles_KAPPAS_Predictions.png".format(results_dir),
+    DraupnirUtils.ramachandran_plot_sampled(phi_kappa, psi_kappa, "{}/Angles_KAPPAS_Predictions.png".format(results_dir),
                                             r"Sampled angles's kappas (φ,ψ); {}".format(additional_load.full_name),plot_kappas=True)
 
     phi_angles_list = []
@@ -71,9 +95,9 @@ def plotting_angles(samples_out,dataset_test,results_dir,additional_load,additio
             phi_kappa_list.append(row_phi_kappa[row_mask != 0].tolist())
             psi_kappa_list.append(row_psi_kappa[row_mask != 0].tolist())
 
-    DraupnirUtils.Ramachandran_plot_sampled(sum(phi_angles_list,[]),sum(psi_angles_list,[]),"{}/Angles_Predictions_NoGAPS".format(results_dir),r"Sampled angles (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
-    DraupnirUtils.Ramachandran_plot_sampled(sum(phi_mean_list,[]),sum(psi_mean_list,[]),"{}/Angles_MEANS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's means (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
-    DraupnirUtils.Ramachandran_plot_sampled(sum(phi_kappa_list,[]),sum(psi_kappa_list,[]),"{}/Angles_KAPPAS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's kappas (φ,ψ) (without GAPS); {}".format(additional_load.full_name),plot_kappas=True)
+    DraupnirUtils.ramachandran_plot_sampled(sum(phi_angles_list,[]),sum(psi_angles_list,[]),"{}/Angles_Predictions_NoGAPS".format(results_dir),r"Sampled angles (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
+    DraupnirUtils.ramachandran_plot_sampled(sum(phi_mean_list,[]),sum(psi_mean_list,[]),"{}/Angles_MEANS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's means (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
+    DraupnirUtils.ramachandran_plot_sampled(sum(phi_kappa_list,[]),sum(psi_kappa_list,[]),"{}/Angles_KAPPAS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's kappas (φ,ψ) (without GAPS); {}".format(additional_load.full_name),plot_kappas=True)
 def plotting_angles_per_aa(samples_out,dataset_test,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Dataset test: Observed test sequences"""
 
@@ -91,9 +115,9 @@ def plotting_angles_per_aa(samples_out,dataset_test,results_dir,build_config,add
                     phi_angles_list.append(row_phi[(row_data !=0)&(row_data == aa_number)].tolist())
                     psi_angles_list.append(row_psi[(row_data !=0)&(row_data == aa_number)].tolist())
 
-            DraupnirUtils.Ramachandran_plot_sampled(sum(phi_angles_list,[]),sum(psi_angles_list,[]),"{}/Angles_plots_per_aa/Angles_Predictions_{}".format(results_dir,aa_name),r"Sampled angles (φ,ψ) {} (without GAPS); {}".format(seq3(aa_name),additional_load.full_name))
-    # DraupnirUtils.Ramachandran_plot_sampled(sum(phi_mean_list,[]),sum(psi_mean_list,[]),"{}/Angles_MEANS_Predictions_NoGAPS".format(results_dir),"Sampled mean angles (φ,ψ) (without GAPS)")
-    # DraupnirUtils.Ramachandran_plot_sampled(sum(phi_kappa_list,[]),sum(psi_kappa_list,[]),"{}/Angles_KAPPAS_Predictions_NoGAPS".format(results_dir),"Sampled kappas angles (φ,ψ) (without GAPS)",plot_kappas=True)
+            DraupnirUtils.ramachandran_plot_sampled(sum(phi_angles_list,[]),sum(psi_angles_list,[]),"{}/Angles_plots_per_aa/Angles_Predictions_{}".format(results_dir,aa_name),r"Sampled angles (φ,ψ) {} (without GAPS); {}".format(seq3(aa_name),additional_load.full_name))
+    # DraupnirUtils.ramachandran_plot_sampled(sum(phi_mean_list,[]),sum(psi_mean_list,[]),"{}/Angles_MEANS_Predictions_NoGAPS".format(results_dir),"Sampled mean angles (φ,ψ) (without GAPS)")
+    # DraupnirUtils.ramachandran_plot_sampled(sum(phi_kappa_list,[]),sum(psi_kappa_list,[]),"{}/Angles_KAPPAS_Predictions_NoGAPS".format(results_dir),"Sampled kappas angles (φ,ψ) (without GAPS)",plot_kappas=True)
 def save_ancestors_predictions(name,dataset_test,aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_prob):
     print("Saving ancestor's nodes sequences ...")
     node_info = dataset_test[:, 0, 1].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
