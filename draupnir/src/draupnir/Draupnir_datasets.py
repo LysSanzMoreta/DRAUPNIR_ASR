@@ -113,7 +113,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
             if build:
                 family_name = "PF00018;" #protein family name, src-sh3 domain
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,first_match=True,update_pfam=False)
-                #DraupnirUtils.Download_PDB_Lists(family_name.strip(";"),pdb_list) #Highlight: Reactivate if needed to download PDB files again
+                DraupnirUtils.download_PDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(family_name.strip(";"),len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
                                              method="iqtree",
@@ -155,7 +155,6 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                        no_testing=True,
                                        script_dir=script_dir)
             if build:
-                #DraupnirUtils.Download_PDB_Lists(family_name.strip(";"), pdb_list)
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
                                              method="iqtree",
@@ -177,7 +176,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
             if build:
                 family_name = "PF00400;"  # protein family name
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name, first_match=True, update_pfam=False)
-                #DraupnirUtils.Download_PDB_Lists(family_name.strip(";"), pdb_list)
+                #DraupnirUtils.download_PDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(family_name.strip(";"), len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
                                              method="iqtree",

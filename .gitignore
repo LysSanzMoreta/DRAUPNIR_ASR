@@ -13,3 +13,5 @@ Benchmark_Results/*
 !Benchmark_Results/PAML/IQTree_Parser.py
 README.md
 PLOTS*
+*.tar.gz
+*.whl
