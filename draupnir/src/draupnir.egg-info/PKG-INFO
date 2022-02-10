@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: draupnir
-Version: 0.0.11
+Version: 0.0.12
 Summary: Ancestral sequence reconstruction using a tree structured Ornstein Uhlenbeck variational autoencoder
 Home-page: https://github.com/LysSanzMoreta/DRAUPNIR_ASR
 Author: Lys Sanz Moreta

@@ -10,57 +10,60 @@ import os,sys
 from os import listdir
 from os.path import isfile, join
 import subprocess
+import warnings
 import scipy as sp
 import _pickle as cPickle
 import bz2
-os.environ['QT_QPA_PLATFORM']='offscreen'
-from Bio.Phylo.TreeConstruction import *
+os.environ['QT_QPA_PLATFORM']='offscreen' #TODO: remove?
+#Ete 3
 from ete3 import Tree as TreeEte3
-#from ete3.treeview.main import TreeStyle
-#from ete3 import TreeStyle
 import dgl
 try:
     from ete3 import Tree, faces, AttrFace, TreeStyle,NodeStyle
 except:
     pass
 from scipy.sparse import coo_matrix
-import scipy.stats as ss
 import matplotlib
 import argparse
-import dendropy
 import dill
 import ast
-try:
-    import jax.numpy as np_jax
-    import jax.random as random
-except:
-    pass
+# try:
+#     import jax.numpy as np_jax
+#     import jax.random as random
+# except:
+#     pass
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
+from matplotlib.colors import LogNorm
 import torch
-from torch.utils.data import Dataset, DataLoader,TensorDataset
+from torch.utils.data import Dataset, DataLoader
 import statistics
 import seaborn as sns
-from collections import defaultdict
+from collections import defaultdict,namedtuple
 import pickle
 sys.path.append("./draupnir/draupnir")
 import Draupnir_models_utils as DraupnirModelUtils
-from collections import namedtuple
+#Biopython
 import Bio.PDB as PDB
 from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
 from Bio.Data.SCOPData import protein_letters_3to1
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio import Phylo
 from Bio import BiopythonWarning
 from Bio import AlignIO, SeqIO
+from Bio.PDB.PDBList import PDBList
 import Bio.Align
-import warnings
+from Bio.Align.Applications import MafftCommandline
+from Bio.Phylo.TreeConstruction import *
+#Numpy
 import numpy as np
 import numpy.random as npr
 import pandas as pd
 def aa_properties(aa_probs,scriptdir):
-    "https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html"
+    """ Creates a dictionary with amino acid properties, extracted from
+    https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html
+    :param str aa_probs: amino acid probabilities used to extract the types of amino acids present in the dataset
+    :param str scriptdir: path"""
 
     aa_types = list(aminoacid_names_dict(aa_probs).keys())
     aa_properties = pd.read_csv("{}/datasets/AA_properties.txt".format(scriptdir),sep="\s+")
@@ -70,23 +73,12 @@ def aa_properties(aa_probs,scriptdir):
             aa_number = aa_types.index(aa["Abbr."])
             aa_info[aa_number] = [float(aa["Molecular_Weight"]),float(aa["pKa1"]),float(aa["pl4"])]
     return aa_info
-def aminoacid_names_list(aa_probs):
-    if aa_probs == 20:#No gaps (indels), aa only substitutions
-        raise Warning("Do not use, unless Dataframe building strategy changes. Only for plotting the benchmark dataset")
-        aminoacid_names = ["R","H","K","D","E","S","T","N","Q","C","G","P","A","V","I","L","M","F","Y","W"]
-        add_on = 0 # So that R is number 0
-        return aminoacid_names,add_on
-    elif aa_probs == 21:
-        aminoacid_names = ["-","R","H","K","D","E","S","T","N","Q","C","G","P","A","V","I","L","M","F","Y","W"]
-        add_on =0 #R should be number 1, and gaps are 0!!!!!
-        return aminoacid_names,add_on
-    elif aa_probs == 22:
-        aminoacid_names = ['-',"*","R","H","K","D","E","S","T","N","Q","C","G","P","A","V","I","L","M","F","Y","W"]
-        add_on = 0
-        return aminoacid_names,add_on
+
 def validate_sequence_alphabet(seq):
     """
-    Check that a sequence only contains values from Protein alphabet, and which protein alphabet. If it contains nucleotides/DNA, reject """
+    Checks that the sequences from an alignment only contains values from one of the protein alphabets (protein21 or protein21plus). Reject DNA or RNA sequences
+    :param str seq: sequence of characters
+    """
     alphabets = {'dna': re.compile('^[acgtn]*$', re.I),
              'protein21': re.compile('^[-acdefghiklmnpqrstvwy]*$', flags=re.IGNORECASE),
             'protein21plus': re.compile('^[-acdefghiklmnpqrstvwybzx]*$', flags= re.IGNORECASE)}
@@ -99,8 +91,11 @@ def validate_sequence_alphabet(seq):
     if alphabets["protein21plus"].search(str(seq)) is not None:
         aa_probs = 24
         return aa_probs
+    else:
+        raise ValueError("Your sequences contain not allowed characters. Available alphabets are: {protein21}: -acdefghiklmnpqrstvwy or {protein21plus} -*acdefghiklmnpqrstvwybzx. If your sequence contains stop codons perhaps you can trim them.")
 def aminoacid_names_dict(aa_probs):
-    """In: aa-probs, amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
+    """ Returns an aminoacid associated to a integer value
+    :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_names
@@ -110,49 +105,63 @@ def aminoacid_names_dict(aa_probs):
     elif aa_probs > 22:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
         return aminoacid_names
-def create_blosum(aa_prob,subs_matrix):
-    """Substitution matrices, available at /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data"""
+def create_blosum(aa_prob,subs_matrix_name):
+    """
+    Builds an array containing the blosum scores per character
+    :param aa_prob: amino acid probabilities, determines the choice of BLOSUM matrix
+    :param str subs_matrix_name: name of the substitution matrix, check availability at /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data"""
 
-    if aa_prob > 21 and not subs_matrix.startswith("PAM"):
+    if aa_prob > 21 and not subs_matrix_name.startswith("PAM"):
         warnings.warn("Your dataset contains special amino acids. Switching your substitution matrix to PAM70")
-        subs_matrix = "PAM70"
-    Subs_matrix = Bio.Align.substitution_matrices.load(subs_matrix)
+        subs_matrix_name = "PAM70"
+    subs_matrix = Bio.Align.substitution_matrices.load(subs_matrix_name)
     aa_list = list(aminoacid_names_dict(aa_prob).keys())
     index_gap = aa_list.index("-")
     aa_list[index_gap] = "*" #in the blosum matrix gaps are represanted as *
 
-    Subs_dict = defaultdict()
-    Subs_matrix_array = np.zeros((len(aa_list) , len(aa_list) ))
+    subs_dict = defaultdict()
+    subs_array = np.zeros((len(aa_list) , len(aa_list) ))
     for i, aa_1 in enumerate(aa_list):
         for j, aa_2 in enumerate(aa_list):
             if aa_1 != "*" and aa_2 != "*":
-                Subs_dict[(aa_1,aa_2)] = Subs_matrix[(aa_1, aa_2)]
-                Subs_dict[(aa_2, aa_1)] = Subs_matrix[(aa_1, aa_2)]
-            Subs_matrix_array[i, j] = Subs_matrix[(aa_1, aa_2)]
-            Subs_matrix_array[j, i] = Subs_matrix[(aa_2, aa_1)]
+                subs_dict[(aa_1,aa_2)] = subs_matrix[(aa_1, aa_2)]
+                subs_dict[(aa_2, aa_1)] = subs_matrix[(aa_1, aa_2)]
+            subs_array[i, j] = subs_matrix[(aa_1, aa_2)]
+            subs_array[j, i] = subs_matrix[(aa_2, aa_1)]
 
     names = np.concatenate((np.array([float("-inf")]), np.arange(0,aa_prob)))
-    Subs_matrix_array = np.c_[ np.arange(0,aa_prob), Subs_matrix_array ]
-    Subs_matrix_array = np.concatenate((names[None,:],Subs_matrix_array),axis=0)
+    subs_array = np.c_[ np.arange(0,aa_prob), subs_array ]
+    subs_array = np.concatenate((names[None,:],subs_array),axis=0)
 
-    return Subs_matrix_array, Subs_dict
+    return subs_array, subs_dict
 def divide_into_monophyletic_clades(tree,storage_folder,name):
-    """Divide the tree into monophyletic clades:
+    """
+    Divides the tree into monophyletic clades:
     See https://www.mun.ca/biology/scarr/Taxon_types.html
     Implementation based on: https://www.biostars.org/p/97409/
-    The reasonable division criteria seems to group all those nodes whose distance to the internal is lower to the overall average distance from each leaf to the root"""
+
+    The reasonable clade division criteria seems to group all those nodes whose distance to the internal is lower to the overall average distance from each leaf to the root
+
+    :param ete3-tree tree: ete3 tree class
+    :param str storage_folder: folder where to store the results, in this case a dictionary containing {"clade_number": [nodes list]}
+    :name str name: name of the data set project
+
+    """
 
     def mean(array):
+        """Calculates branch length average"""
         return sum(array) / float(len(array))
 
     def cache_distances(tree):
-        ''' precalculate distances of all nodes to the root'''
+        """Precalculate distances of all nodes to the root"""
         node2rootdist = {tree: 0}
         for node in tree.iter_descendants('preorder'):
             node2rootdist[node] = node.dist + node2rootdist[node.up]
         return node2rootdist
 
     def build_clades(tree,name):
+        """When a clustering condition is met, it collapses the tree at that node to unify all the leaves in that cluster into 'one' leaves. After, we read
+        the collapsed tree into a dictionary that contains {clade number:{"internal":[nodes numbers],"leaves":[node numbers]}}"""
         # cache the tip content of each node to reduce the number of times the tree is traversed
         node2tips = tree.get_cached_content()
         root_distance = cache_distances(tree)  # distances of each of the nodes to the root
@@ -172,7 +181,6 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
 
         for node in tree.get_descendants('preorder'):
             if not node.is_leaf():  # for internal nodes
-
                 avg_distance_to_tips = mean([root_distance[tip] - root_distance[node] for tip in node2tips[node]])  # average distance from the internal node to all it's possible derived leaves
                 if avg_distance_to_tips < clustering_condition:
                     #node.name += ' COLLAPSED avg_d:%g {%s}' % (avg_distance_to_tips, ','.join([tip.name for tip in node2tips[node]]))
@@ -228,15 +236,17 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
         return clade_dict_leaves,clade_dict_all
 
     clade_dict_leaves,clade_dict_all = build_clades(tree,name)
+    #Highlight: clades_dict_all contains each clade's internal and leaves nodes, clades_dict_leaves only contains the leaves of each clade
 
     dill.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
 
 def calculate_closest_leaves(name,tree,storage_folder):
-    """ input:
-    name: File name
-    tree: Ete3 tree object
-    return: Dictionary that containing the closest leave to an internal node"""
+    """ Creates a dictionary that contains the closest leave to an internal node {internal_node:leave}
+    :param str name: data set project name
+    :param ete3-tree tree: Ete3 tree class object
+    :param str storage_folder: folder where to dump the output
+    """
     closest_leaves_dict=defaultdict() #closest leave to an internal node
     for node in tree.traverse():
         if not node.is_leaf(): #if it's an internal node
@@ -249,7 +259,10 @@ def calculate_closest_leaves(name,tree,storage_folder):
 
 
 def calculate_directly_linked_nodes(name,tree,storage_folder):
-    "return: Dictionary that returns the 2 children directly linked to that node (Not all the children)"
+    """Creates a dictionary that contains the 2 children nodes directly linked to a node (not all the children from that node) {node:children}
+    :param str name: data set project name
+    :param ete3-tree tree: Ete3 tree class object
+    :param str storage_folder: folder where to dump the output"""
     closest_children_dict=defaultdict()
     for node in tree.traverse():
         closest_children_dict[node.name] = [node.name for node in node.get_children()]
@@ -257,7 +270,10 @@ def calculate_directly_linked_nodes(name,tree,storage_folder):
 
 
 def calculate_descendants(name,tree,storage_folder):
-    "return: dictionary that contains all the internal nodes and leaves that descend from that internal node"
+    """Creates a dictionary that contains all the internal nodes and leaves that descend from that internal node {internal_node:descendants}
+    :param str name: data set project name
+    :param ete3-tree tree: Ete3 tree class object
+    :param str storage_folder: folder where to dump the output"""
     closest_descendants_dict = defaultdict(lambda: defaultdict())
     for node in tree.traverse():
         if not node.is_leaf():
@@ -272,10 +288,11 @@ def calculate_descendants(name,tree,storage_folder):
             closest_descendants_dict[node.name]["leaves"] = descendant_leaves
     dill.dump(closest_descendants_dict, open('{}/{}_Descendants_dict.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
 def Pfam_parser(family_name,first_match=False,update_pfam=False):
+    """Creates a dictionary containing the PDB files and the sequence information (chain, residues...)
+    :param str family_name: pfam family name
+    :param bool first_match: True -> Picks only the first found protein and not it's duplicates, False -> Takes every available structure, including duplicates
+    :param bool update_pfam: True -> Downloads and save the latest pfam version from http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/pdbmap.gz"; False -> Use the stored version
     """
-    First match - Pick only the first protein and not it's duplicates
-    Update-pfam- Download and save the latest pfam version
-    The pfam pdbmap is at http://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/pdbmap.gz"""
     if update_pfam:
         try:
             subprocess.call("rm -rf pdbmap.gz pdbmap")
@@ -286,12 +303,9 @@ def Pfam_parser(family_name,first_match=False,update_pfam=False):
         subprocess.call("mv pdbmap PfamPdbMap.txt", shell=True)
 
     print("Reading and creating pfam dictionary....")
-    df = pd.read_csv("PfamPdbMap.txt", sep="\t", error_bad_lines=False, engine='python', index_col=False,
-                     names=["PDB_1", "Chain", "Empty", "Function", "Family", "Uniprot", "Residues"])
-
+    df = pd.read_csv("data/PfamPdbMap.txt", sep="\t", error_bad_lines=False, engine='python', index_col=False,
+                     names=["PDB_1", "Chain", "Empty", "Function", "Family", "Uniprot", "Residues"]) #TODO: move to data
     family = df[df['Family'].str.contains(family_name)]
-
-
     if first_match: #115 #only takes the first pdb file found for each sequence
         first_unique_match = family.groupby('Uniprot').head(1).reset_index(drop=True)
         first_unique_match["PDB_1"] = first_unique_match['PDB_1'].str.replace(r';', '')
@@ -313,11 +327,12 @@ def Pfam_parser(family_name,first_match=False,update_pfam=False):
         chains_list = [chain[-2] for chain in chains_list]
         pfam_dict = {a:{b:c,d:e} for a, b, c,d,e in zip(pdb_list, res,residues_list,chain, chains_list)}
     return pfam_dict, pdb_list
-def Download_PDB_Lists(protein_name,pdb_list):
-    """Download the PDB files to a folder. SH3 domain family: http://pfam.xfam.org/family/PF00018"""
-    DownloadPDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(protein_name,len(pdb_list)))
 
-def Tree_Pair_for_rooting(distance_matrix):
+
+def tree_pair_for_rooting(distance_matrix):
+    """Finds the pair of sequences with the largest pairwise distance to set as an outgroup to form the root of an unrooted tree
+    :param pandas dataframe distance_matrix: contains pairwise distances across the sequences in the tree"""
+
     sorted_distance_matrix = distance_matrix[distance_matrix.gt(0)].stack().sort_values().to_frame()
     sorted_distance_matrix.reset_index(level=0, inplace=True)
     sorted_distance_matrix.columns = ["Sequence_0", "Distance"]
@@ -326,45 +341,57 @@ def Tree_Pair_for_rooting(distance_matrix):
     sorted_distance_matrix.reset_index(inplace=True)
     sorted_distance_matrix.drop(["index"], inplace=True, axis=1)
     # sorted_distance_matrix.drop_duplicates(subset=['Distance'])
-    sorted_distance_matrix = sorted_distance_matrix[
-        ~sorted_distance_matrix[['Sequence_1', 'Sequence_0']].apply(frozenset,axis=1).duplicated()]  # Remove repeated combinations of sequences
+    sorted_distance_matrix = sorted_distance_matrix[~sorted_distance_matrix[['Sequence_1', 'Sequence_0']].apply(frozenset,axis=1).duplicated()]  # Remove repeated combinations of sequences
     sorted_distance_matrix = sorted_distance_matrix.reset_index(drop=True)
     rank = sorted_distance_matrix.shape[0] -1
     sequence_0 = sorted_distance_matrix.loc[rank].Sequence_0
     sequence_1 = sorted_distance_matrix.loc[rank].Sequence_1
     return sequence_0,sequence_1
-def Parse_Fasta_Headers(file):
-    import pandas as pd
-    file_df = pd.read_csv(file, sep=",", header=None)
-    file_df = pd.DataFrame(file_df.iloc[:, 1].str.split('_', 1).tolist(),
-                           columns=['PDB_ID', 'Chain'])
-
-    pdb_list = file_df["PDB_ID"].tolist()
-    return pdb_list
-def Parse_Fasta_Headers_PDBe(file):
-    import pandas as pd
-    file_df = pd.read_csv(file, sep=",")
-    pdb_list = file_df["pdb_id"].tolist()
-    return pdb_list
-def DownloadPDB(files_list, directory):
-    """Reads a list of PDB_files and downloads them to a folder"""
-    from Bio.PDB.PDBList import PDBList
+# def Parse_Fasta_Headers(file):
+#     import pandas as pd
+#     file_df = pd.read_csv(file, sep=",", header=None)
+#     file_df = pd.DataFrame(file_df.iloc[:, 1].str.split('_', 1).tolist(),
+#                            columns=['PDB_ID', 'Chain'])
+#
+#     pdb_list = file_df["PDB_ID"].tolist()
+#     return pdb_list
+# def Parse_Fasta_Headers_PDBe(file):
+#     import pandas as pd
+#     file_df = pd.read_csv(file, sep=",")
+#     pdb_list = file_df["pdb_id"].tolist()
+#     return pdb_list
+def download_PDB(files_list, directory):
+    """Reads a list of PDB_files and downloads them to a folder
+    :param list files_list: list of PDB files names to download
+    :param str directory: folder or directory where to download the files"""
     pdbl = PDBList()
     for i, file in enumerate(files_list):
         pdbl.retrieve_pdb_file(file, pdir=directory, obsolete=False, file_format="pdb")
-def Convert_to_pandas(DistanceMatrix):
-    import  pandas as pd
-    b = np.zeros([len(DistanceMatrix.matrix), len(max(DistanceMatrix.matrix, key=lambda x: len(x)))])
-    for i, j in enumerate(DistanceMatrix.matrix):
+def convert_to_pandas(distance_matrix):
+    """Converts a biopython pairwise distance matrix into a symmetric pandas dataframe
+    :param biopython calculator matrix: pairwise distance matrix
+    """
+    b = np.zeros([len(distance_matrix.matrix), len(max(distance_matrix.matrix, key=lambda x: len(x)))])
+    for i, j in enumerate(distance_matrix.matrix):
         b[i][0:len(j)] = j
-    df = pd.DataFrame(b, index=DistanceMatrix.names, columns=DistanceMatrix.names)
+    #df = pd.DataFrame(b, index=DistanceMatrix.names, columns=DistanceMatrix.names)
     b_transpose = np.transpose(b)
     b = b + b_transpose
-    df = pd.DataFrame(b, index=DistanceMatrix.names, columns=DistanceMatrix.names)
+    df = pd.DataFrame(b, index=distance_matrix.names, columns=distance_matrix.names)
     return  df
 
 
-def infer_tree(alignment, alignment_file_name,name_file,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
+def infer_tree(alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
+    """ Performs tree inference or reads an input given tree, returns an ete3 tree formated tree
+    :param biopython alignment alignment: biopython alignment class
+    :param str alignment_file_name: path to alignment file
+    :param str name: dataset project name
+    :param str method: tree inference method (if tree is not given)
+    :param str tree_file_name: name to give to the tree file
+    .param str tree_file:path to a possible given tree in newick format 1
+    :param str storage_folder: folder where to store the results of the tree inference
+
+    """
     if tree_file:
         print("Using given tree file...")
         tree = TreeEte3(tree_file,format=1,quoted_node_names=True)
@@ -376,35 +403,35 @@ def infer_tree(alignment, alignment_file_name,name_file,method=None,tree_file_na
         if len(alignment) < 200 and method in ["nj","nj_rooted","upgma"]:
             calculator = DistanceCalculator('blosum62')  # DNA ---> Identity// Protein ---> blosum62
             distance_matrix_cal = calculator.get_distance(alignment)
-            distance_matrix_cal_pandas = Convert_to_pandas(distance_matrix_cal)
-            distance_matrix_cal_pandas.to_csv("{}/{}_distance_matrix.csv".format(storage_folder,name_file))
+            distance_matrix_cal_pandas = convert_to_pandas(distance_matrix_cal)
+            distance_matrix_cal_pandas.to_csv("{}/{}_distance_matrix.csv".format(storage_folder,name))
             #https://stackoverflow.com/questions/30247359/how-does-biopython-determine-the-root-of-a-phylogenetic-tree
             if method == "nj":
-                print("NJ NOT rooted method...")
+                print("Tree inference via Neighbour Joining NOT rooted method...")
                 constructor = DistanceTreeConstructor(method="nj")
                 tree = constructor.nj(distance_matrix_cal)
                 tree = to_ete3(tree)
                 return tree
             elif method == "nj_rooted":
-                print("NJ rooted method...")
+                print("Tree inference via Neighbour Joining with additional rooting method...")
                 constructor = DistanceTreeConstructor(method="nj")
                 tree = constructor.nj(distance_matrix_cal)
                 tree = to_ete3(tree)
                 # Making a root:
-                sequence_0, sequence_1 = Tree_Pair_for_rooting(distance_matrix_cal_pandas)
+                sequence_0, sequence_1 = tree_pair_for_rooting(distance_matrix_cal_pandas)
                 tree.set_outgroup(tree & sequence_0)
                 # ancestor = tree.get_common_ancestor(sequence_0, sequence_1)
                 # tree.set_outgroup(ancestor)
                 return tree
             elif method == "upgma":
-                print("Upgma method...")
+                print("Tree inference via Upgma rooted method...")
                 constructor = DistanceTreeConstructor(method="upgma") # nj method is unrooted in biopython. upgma is rooted
                 tree = constructor.upgma(distance_matrix_cal)
                 tree = to_ete3(tree)
                 return tree
         elif method == "iqtree":
             print("Iqtree ML method...")
-            alignment_f = [alignment_file_name if alignment_file_name else "{}/{}.mafft".format(storage_folder,name_file)][0]
+            alignment_f = [alignment_file_name if alignment_file_name else "{}/{}.mafft".format(storage_folder,name)][0]
             tree_file_name = alignment_f.split(".")[0] + ".treefile"
 
             if not os.path.exists(tree_file_name):
@@ -423,24 +450,26 @@ def infer_tree(alignment, alignment_file_name,name_file,method=None,tree_file_na
             distance_matrix_cal.columns = ["rows"] + distance_matrix_cal.iloc[:,0].to_list()
             distance_matrix_cal.set_index("rows", inplace=True)
             distance_matrix_cal.index.name = ""
-            distance_matrix_cal.to_csv("{}/{}_distance_matrix.csv".format(storage_folder,name_file))
+            distance_matrix_cal.to_csv("{}/{}_distance_matrix.csv".format(storage_folder,name))
             tree = TreeEte3(alignment_f+ ".treefile")
             return tree
-        elif method=="rapidnj":
+        elif method == "rapidnj":
             print("Using Rapidnj to build NOT rooted tree...")
-            tree_file_name = ["{}/{}.tree".format(storage_folder,name_file) if not tree_file_name else tree_file_name][0]
-            alignment_f = [alignment_file_name if alignment_file_name else "{}/{}.mafft".format(storage_folder,name_file)][0]
+            tree_file_name = ["{}/{}.tree".format(storage_folder,name) if not tree_file_name else tree_file_name][0]
+            alignment_f = [alignment_file_name if alignment_file_name else "{}/{}.mafft".format(storage_folder,name)][0]
             with open(tree_file_name, "w") as tree_file_out:
                 subprocess.run(args=["rapidnj",alignment_f, "-i", "fa"], stdout=tree_file_out)
             tree_file_out.close()
             tree = TreeEte3(tree_file_name)
             return tree
 def infer_alignment(alignment_file,input_name_file,output_name_file):
-    """alignment_file: Pre computed alignment, if it exists we just read it, no need to compute it again
-       input_file_name: Name of the Unaligned sequences file in fasta format
-       output_file_name: Name of the output file for the alignemnt"""
+    """
+    Reads and alignment or performs alignment using MAFFT [MAFFT multiple sequence alignment software version 7: improvements in performance and usability]. Returns a dictionary with the sequence name
+    and the sequence and a biopython alignment object
+    :param str alignment_file: path to pre computed alignment to read
+    :param str input_file_name: path to the file containing unaligned sequences,in fasta format
+    :param str output_file_name: name of the file that will contain the aligned sequences"""
     # Align the polypeptides/sequences and write to a fasta file
-    from Bio.Align.Applications import MafftCommandline
     print("Analyzing alignment...")
     if alignment_file: #The alignment file should contain the polypeptides of the PDB structures and sequences without structures
         print("Reading given alignment file ...")
@@ -468,6 +497,10 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
         dict_alignment = dict(zip(alignment_ids, alignment_seqs))
         return dict_alignment, alignment
 def calculate_pairwise_distance(name,alignment,storage_folder):
+    """Calculates the pairwise distance matrix accross the sequences in the alignment
+    :param str name: data set project name
+    :param biopython alignment object: object containing aligned sequences
+    :param str storage_folder: path where to store the calculated pairwise matrix"""
     print("Building pairwise distance matrix ...")
     if len(alignment) <= 200: #very slow method
         calculator = DistanceCalculator('identity')
@@ -482,16 +515,28 @@ def calculate_pairwise_distance(name,alignment,storage_folder):
 
     else: #TODO: faster implementation
         print("Finish implementing for larger datasets")
+        #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
         pass
 
-def calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,tree,tree_file, storage_folder):
-    n_seqs = len(Combined_dict)
+def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,tree,tree_file, storage_folder):
+    """Calculates the patristic distances or branch lengths across the nodes in a tree. It also saves the tree in different formats needed for benchmarking etc
+    :param str name_file: data set project name
+    :param dict combined_dict #TODO: Remove?
+    :param list nodes_and_leafs_names: tree nodes in tree-level order stored in a list
+    :param ete3-tree tree: ete3 object containing tree
+    :param str tree_file: path to the stored tree file
+    :param str storage_folder: folder where to store the results
+    """
+
+    n_seqs = len(combined_dict)
     #work_dir = os.path.dirname(os.path.abspath(__file__))
     work_dir = ""
     if n_seqs > 200:
-        print("Using R script for patristic distances (cladistic NOT available)!")
+        print("Dataset larger than 200 sequences: Using R script for patristic distances (cladistic matrix is NOT available)!")
+        warnings.warn("Dataset larger than 200 sequences: Requires R and the ape library")
         command = 'Rscript'
-        path2script = '/home/lys/Dropbox/PhD/DRAUPNIR/Calculate_Patristic.R'
+        #path2script = '/home/lys/Dropbox/PhD/DRAUPNIR/Calculate_Patristic.R'
+        path2script = "Calculate_Patristic.R"
         if tree_file:
             new_tree = work_dir +tree_file.split(".")[0]+".newick"
             new_tree_format8 = work_dir  + tree_file.split(".")[0] + ".format8newick"
@@ -549,7 +594,6 @@ def calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,t
         patristic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
         cladistic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
         if not os.path.exists("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file)):
-
             for i, t1 in enumerate(nodes_and_leafs_names):
                 for j, t2 in enumerate(list(nodes_and_leafs_names)[i + 1:]):
                     cladistic_matrix.loc[[t1], [t2]] = tree.get_distance(t1, t2, topology_only=True)
@@ -560,7 +604,8 @@ def calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,t
             print("Patristic matrix file already exists, not calculated")
 
 def my_layout(node):
-    "Adds the internal nodes names"
+    """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
+    :param ete3-node node: node from an ete3 tree"""
     if node.is_leaf():
         # If terminal node, draws its name
         name_face = AttrFace("name",fsize=8,fgcolor="blue")
@@ -571,6 +616,10 @@ def my_layout(node):
     faces.add_face_to_node(name_face, node, column=0, position="branch-right")
 
 def render_tree(tree,storage_folder,name_file):
+    """Function to render an ete3 tree into an image
+    :param ete3-tree tree: Ete3 tree object
+    :param str storage_folder: path to folder where to store the results
+    :param name_file: data set project name"""
     ts = TreeStyle()
     ns = NodeStyle()
     #Make thicker lines
@@ -580,13 +629,14 @@ def render_tree(tree,storage_folder,name_file):
     ts.show_leaf_name = False
     # Use my custom layout
     ts.layout_fn = my_layout
+    #print the branch lengths
     ts.show_branch_length = True
     for n in tree.traverse():
             n.set_style(ns)
     try:
-        tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file),w=1000, units="mm",tree_style=ts)
+        tree.render("{}/return_{}.png".format(storage_folder,name_file),w=1000, units="mm",tree_style=ts)
     except:
-        tree.render("{}/tree_pictures/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
+        tree.render("{}/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
 
 def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
     "Rename the internal nodes of an ete3 tree to a label I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
@@ -885,7 +935,7 @@ def create_dataset(name_file,
 
     tree = infer_tree(alignment=alignment,
                       alignment_file_name=alignment_file,
-                      name_file=name_file,
+                      name=name_file,
                       method=method,
                       tree_file_name="{}/{}.tree".format(storage_folder,name_file),
                       tree_file=tree_file)
@@ -1056,10 +1106,11 @@ def score_pairwise_2(seq1, seq2, matrix, gap_s, gap_e, gap = True):
         diag = ('-'==A) or ('-'==B)
         yield (gap_e if gap else gap_s) if diag else matrix[(A,B)]
         gap = diag
-def NormalizeStandarize(x):
-    norm = np.linalg.norm(x)
-    normal_array = x / norm
-    return normal_array
+# def normalize_standarize(x):
+#     "Normalizes and standarizes an input matrix"
+#     norm = np.linalg.norm(x)
+#     normal_array = x / norm
+#     return normal_array
 def folders(folder_name,basepath):
     """ Folder for all the generated images It will updated everytime!!! Save the previous folder before running again. Creates folder in current directory"""
     import os
@@ -2171,8 +2222,6 @@ def Ramachandran_plot( Data_angles,save_directory,plot_title, one_hot_encoded = 
     plt.close(fig)
 
 def Ramachandran_plot_sampled(phi,psi,save_dict,plot_title,plot_kappas=False):
-    import numpy as np
-    from matplotlib.colors import LogNorm
     if isinstance(phi,torch.Tensor):
         phi = phi.view(-1).cpu().detach().numpy()
         psi = psi.view(-1).cpu().detach().numpy()
@@ -2191,7 +2240,10 @@ def Ramachandran_plot_sampled(phi,psi,save_dict,plot_title,plot_kappas=False):
     plt.savefig(save_dict)
     plt.clf()
     plt.close()
-def GradientsPlot(gradient_norms,epochs,directory):
+def gradients_plot(gradient_norms,epochs,directory):
+    """Visualization of the gradient descent per model parameter
+    :param dict gradient_norms: dictionary with the model parameters and the partial derivatives
+    :param int epochs"""
 
     fig = plt.figure(figsize=(16, 9), dpi=100).set_facecolor('white')
     ax = plt.subplot(121)
@@ -2226,23 +2278,24 @@ def benchmark_dataset(name,aa_prob):
                    aa_probs=aa_prob,
                    rename_internal_nodes=False)
 
-def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
-    """An experimental phylogeny to benchmark ancestral sequence reconstruction"""
-    from ete3 import Tree
-    observed_nodes = ["A{}".format(i) for i in range(1,n_taxa)] #Highlight: In the simulations the leaves have the A before
-    #Select the sequences of only the observed nodes
-    full_fasta = SeqIO.parse(fasta_file, "fasta")
-    with open("{}/{}_Observed.fasta".format(name,data_dir), "w") as output_handle:
-        observed_fasta = []
-        for seq in full_fasta:
-            if int(seq.id) in observed_nodes:
-                observed_fasta.append(seq)
-        SeqIO.write(observed_fasta, output_handle, "fasta")
-
-    create_dataset(name,
-                   one_hot_encoding=False,
-                   fasta_file="{}/{}_Observed.fasta".format(name,data_dir),#Alignment file
-                   tree_file=tree_file)
+# def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
+#     """Processes the leaves from the EvolveAGene4 simulations into a dataset
+#     :param str name: simulation dataset root name
+#     :data_dir"""
+#     observed_nodes = ["A{}".format(i) for i in range(1,n_taxa)] #Highlight: In the simulations the leaves have the A before
+#     #Select the sequences of only the observed nodes
+#     full_fasta = SeqIO.parse(fasta_file, "fasta")
+#     with open("{}/{}_Observed.fasta".format(name,data_dir), "w") as output_handle:
+#         observed_fasta = []
+#         for seq in full_fasta:
+#             if int(seq.id) in observed_nodes:
+#                 observed_fasta.append(seq)
+#         SeqIO.write(observed_fasta, output_handle, "fasta")
+#
+#     create_dataset(name,
+#                    one_hot_encoding=False,
+#                    fasta_file="{}/{}_Observed.fasta".format(name,data_dir),#Alignment file
+#                    tree_file=tree_file)
 def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
     "Load and format the ancestral sequences from the simulations"
     # Select the sequences of only the observed nodes

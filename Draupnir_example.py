@@ -75,7 +75,7 @@ if __name__ == "__main__":
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
 
-    parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
     #parser.add_argument('-use-trained-logits','--use-trained-logits', type=str2bool, nargs='?', default=False,help='Load fixed pretrained logits (i.e train_info_dict.torch) and generate new samples')
     parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_GP_VAE_simulations_blactamase_1_2022_02_09_20h12min18s525670ms_1000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')

@@ -62,12 +62,24 @@ BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
 def load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args):
-    """return
-    Train and Test Datasets arrays: [n_seqs, max_len + 2, 30]
-        For dimension 2:
-            0 column = [seq_len, position in tree, distance to root,ancestor, ..., 0]
-            1 column = Git vector (30 dim) if available
-            Rest of columns = [integer or one hot encoded amino acid sequence]"""
+    """
+    Reads and prepares the stored dataset and other files (created by DraupnirUtils.create_draupnir_dataset()) to be split into train (leaves) and test (internal nodes) sets. Additionally
+    reads and stores in namedtuples some other information related to how the tree is organized
+    :param str name: dataset name
+    :param namedtuple settings_config: namedtuple containing dataset information
+    :param namedtuple build_config: namedtuple containing information on how to perform interence
+    :param str results_dir: path to folder where all the results of the run will be stored
+    :param str script_dir: path from which draupnir is being executed
+    :param namedtuple args: customized configuration arguments
+
+    :out namedtuple train_load: contains train related tensors. dataset_train has shape [n_seqs, max_len + 2, 30], where in the second dimension
+                                0  = [seq_len, position in tree, distance to root,ancestor, ..., 0]
+                                1  = Git vector (30 dim) if available
+                                2: = [(1 integer + 0*29) or (one hot encoded amino acid sequence (21 slots)+0*9)]"
+    :out namedtuple test_load:
+    :out namedtuple additional_load
+    :out namedtuple build_config
+    """
 
     aligned = ["aligned" if settings_config.aligned_seq else "NOT_aligned"]
     one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "integers"]
@@ -94,13 +106,8 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
     dataset = DraupnirLoadUtils.remove_nan(dataset)
     DraupnirUtils.Ramachandran_plot(dataset[:, 3:], "{}/TRAIN_OBSERVED_angles".format(results_dir + "/Train_Plots"), "Train Angles",one_hot_encoded=settings_config.one_hot_encoding)
-
-    #if build_config.alignment_file:
-    alignment_file = build_config.alignment_file
+    #Highlight: Read the alignment, find the alignment length and positions where there is any gap
     alignment = AlignIO.read(build_config.alignment_file, "fasta")
-    # else:
-    #     alignment_file = "{}/{}/{}/{}.mafft".format(script_dir, name)
-    #     alignment = AlignIO.read(alignment_file, "fasta")
     alignment_array = np.array(alignment)
     gap_positions = np.where(alignment_array == "-")[1]
     np.save("{}/Alignment_gap_positions.npy".format(results_dir), gap_positions)
@@ -110,7 +117,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         unique, counts = np.unique(alignment_array[:, site], return_counts=True)
         sites_count[site] = dict(zip(unique, counts))
     pickle.dump(sites_count, open("{}/Sites_count.p".format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
+    #Highlight: Find if the preselected amount of amino acids (generally 20 + 1 gap) is correct or it needs a different value due to the presence of special amino acids
     aa_probs_updated = DraupnirLoadUtils.validate_aa_probs(alignment,build_config)
     percentID = DraupnirUtils.perc_identity_alignment(alignment)
     alignment_length = dataset.shape[1] - 3
@@ -118,7 +125,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     max_seq_len = int(np.max(dataset[:, 1, 0]))
     n_seq = dataset.shape[0]
 
-    build_config = BuildConfig(alignment_file=alignment_file,
+    build_config = BuildConfig(alignment_file=build_config.alignment_file,
                                use_ancestral=build_config.use_ancestral,
                                n_test=build_config.n_test,
                                build_graph=build_config.build_graph,
@@ -144,7 +151,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     if not args.plating: assert plate_size == None, "Please set plating_size to None if you do not want to do plate subsampling"
     if args.plating: assert args.batch_size == 1, "We are plating, no batching, please set batch_size == 1"
 
-    build_config = BuildConfig(alignment_file=alignment_file,
+    build_config = BuildConfig(alignment_file=build_config.alignment_file,
                                use_ancestral=build_config.use_ancestral,
                                n_test=build_config.n_test,
                                build_graph=build_config.build_graph,
@@ -207,7 +214,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         internal_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', str(node)))
         leaves_nodes_dict = dict((node,i) for i,node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', str(node)))
 
-    else: # Highlight: Internal nodes start with A
+    else: # Highlight: when the internal nodes names start with A
         if name.startswith("benchmark_randall_original_naming"):
             internal_nodes_indexes = [node for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', node)]
             leave_nodes_indexes = [node for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', node)]
