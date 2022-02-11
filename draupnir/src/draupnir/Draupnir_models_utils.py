@@ -94,55 +94,6 @@ class RNNEncoder_no_mean(nn.Module):
         return output_std
 
 
-
-
-class MLP(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(MLP, self).__init__()
-        self.hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = num_layers
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(self.rnn_input_size, self.hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-            self.fc2 = nn.Linear(self.hidden_dim, 2*self.hidden_dim)
-            self.fc2.weight = nn.Parameter(pretrained_params["decoder.fc2.weight"],requires_grad=False)
-            self.fc2.bias = nn.Parameter(pretrained_params["decoder.fc2.bias"], requires_grad=False)
-            self.fc3 = nn.Linear(2*self.hidden_dim, 2*self.hidden_dim)
-            self.fc3.weight = nn.Parameter(pretrained_params["decoder.fc3.weight"],requires_grad=False)
-            self.fc3.bias = nn.Parameter(pretrained_params["decoder.fc3.bias"], requires_grad=False)
-            self.fc4 = nn.Linear(2*self.hidden_dim, self.hidden_dim)
-            self.fc4.weight = nn.Parameter(pretrained_params["decoder.fc4.weight"],requires_grad=False)
-            self.fc4.bias = nn.Parameter(pretrained_params["decoder.fc4.bias"], requires_grad=False)
-            #self.fc1.train(False)
-            self.linear_probs = nn.Linear(self.hidden_dim, self.aa_prob)
-            self.linear_probs.weight = nn.Parameter(pretrained_params["decoder.linear_probs.weight"],requires_grad=False)
-            self.linear_probs.bias = nn.Parameter(pretrained_params["decoder.linear_probs.bias"],requires_grad=False)
-            #self.linear_probs.train(False)
-
-        else:
-            self.fc1 = nn.Linear(self.rnn_input_size, self.hidden_dim)
-            self.fc2 = nn.Linear(self.hidden_dim, 2*self.hidden_dim)
-            self.fc3 = nn.Linear(2 * self.hidden_dim, 2*self.hidden_dim)
-            self.fc4 = nn.Linear(2 * self.hidden_dim, self.hidden_dim)
-            self.linear_probs = nn.Linear(self.hidden_dim, self.aa_prob)
-
-    def forward(self, input):
-
-        MLP_out = self.fc4(self.fc3(self.fc2(self.fc1(input))))
-        output_logits = self.logsoftmax(self.linear_probs(MLP_out))  # [n_nodes,align_seq_len,aa_probs]
-        return output_logits
-
-
 class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
@@ -255,60 +206,6 @@ class TransformerDecoder_Tiling(nn.Module):
         return output_logits
 
 
-class SRUDecoder_Tiling(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(SRUDecoder_Tiling, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = num_layers
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-
-            # self.fc2 = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim)
-            # self.fc2.weight = nn.Parameter(pretrained_params["decoder.fc2.weight"],requires_grad=False)
-            # self.fc2.bias = nn.Parameter(pretrained_params["decoder.fc2.bias"], requires_grad=False)
-
-            self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.linear_probs.weight = nn.Parameter(pretrained_params["decoder.linear_probs.weight"],requires_grad=False)
-            self.linear_probs.bias = nn.Parameter(pretrained_params["decoder.linear_probs.bias"],requires_grad=False)
-
-            self.sru = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-            self.sru.rnn_lst.weight= nn.Parameter(pretrained_params["decoder$$$sru.rnn_lst.0.weight"],requires_grad=False)
-            self.sru.rnn_lst.weight_c = nn.Parameter(pretrained_params["decoder$$$sru.rnn_lst.0.weight_c"],requires_grad=False)
-            self.sru.rnn_lst.bias =  nn.Parameter(pretrained_params["ecoder$$$sru.rnn_lst.0.bias"],requires_grad=False)
-
-        else:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            #self.fc2 = nn.Linear(self.gru_hidden_dim,self.gru_hidden_dim)
-            self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.sru = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-
-
-    def forward(self, input, hidden):
-
-        rnn_output, rnn_hidden = self.sru(input.permute(1,0,2))  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output.permute(1,0,2))))  # [n_nodes,align_seq_len,aa_probs]
-        return output_logits
-#
-
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
@@ -382,162 +279,7 @@ class RNNDecoder_Tiling_Angles(nn.Module):
         output_means = self.tanh(self.fc2_means(output))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output))
         return output_logits,output_means,output_kappas
-class RNNDecoder_Angles_Single_SRU(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNDecoder_Angles_Single_SRU, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = 6
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        self.softplus = nn.Softplus()
-        if pretrained_params is not None:
-            #linear layer logits
-            self.fc1_logits = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1_logits.weight = nn.Parameter(pretrained_params["decoder.fc1_logits.weight"],requires_grad=False)
-            self.fc1_logits.bias = nn.Parameter(pretrained_params["decoder.fc1_logits.bias"], requires_grad=False)
-            #linear layer logits/probs
-            self.fc2_logits = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc2_logits.weight = nn.Parameter(pretrained_params["decoder.fc2_logits.weight"],requires_grad=False)
-            self.fc2_logits.bias = nn.Parameter(pretrained_params["decoder.fc2_logits.bias"],requires_grad=False)
-            #linear layer angles
-            self.fc1_angles = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1_angles.weight = nn.Parameter(pretrained_params["decoder.fc1_angles.weight"],requires_grad=False)
-            self.fc1_angles.bias = nn.Parameter(pretrained_params["decoder.fc1_angles.bias"], requires_grad=False)
-            #linear layer angles means
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_means.weight = nn.Parameter(pretrained_params["decoder.fc2_means.weight"],requires_grad=False)
-            self.fc2_means.bias = nn.Parameter(pretrained_params["decoder.fc2_means.bias"], requires_grad=False)
-            #linear layer angles kappas
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas.weight = nn.Parameter(pretrained_params["decoder.fc2_kappas.weight"],requires_grad=False)
-            self.fc2_kappas.bias = nn.Parameter(pretrained_params["decoder.fc2_kappas.bias"], requires_grad=False)
-            #RNN
-            self.sru = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=2,
-                              dropout=0.0)
 
-            #TODO: Check if correct
-            self.sru.rnn_lst.weight= nn.Parameter(pretrained_params["decoder$$$sru.rnn_lst.0.weight"],requires_grad=False)
-            self.sru.rnn_lst.weight_c = nn.Parameter(pretrained_params["decoder$$$sru.rnn_lst.0.weight_c"],requires_grad=False)
-            self.sru.rnn_lst.bias =  nn.Parameter(pretrained_params["ecoder$$$sru.rnn_lst.0.bias"],requires_grad=False)
-
-        else:
-            self.fc1_logits = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2_logits = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc1_angles = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            #Highlight: SRU Taken From https://github.com/asappresearch/sru
-            self.sru = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-
-    def forward(self, input, hidden):
-        input = input.permute(1,0,2) #[max_len_seq,n_nodes,rnn_input]
-        sru_output, sru_hidden = self.sru(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
-        sru_output = sru_output.permute(1,0,2)
-        output_logits = self.fc1_logits(sru_output)
-        output_logits = self.logsoftmax(self.fc2_logits(output_logits))  # [n_nodes,align_seq_len,aa_probs]
-        output_angles = self.fc1_angles(sru_output)
-        output_means = self.tanh(self.fc2_means(output_angles))*math.pi
-        output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output_angles))
-        return output_logits,output_means,output_kappas
-class RNNDecoder_Angles_Double_SRU(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNDecoder_Angles_Double_SRU, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = 3
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        self.softplus = nn.Softplus()
-        if pretrained_params is not None:
-            #linear layer logits
-            self.fc1_logits = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1_logits.weight = nn.Parameter(pretrained_params["decoder.fc1_logits.weight"],requires_grad=False)
-            self.fc1_logits.bias = nn.Parameter(pretrained_params["decoder.fc1_logits.bias"], requires_grad=False)
-            #linear layer logits/probs
-            self.fc2_logits = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc2_logits.weight = nn.Parameter(pretrained_params["decoder.fc2_logits.weight"],requires_grad=False)
-            self.fc2_logits.bias = nn.Parameter(pretrained_params["decoder.fc2_logits.bias"],requires_grad=False)
-            #linear layer angles
-            self.fc1_angles = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1_angles.weight = nn.Parameter(pretrained_params["decoder.fc1_angles.weight"],requires_grad=False)
-            self.fc1_angles.bias = nn.Parameter(pretrained_params["decoder.fc1_angles.bias"], requires_grad=False)
-            #linear layer angles means
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_means.weight = nn.Parameter(pretrained_params["decoder.fc2_means.weight"],requires_grad=False)
-            self.fc2_means.bias = nn.Parameter(pretrained_params["decoder.fc2_means.bias"], requires_grad=False)
-            #linear layer angles kappas
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas.weight = nn.Parameter(pretrained_params["decoder.fc2_kappas.weight"],requires_grad=False)
-            self.fc2_kappas.bias = nn.Parameter(pretrained_params["decoder.fc2_kappas.bias"], requires_grad=False)
-            #RNN
-            self.sru_aa = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=2,
-                              dropout=0.0)
-            self.sru_angles = SRU(input_size=self.rnn_input_size,
-                                  hidden_size=self.gru_hidden_dim,
-                                  bidirectional=True,
-                                  num_layers=2,
-                                  dropout=0.0)
-            #TODO: Check if correct
-            self.sru_aa.rnn_lst.weight= nn.Parameter(pretrained_params["decoder$$$sru_aa.rnn_lst.0.weight"],requires_grad=False)
-            self.sru_aa.rnn_lst.weight_c = nn.Parameter(pretrained_params["decoder$$$sru_aa.rnn_lst.0.weight_c"],requires_grad=False)
-            self.sru_aa.rnn_lst.bias =  nn.Parameter(pretrained_params["ecoder$$$sru_aa.rnn_lst.0.bias"],requires_grad=False)
-            self.sru_angles.rnn_lst.weight = nn.Parameter(pretrained_params["decoder$$$sru_angles.rnn_lst.0.weight"],requires_grad=False)
-            self.sru_angles.rnn_lst.weight_c = nn.Parameter(pretrained_params["decoder$$$sru_angles.rnn_lst.0.weight_c"],requires_grad=False)
-            self.sru_angles.rnn_lst.bias = nn.Parameter(pretrained_params["ecoder$$$sru_angles.rnn_lst.0.bias"],requires_grad=False)
-
-        else:
-            self.fc1_logits = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2_logits = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc1_angles = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            #Highlight: SRU Taken From https://github.com/asappresearch/sru
-            self.sru_aa = SRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-            self.sru_angles = SRU(input_size=self.rnn_input_size,
-                                 hidden_size=self.gru_hidden_dim,
-                                 bidirectional=True,
-                                 num_layers=self.num_layers,
-                                 dropout=0.0)
-
-    def forward(self, input, hidden):
-        input = input.permute(1,0,2) #[max_len_seq,n_nodes,rnn_input]
-        sru_aa_output, sru_aa_hidden = self.sru_aa(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
-        sru_angles_output, sru_angles_hidden = self.sru_angles(input)  # [align_seq_len,n_nodes,2*H] | [n_layers, n_nodes, 2*H]
-        sru_aa_output = sru_aa_output.permute(1,0,2)
-        sru_angles_output = sru_angles_output.permute(1,0,2)
-        output_logits = self.fc1_logits(sru_aa_output)
-        output_logits = self.logsoftmax(self.fc2_logits((output_logits)))  # [n_nodes,align_seq_len,aa_probs]
-        output_angles = self.fc1_angles(sru_angles_output)
-        output_means = self.tanh(self.fc2_means(output_angles))*math.pi
-        output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output_angles))
-        return output_logits,output_means,output_kappas
 
 class RNNDecoder_Tiling_AnglesComplex(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
@@ -713,6 +455,11 @@ class SVIEngine(Engine):
     def _update(self, engine, batch):
         return -engine.svi.step(batch, **self._step_args)
 class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
+    """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
+    :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
+    :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
+    :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    """
     def __init__(self, sigma_f, sigma_n, lamb):
         self.sigma_f = sigma_f
         self.sigma_n = sigma_n
@@ -722,17 +469,16 @@ class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
         raise NotImplementedError
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
-        """Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
-        sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
-        lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes)
-        sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise
-        larger l implies that the noise should be bigger to capture big point fluctuations
-        """
         first_term = self.sigma_f ** 2
         second_term = torch.exp(-t / self.lamb)
         return first_term * second_term + self.sigma_n ** 2 * torch.eye(t.shape[0])
 
 class OUKernel_Fast(GPKernel):
+    """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
+    :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
+    :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
+    :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    """
     def __init__(self, sigma_f, sigma_n, lamb):
         self.sigma_f = sigma_f
         self.sigma_n = sigma_n
@@ -743,13 +489,6 @@ class OUKernel_Fast(GPKernel):
         return absdiff
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
-        """Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
-        Computes a covariance matrix for each of the OU processes occurring in the latent space
-        sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
-        lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes)
-        sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
-        larger l implies that the noise should be bigger to capture big point fluctuations
-        """
         #cov_b = torch.exp(-distance_matrix / _lambd) * _sigma_f ** 2 + _sigma_n + torch.eye(self.n_b*2, device=self.device) * 1e-5
         first_term = self.sigma_f ** 2
         first_term = first_term.unsqueeze(-1).unsqueeze(-1)
@@ -759,6 +498,11 @@ class OUKernel_Fast(GPKernel):
         sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
         return first_term * second_term + sigma_n ** 2 * noise
 class OUKernel_Fast_Sparse(GPKernel):
+    """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
+    :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
+    :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
+    :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    """
     def __init__(self, sigma_f, sigma_n, lamb):
         self.sigma_f = sigma_f
         self.sigma_n = sigma_n
@@ -768,12 +512,6 @@ class OUKernel_Fast_Sparse(GPKernel):
         absdiff = diff.abs().sum(-1)
         return absdiff
     def forward(self, t: torch.Tensor) -> torch.Tensor:
-        """Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
-        sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
-        lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes)
-        sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise
-        larger l implies that the noise should be bigger to capture big point fluctuations
-        """
         first_term = self.sigma_f ** 2
         second_term = torch.exp(-t / self.lamb[:, None, None])
         return first_term[:, None, None] * second_term + self.sigma_n[:, None, None] ** 2
@@ -836,12 +574,15 @@ class VSGP(TorchDistribution):
         """
         return self.support()
 
-def masking(Dataset):
-    mask_indx = Dataset.eq(0)  # Find where is equal to 0 == gap
-    Dataset_mask = torch.ones(Dataset.shape)
-    Dataset_mask[mask_indx] = 0
-    return Dataset_mask
-def printDivisors(n) :
+def masking(dataset):
+    """Creating a mask for the gaps (0) in the data set"""
+    mask_indx = dataset.eq(0)  # Find where is equal to 0 == gap
+    dataset_mask = torch.ones(dataset.shape)
+    dataset_mask[mask_indx] = 0
+    return dataset_mask
+def print_divisors(n) :
+    """Calculates the number of divisors of a number
+    :param int n: number"""
     i = 1
     divisors = []
     while i <= n :
@@ -850,12 +591,14 @@ def printDivisors(n) :
         i = i + 1
     return divisors
 def intervals(parts, duration):
+    """Compose a list of intervals on which a number is divided """
     part_duration = duration / parts
     return [(int(i) * part_duration, (int(i) + 1) * part_duration) for i in range(parts)]
 def compute_sites_entropies(logits, node_names):
     """
     Calculate the Shannon entropy of a sequence
-    logits = [n_seq, L, 21]
+    :param tensor logits = [n_seq, L, 21]
+    :param tensor node_names: tensor with the nodes tree level order indexes ("names")
     observed = [n_seq,L]
     Pick the aa with the highest logit,
     logits = log(prob/1-prob)
@@ -871,11 +614,10 @@ def compute_sites_entropies(logits, node_names):
     seq_entropies = torch.cat((node_names[:,None],seq_entropies),dim=1)
     return seq_entropies
 def compute_seq_probabilities(logits, observed,train=True):
-    """logits = [n_seq, L, 21]
-    observed = [n_seq,L]
-    Pick the aa with the highest logit,
-    logits = log(prob/1-prob)
-    prob = exp(logit)/(1+exp(logit))"""
+    """Compute the sequence probabilities (prob = exp(logit)/(1+exp(logit))) from the logits
+    :param tensor logits: log(prob/1-prob), [n_seq, L, 21]
+    :param tensor observed = [n_seq,L]
+    """
     #probs = torch.exp(logits)  # torch.sum(probs,dim=2) returns 1's so , it's correct
     node_names = observed[:, 0, 1]
     aminoacids = observed[:,2:,0]

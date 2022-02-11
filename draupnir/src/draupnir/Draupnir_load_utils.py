@@ -390,6 +390,12 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
 
 
 def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build_config):
+    """ALigns the order of the nodes in the dataset and the patristic and cladistic matrices. Calculates the amino acid frequencies.
+    :param tensor dataset_train
+    :param tensor patristic_matrix_full
+    :param tensor cladistic_matrix_full
+    :param namedtuple build_config
+    """
     #Highlight: AA freqs
 
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
@@ -422,6 +428,7 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
 
     return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
+
 def pretreatment_Bayes(training_Dataset, patristic_matrix,aa_prob):
     "Works when the nodes have their name from their order in the traversal tree order (otherwise the names could be repeated and the sorting will not work)"
     #Highlight: AA freqs

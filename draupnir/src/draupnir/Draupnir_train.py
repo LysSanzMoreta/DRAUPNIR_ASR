@@ -9,7 +9,13 @@ def index_generator(indexes):
         i = (i + 1) % len(indexes)
         return i ##?
 def train_batch(svi,patristic_matrix,cladistic_matrix,train_loader,args):
-    "Regular batch training without shuffleing dats"
+    """Regular batch training without shuffling datatasets
+    :param svi: pyro infer engine
+    :param cladistic_matrix
+    :param patristic_matrix
+    :param dataloader train_loader: Pytorch dataloader
+    :param namedtuple args
+    """
     train_loss = 0.0
     seq_lens = []
     for batch_number, dataset in enumerate(train_loader):
@@ -20,7 +26,7 @@ def train_batch(svi,patristic_matrix,cladistic_matrix,train_loader,args):
             if args.use_cuda:
                 batch_dataset = batch_dataset.cuda()
                 batch_blosum = batch_blosum.cuda()
-                batch_patristic = batch_patristic.cuda()  # cannot be used like this, we cannot have a variable size latent space
+                batch_patristic = batch_patristic.cuda()
             seq_lens += batch_dataset[:, 0, 0].tolist()
             train_loss += svi.step(batch_dataset, batch_patristic, cladistic_matrix, batch_blosum)
             # Normalize loss
@@ -31,7 +37,12 @@ def train_batch(svi,patristic_matrix,cladistic_matrix,train_loader,args):
 
 
 def train(svi,patristic_matrix,cladistic_matrix,train_loader,args):
-    "Non batched training"
+    """Non batched training
+    :param svi: pyro infer engine
+    :param cladistic_matrix
+    :param patristic_matrix
+    :param dataloader train_loader: Pytorch dataloader
+    """
 
     train_loss = 0.0
     seq_lens = []
@@ -43,9 +54,14 @@ def train(svi,patristic_matrix,cladistic_matrix,train_loader,args):
     total_epoch_loss_train = train_loss #/ normalizer_train
     return total_epoch_loss_train
 def train_plating(svi,patristic_matrix,cladistic_matrix,train_loader,args):
-    "Plated/subsample training"
+    """Plated/subsampling training
+    :param svi: pyro infer engine
+    :param cladistic_matrix
+    :param patristic_matrix
+    :param dataloader train_loader: Pytorch dataloader
+    :param namedtuple args
+    """
     #TODO: make the index_generator() work
-
     train_loss = 0.0
     seq_lens = []
     for batch_number, dataset in enumerate(train_loader):
@@ -56,7 +72,13 @@ def train_plating(svi,patristic_matrix,cladistic_matrix,train_loader,args):
     total_epoch_loss_train = train_loss #/ normalizer_train
     return total_epoch_loss_train
 def train_batch_clade(svi,patristic_matrix,cladistic_matrix,train_loader,args):
-    "Batch by clade training"
+    """Batch by clade training
+    :param svi: pyro infer engine
+    :param cladistic_matrix
+    :param patristic_matrix
+    :param dataloader train_loader: Pytorch dataloader
+    :param namedtuple args
+    """
     train_loss = 0.0
     seq_lens = []
     for batch_number, dataset in enumerate(train_loader):
