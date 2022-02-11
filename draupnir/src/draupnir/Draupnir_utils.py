@@ -49,6 +49,8 @@ from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
 from Bio.Data.SCOPData import protein_letters_3to1
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO, SeqRecord
+from Bio.Seq import Seq
 from Bio import BiopythonWarning
 from Bio import AlignIO, SeqIO
 from Bio.PDB.PDBList import PDBList
@@ -106,17 +108,17 @@ def aminoacid_names_dict(aa_probs):
     elif aa_probs > 22:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
         return aminoacid_names
-def create_blosum(aa_prob,subs_matrix_name):
+def create_blosum(aa_probs,subs_matrix_name):
     """
     Builds an array containing the blosum scores per character
-    :param aa_prob: amino acid probabilities, determines the choice of BLOSUM matrix
+    :param aa_probs: amino acid probabilities, determines the choice of BLOSUM matrix
     :param str subs_matrix_name: name of the substitution matrix, check availability at /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data"""
 
-    if aa_prob > 21 and not subs_matrix_name.startswith("PAM"):
+    if aa_probs > 21 and not subs_matrix_name.startswith("PAM"):
         warnings.warn("Your dataset contains special amino acids. Switching your substitution matrix to PAM70")
         subs_matrix_name = "PAM70"
     subs_matrix = Bio.Align.substitution_matrices.load(subs_matrix_name)
-    aa_list = list(aminoacid_names_dict(aa_prob).keys())
+    aa_list = list(aminoacid_names_dict(aa_probs).keys())
     index_gap = aa_list.index("-")
     aa_list[index_gap] = "*" #in the blosum matrix gaps are represanted as *
 
@@ -130,8 +132,8 @@ def create_blosum(aa_prob,subs_matrix_name):
             subs_array[i, j] = subs_matrix[(aa_1, aa_2)]
             subs_array[j, i] = subs_matrix[(aa_2, aa_1)]
 
-    names = np.concatenate((np.array([float("-inf")]), np.arange(0,aa_prob)))
-    subs_array = np.c_[ np.arange(0,aa_prob), subs_array ]
+    names = np.concatenate((np.array([float("-inf")]), np.arange(0,aa_probs)))
+    subs_array = np.c_[ np.arange(0,aa_probs), subs_array ]
     subs_array = np.concatenate((names[None,:],subs_array),axis=0)
 
     return subs_array, subs_dict
@@ -467,7 +469,7 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
     """
     Reads and alignment or performs alignment using MAFFT [MAFFT multiple sequence alignment software version 7: improvements in performance and usability]. Returns a dictionary with the sequence name
     and the sequence and a biopython alignment object
-    :param str alignment_file: path to pre computed alignment to read
+    :param str or None alignment_file: path to pre computed alignment to read
     :param str input_file_name: path to the file containing unaligned sequences,in fasta format
     :param str output_file_name: name of the file that will contain the aligned sequences"""
     # Align the polypeptides/sequences and write to a fasta file
@@ -986,7 +988,8 @@ def sum_matrices(matrix1,matrix2):
     matrix = np.row_stack((column_names, matrix))
     return matrix
 def pandas_to_numpy(matrix):
-    "Converts pandas array to numpy array, in this case by transforming the nodes names"
+    """Converts pandas array to numpy array, in this case by transforming the nodes names
+    :param matrix"""
     column_names = matrix.columns.values.astype("int")  # 82 + 1
     column_names = np.concatenate((np.array([float("-inf")]), column_names))  # 82 + 1 (to fit the numpy array
     rows_names = matrix.index.values.astype("int")  # 82
@@ -1161,6 +1164,11 @@ def save_obj(obj, name):
     # with open(name, 'w',encoding='utf-8') as outfile:
     #     json.dump(obj_serialized, outfile,ensure_ascii=False, indent=4)
 def autolabel(rects, ax, blosum_dict=None,percent_id_dict=None,blosum_true_dict=None):
+    """Helper function to assign a integer value on top of the histogram bar
+    :param rects: matplotlib rectangles
+    :param ax: matplotlib axis
+    :param blosum_dict: dictionary containing the blosum scores of the true vs the prediction sequences
+    :param blosum_true_dict: dictionary containing the blosum scores of the true vs true sequences"""
     # Get y-axis height to calculate label position from.
     (y_bottom, y_top) = ax.get_ylim()
     y_height = y_top - y_bottom
@@ -1198,9 +1206,14 @@ def symmetrize(a):
     "Make a triangular upper matrix symmetric along the diagonal. Valid for numpy arrays and pandas dataframes"
     a = np.maximum(a, a.transpose())
     return a
-def build_predicted_tree(index,sampled_sequences,leaf_names,name,results_directory,method):
-    from Bio import SeqIO,SeqRecord
-    from Bio.Seq import Seq
+def build_predicted_tree(index,sampled_sequences,leaf_names,name,results_directory,method): #TODO: Correct
+    """Builds a tree between the train (leaves) data and the predicted ancestors
+    :param index: node index
+    :param sampled_sequences: dataset_test with sampled sequences
+    :param leaf_names: leaf node names
+    :param name: datasetproject name
+    :param results_directory
+    :param method: tree inference engine"""
     training_seqs = SeqIO.parse("{}/{}_training.fasta".format(results_directory, name), "fasta")
     with open("{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.fasta".format(results_directory, name,index), 'w') as w_file:
         SeqIO.write(training_seqs,w_file,"fasta")
@@ -1212,18 +1225,30 @@ def build_predicted_tree(index,sampled_sequences,leaf_names,name,results_directo
     dict_align,alignment = infer_alignment(input_name_file="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.fasta".format(results_directory, name,index),
                                            output_name_file="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.mafft".format(results_directory,name,index),alignment_file=None)
 
+    #alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""
     tree = infer_tree(alignment=alignment,
                       alignment_file_name="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.mafft".format(results_directory,name,index),
                       tree_file_name="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.tree".format(results_directory,name,index),
                       method=method,
-                      name_file="{}_combined_sample_index_{}.tree".format(name,index))
+                      name="{}_combined_sample_index_{}.tree".format(name,index))
     return tree
-def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexes,results_directory,aa_prob,additional_load,additional_info,correspondence_dict=None):
+def heatmaps(predictions_samples,dataset_test,name, num_samples,nodes_indexes,results_directory,aa_probs,additional_load,additional_info,correspondence_dict=None):
+    """Build heatmaps between the percent identity true sequences (leaves or internal nodes) and the predicted sequences
+    :param tensor predictions_samples
+    :param dataset_test
+    :param str name: dataset project name
+    :param int num_samples
+    :param tensor nodes_indexes
+    :param str results_directory
+    :param int aa_probs
+    :param namedtuple additional_load
+    :param namedtuple additional_info
+    :param correspondence_dict"""
     print("Building %ID and Blosum heatmaps & Incorrect aa histogram...")
     #blosum = MatrixInfo.blosum62
     blosum = additional_info.blosum_dict
-    children_indexes = children_indexes.tolist()
-    node_names = Dataset_test[:, 0, 1]
+    nodes_indexes = nodes_indexes.tolist()
+    #node_names = dataset_test[:, 0, 1]
     folder = os.path.basename(results_directory).split("_")[0]
     def Percent_ID_Test_SAMPLED_SAMPLED(multiindex=False):
         "Generate the Average and STD %ID among the sampled seqs"
@@ -1242,15 +1267,15 @@ def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexe
                 percent_id_SAMPLED_SAMPLED[t1][t2]  = np.mean(np.array(percent_id_i), axis=0)
                 blosum_SAMPLED_SAMPLED[t1][t2]  = np.mean(np.array(blosum_score_i), axis=0)
 
-        for i, t1 in enumerate(children_indexes):#for test node
+        for i, t1 in enumerate(nodes_indexes):#for test node
             all_sampled_i = predictions[:,i]  # All samples for the same test seq
-            for j, t2 in enumerate(children_indexes[i:]):
+            for j, t2 in enumerate(nodes_indexes[i:]):
                 all_sampled_j = predictions[:, i+j]  # All samples for the same test seq
                 percent_id_i=[] #all samples for the same test sequence
                 blosum_score_i=[]
                 for w in range(num_samples):
-                    seq_sampled_i = convert_to_letters(all_sampled_i[w],aa_prob)
-                    seq_sampled_j = convert_to_letters(all_sampled_j[w],aa_prob)
+                    seq_sampled_i = convert_to_letters(all_sampled_i[w],aa_probs)
+                    seq_sampled_j = convert_to_letters(all_sampled_j[w],aa_probs)
                     pid = perc_identity_pair_seq(seq_sampled_i,seq_sampled_j)
                     blos = score_pairwise(seq_sampled_i,seq_sampled_j,blosum,gap_s=11, gap_e=1)
                     percent_id_i.append(pid)
@@ -1263,7 +1288,7 @@ def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexe
         percent_id_SAMPLED_OBSERVED = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         blosum_SAMPLED_OBSERVED = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         incorrect_SAMPLED_OBSERVED = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        Dataset_test_sliced = Dataset_test[:,2:,0]
+        Dataset_test_sliced = dataset_test[:,2:,0]
         predictions_samples_sliced = predictions_samples[:,:,3:]
         if multiindex:
             def storage():
@@ -1278,15 +1303,15 @@ def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexe
                 percent_id_SAMPLED_OBSERVED[t1][t2]  = np.mean(np.array(percent_id_i), axis=0)
                 blosum_SAMPLED_OBSERVED[t1][t2]  = np.mean(np.array(blosum_score_i), axis=0)
                 #incorrect_SAMPLED_OBSERVED[node_names[i].item()][node_names[j].item()]  = np.mean(np.array(incorrect_aa_i), axis=0)
-        for i, t1 in enumerate(children_indexes):
-            test_obs_i = convert_to_letters(Dataset_test_sliced[i],aa_prob)
-            for j, t2 in enumerate(children_indexes[i:]):  # for test node
+        for i, t1 in enumerate(nodes_indexes):
+            test_obs_i = convert_to_letters(Dataset_test_sliced[i],aa_probs)
+            for j, t2 in enumerate(nodes_indexes[i:]):  # for test node
                 all_sampled_test = predictions_samples_sliced[:, i+j]  # All samples for the same test seq
                 percent_id_i = []
                 blosum_score_i = []
                 #incorrect_aa_i = []
                 for w in range(num_samples):
-                    seq_sampled_test = convert_to_letters(all_sampled_test[w],aa_prob)
+                    seq_sampled_test = convert_to_letters(all_sampled_test[w],aa_probs)
                     pid = perc_identity_pair_seq(test_obs_i, seq_sampled_test)
                     #wrong_pred = incorrectly_predicted_aa(test_obs_i,seq_sampled_test)
                     blos = score_pairwise(test_obs_i, seq_sampled_test, blosum, gap_s=11, gap_e=1)
@@ -1301,12 +1326,12 @@ def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexe
         percent_id_OBS = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
         blosum_OBS = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 
-        Dataset_test_sliced = Dataset_test[:,2:,0]
-        for i, t1 in enumerate(children_indexes):
-            test_obs_i = convert_to_letters(Dataset_test_sliced[i],aa_prob)
+        Dataset_test_sliced = dataset_test[:,2:,0]
+        for i, t1 in enumerate(nodes_indexes):
+            test_obs_i = convert_to_letters(Dataset_test_sliced[i],aa_probs)
             #percent_id_OBS[Dataset_test[i, 0, 1].item()][Dataset_test[i, 0, 1].item()] = perc_identity_pair_seq(test_obs_i, test_obs_i)
-            for j, t2 in enumerate(children_indexes[i:]):
-                test_obs_j = convert_to_letters(Dataset_test_sliced[i+j],aa_prob)
+            for j, t2 in enumerate(nodes_indexes[i:]):
+                test_obs_j = convert_to_letters(Dataset_test_sliced[i+j],aa_probs)
                 pid_score = perc_identity_pair_seq(test_obs_i,test_obs_j)
                 percent_id_OBS[t1][t2] = pid_score
                 blosum_score = score_pairwise(test_obs_i,test_obs_j, blosum, gap_s=11, gap_e=1)
@@ -1364,209 +1389,48 @@ def heatmaps(predictions_samples, Dataset_test,name, num_samples,children_indexe
     Plot_Heatmap(df_blosum_SAMPLED_OBS, "OBS vs SAMPLED seqs AVERAGE Blosum Score", "Blosum_{}_OBS_SAMPLED".format(folder),annot=annot,mask=None,vmax=vmax)
     Plot_Heatmap(df_blosum_SAMPLED_SAMPLED, "SAMPLED vs SAMPLED seqs AVERAGE Blosum Score", "Blosum_{}_SAMPLED_SAMPLED".format(folder),annot=annot,mask=None,vmax = vmax)
 
-def barplot_aa_replacement(predictions_samples, Dataset_test,full_name, num_samples,children_indexes,results_directory,aa_prob,correspondence_dict=None):
-    print("Building aa replacement plots...this might take a while")
-    results_directory_path = os.path.dirname(results_directory)
-    folder_type =os.path.basename(results_directory).split("_")[0]
-    aa_types_dict = aminoacid_names_dict(aa_prob) #apply
-    for index,aa in enumerate(list(aa_types_dict.keys())):
-        for seq_idx,seq_name in zip(range(Dataset_test.shape[0]),children_indexes):
-            seq_name = int(seq_name.item())
-            positions = np.where(Dataset_test[seq_idx] == index)[0]
-            prediction_for_seq = predictions_samples[:,seq_idx,positions] #predictions for positions where there should be aa == aa_type
-            if prediction_for_seq.size !=0:#if it's not empty (for example in the benchmark there are no gaps and then it gets empty)
-                aa_count = np.apply_along_axis(lambda x: np.bincount(x, minlength=aa_prob), axis=0,arr=prediction_for_seq.astype("int64")).T
-                aa_count = pd.DataFrame(aa_count,index=positions,columns=list(aa_types_dict.keys()))
-                fig = plt.figure(figsize=(16, 12))
-                #color_map = matplotlib.colors.ListedColormap(plt.cm.tab20c(np.linspace(0, 1,aa_prob)))
-                color_map = matplotlib.colors.ListedColormap(["plum","navy","turquoise","peachpuff","palevioletred","red","darkorange","yellow","lime","green","dodgerblue","blue","purple","magenta","grey","maroon","lightcoral","olive","teal","goldenrod","black"])
-                aa_count.plot.bar(stacked=True,colormap=color_map)
-                plt.legend( prop={'size': 6},bbox_to_anchor = (1.02, 0.9))
-                plt.ylabel("aa count")
-                plt.xlabel("True positions of {}".format(aa))
-                plt.title("Aa replacement for {} in seq {}; \n".format(aa,correspondence_dict[seq_name]) +r"{}".format(full_name))
-                plt.savefig("{}/ReplacementPlots_{}/Replacement_{}_seq_{}.png".format(results_directory_path,folder_type,aa,correspondence_dict[seq_name]))
-                plt.clf()
-                plt.close(fig)
 
-def incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_directory,max_len, additional_load):
-    print("Building Fast Incorrectly Predicted aa...")
-    average_incorrectly_predicted_sites = incorrectly_predicted_sites_df["Average"].values
-    try:
-        accuracy = len(np.where(average_incorrectly_predicted_sites < 75)[0]) / average_incorrectly_predicted_sites.shape[0]
-        print("Accuracy (% incorrect sites < 75)  : {}".format(accuracy))
-    except:
-        accuracy = 0.
-    folder_name =os.path.basename(results_directory)
-    data_name = ["Internal nodes" if folder_name.startswith("Test") else "Leaves nodes"][0]
-    results_directory_abs = os.path.dirname(results_directory)
-
-    text_file = open("{}/Hyperparameters_{}.txt".format(results_directory_abs, "_".join(results_directory_abs.split("_")[-5:])),"a")
-    text_file.write("accuracy {} (% incorrect sites < 75) : {}\n".format(data_name,accuracy))
-    std_incorrectly_predicted_sites = incorrectly_predicted_sites_df["Std"].values
-
-    nodes_indexes = np.array(incorrectly_predicted_sites_df.index.str.split("//").str[1]).astype(float).tolist()
-    incorrectly_predicted_sites_df = incorrectly_predicted_sites_df.drop(["Average","Std"],axis=1)
-    incorrectly_predicted_sites = np.vstack([nodes_indexes,incorrectly_predicted_sites_df.values.T])
-    np.save("{}/Incorrectly_Predicted_Sites".format(results_directory), incorrectly_predicted_sites) #Highlight: Hopefully this is the same as before
-
-
-    fig = plt.figure(figsize=(14, 8))
-    ax = fig.add_subplot(111)
-
-    ## the data
-    N = average_incorrectly_predicted_sites.shape[0]
-    ## necessary variables
-    ind = np.arange(N) # the x locations for the groups
-    width = 0.35  # the width of the bars
-    blue, = sns.color_palette("muted", 1)
-    ## the bars
-    rects1 = ax.bar(ind, average_incorrectly_predicted_sites,
-                    width,
-                    color=blue,
-                    alpha=0.75,
-                    edgecolor="blue",
-                    yerr=std_incorrectly_predicted_sites,
-                    error_kw=dict(elinewidth=2, ecolor='red'))
-
-
-    autolabel(rects1,ax)
-    # axes and labels
-    ax.set_xlim(-width, N* + width)
-    ax.set_ylim(0, max_len)
-    ax.set_ylabel('Number of incorrect sites')
-    ax.set_title('Incorrectly predicted aa sites (%ID); {} \n'.format(data_name) + r'{}'.format(additional_load.full_name))
-    xTickMarks = incorrectly_predicted_sites_df.index.tolist()
-    ax.set_xticks(ind + width)
-    xtickNames = ax.set_xticklabels(xTickMarks)
-    plt.setp(xtickNames, rotation=45, fontsize=8)
-
-    plt.savefig("{}/IncorrectlyPredictedAA_BarPlot".format(results_directory))
-
-
-def incorrectly_predicted_aa_plots_old(predictions_samples, Dataset, name, num_samples, children_indexes,results_directory,aa_prob,correspondence_dict=None):
-    print("Building Incorrectly Predicted aa...")
-    PID_dataframe = pd.DataFrame(index=["Sample_{}".format(n) for n in range(num_samples)] + ["Average", "Std"])  # "MRCA_score_TRUE","MRCA_score_PREDICTED","MRCA_score_DIFFERENCE"
-    incorrectly_predicted_sites = []
-    with open("{}/{}_sampled.fasta".format(results_directory, name), "w") as output_handle:
-
-        for index_sample in range(num_samples):
-            seq_sampled_index = predictions_samples[index_sample]  # First sample for n_test sequences, [seq_len,1]
-            records = []
-            incorrectly_predicted_sites_sample = []
-            pid_sample = []
-            for index_node, node in enumerate(children_indexes): #for sequence in the sample
-                node_seq_letters = convert_to_letters(seq_sampled_index[index_node],aa_prob)
-                seq_obs_letters_i = convert_to_letters(Dataset[index_node],aa_prob)
-                ips = incorrectly_predicted_aa(node_seq_letters,seq_obs_letters_i)
-                incorrectly_predicted_sites_sample.append(ips)
-                node_name = correspondence_dict[node.item()]
-                record = SeqRecord(Seq(''.join(node_seq_letters)),
-                                   annotations={"molecule_type": "protein"},
-                                   id="Sampled_{}_PositionTree_{}_Name_{}".format(index_sample,index_node,node_name),
-                                   description="")
-                records.append(record)
-                #Highlight: Changed node to node_name
-                pid =  perc_identity_pair_seq(node_seq_letters, seq_obs_letters_i)
-                PID_dataframe.loc[["Sample_{}".format(index_sample)], "Observed_{}".format(node_name)] = pid
-                scores_pid_node = PID_dataframe.loc[PID_dataframe.index.str.startswith("Sample"), "Observed_{}".format(node_name)].values.tolist() #all the samples for the same observed node
-                current_average_node = statistics.mean(scores_pid_node)
-                current_std_node = statistics.stdev(scores_pid_node)
-                PID_dataframe.loc[["Average"],"Observed_{}".format(node_name)] = current_average_node
-                PID_dataframe.loc[["Std"], "Observed_{}".format(node_name)] = current_std_node
-            incorrectly_predicted_sites.append(incorrectly_predicted_sites_sample)
-        SeqIO.write(records, output_handle, "fasta")
-
-
-    incorrectly_predicted_sites = np.array(incorrectly_predicted_sites)
-
-    average_incorrectly_predicted_sites = np.mean(incorrectly_predicted_sites,axis=0)
-
-    accuracy = len(np.where(average_incorrectly_predicted_sites < 75)[0]) / average_incorrectly_predicted_sites.shape[0]
-    print("Accuracy (% incorrect sites < 75)  : {}".format(accuracy))
-    folder_name =os.path.basename(results_directory)
-    data_name = ["Internal nodes/Test" if folder_name.startswith("Test") else "Leaves nodes/Train"][0]
-    results_directory_abs = os.path.dirname(results_directory)
-
-    text_file = open("{}/Hyperparameters_{}.txt".format(results_directory_abs, "_".join(results_directory_abs.split("_")[-5:])),"a")
-    text_file.write("accuracy {} (% incorrect sites < 75) : {}\n".format(data_name,accuracy))
-    std_incorrectly_predicted_sites = np.std(incorrectly_predicted_sites, axis=0)
-    incorrectly_predicted_sites = np.vstack([children_indexes,incorrectly_predicted_sites])
-    np.save("{}/Incorrectly_Predicted_Sites".format(results_directory), incorrectly_predicted_sites)
-    fig = plt.figure(figsize=(14, 8))
-    ax = fig.add_subplot(111)
-
-    ## the data
-    N = average_incorrectly_predicted_sites.shape[0]
-    ## necessary variables
-    ind = np.arange(N) # the x locations for the groups
-    width = 0.35  # the width of the bars
-    blue, = sns.color_palette("muted", 1)
-    ## the bars
-    rects1 = ax.bar(ind, average_incorrectly_predicted_sites,
-                    width,
-                    color=blue,
-                    alpha=0.75,
-                    edgecolor="blue",
-                    yerr=std_incorrectly_predicted_sites,
-                    error_kw=dict(elinewidth=2, ecolor='red'))
-
-
-    autolabel(rects1,ax)
-    # axes and labels
-    ax.set_xlim(-width, N* + width)
-    ax.set_ylim(0, Dataset.shape[1])
-    ax.set_ylabel('Number of incorrect sites')
-    ax.set_title('{} : Incorrectly predicted aa sites (%ID)'.format(data_name))
-    xTickMarks = ['Node_{}-{}'.format(int(i.item()),correspondence_dict[int(i.item())]) for i in children_indexes]
-    ax.set_xticks(ind + width)
-    xtickNames = ax.set_xticklabels(xTickMarks)
-    plt.setp(xtickNames, rotation=45, fontsize=8)
-
-    ## add a legend--> Not working (inside or outside loop)
-    #ax.legend((rects1[0]), ('Draupnir')) #changed from rects1[0], rects2[0]
-    plt.savefig("{}/IncorrectlyPredictedAA_BarPlot".format(results_directory))
-    plt.close()
-    output_handle.close()
-
-    #columns_test = sorted(list(correlations_dataframe_TEST.columns.values))
-
-    PID_dataframe = PID_dataframe.round(1)
-    #correlations_dataframe_TEST = correlations_dataframe_TEST[columns_test] #TODO: order rows!!!
-    PID_dataframe = PID_dataframe.transpose()
-
-    PID_dataframe.to_csv("{}/Percent_identity_samples_vs_observed.csv".format(results_directory),sep="\t")
-    exit()
-
-def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,Dataset_test, name, num_samples,children_indexes,results_directory,aa_prob,correspondence_dict=None):
+def build_dataframes_overlapping_histograms(aa_sequences_predictions, dataset_train,dataset_test, name, n_samples,nodes_indexes,results_directory,aa_probs,correspondence_dict=None):
+    """Plot histogram whose bars represent the percentage identity between the true ancestors vs true leaves and the predicted ancestors vs true leaves
+    :param tensor aa_sequences_predictions:
+    :param tensor dataset_train
+    :param tensor dataset_test
+    :param str name: dataset name project
+    :param tensor aa_sequences_predictions
+    :param int n_samples: number of sampled predictions
+    :param nodes_indexes:
+    :param str results_directory
+    :param int aa_prob: amino acid probabilities (i.e 21)
+    :param dict correspondence_dict: correspondence between the tree level order indexes and the --> only useful for benchmark_randall_original_naming
+    """
     "https://matplotlib.org/3.1.1/gallery/units/bar_unit_demo.html#sphx-glr-gallery-units-bar-unit-demo-py"
     print("Building Overlapping Histogram...")
-    n_children = len(children_indexes)
+    n_children = len(nodes_indexes)
     def Percent_ID_OBS_OBS():
         "Generate the  %ID of the OBS TEST sequences against the OBS train"
-        percent_id_OBS = dict.fromkeys(Dataset_train[:,0,1].tolist(), dict.fromkeys(Dataset_test[:,0,1].tolist(),[]))
-        for i,trainseq in enumerate(Dataset_train):
-            seq_TRAIN_obs_letters_i = convert_to_letters(Dataset_train[i, 2:,0],aa_prob)
-            for j,testseq in enumerate(Dataset_test):
-                seq_TEST_obs_letters_i = convert_to_letters(Dataset_test[j, 2:,0],aa_prob)
+        percent_id_OBS = dict.fromkeys(dataset_train[:,0,1].tolist(), dict.fromkeys(dataset_test[:,0,1].tolist(),[]))
+        for i,trainseq in enumerate(dataset_train):
+            seq_TRAIN_obs_letters_i = convert_to_letters(dataset_train[i, 2:,0],aa_probs)
+            for j,testseq in enumerate(dataset_test):
+                seq_TEST_obs_letters_i = convert_to_letters(dataset_test[j, 2:,0],aa_probs)
                 pid =perc_identity_pair_seq(seq_TRAIN_obs_letters_i,seq_TEST_obs_letters_i)
-                percent_id_OBS[Dataset_train[i,0,1].item()][Dataset_test[j,0,1].item()] = pid
+                percent_id_OBS[dataset_train[i,0,1].item()][dataset_test[j,0,1].item()] = pid
         return percent_id_OBS
     def Percent_ID_PRED_OBS():
         "Generate the Average and STD %ID of the sampled sequences against the OBS train"
         #percent_id_PRED = dict.fromkeys(Dataset_train[:,0,1].tolist(), dict.fromkeys(predictions_samples[0,:,1].tolist(),{"Average":[],"Std":[]})) #{"Average":[],"Std":[]}
         percent_id_PRED = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        for i, seq in enumerate(Dataset_train):
-            seq_TRAIN_obs_letters_i = convert_to_letters(Dataset_train[i, 2:,0],aa_prob)
+        for i, seq in enumerate(dataset_train):
+            seq_TRAIN_obs_letters_i = convert_to_letters(dataset_train[i, 2:,0],aa_probs)
             for j in range(n_children):#for test node #n_children
-                all_sampled_index = predictions_samples[:,j,3:]  # All samples for same test seq
+                all_sampled_index = aa_sequences_predictions[:,j,3:]  # All samples for same test seq
                 percent_id_i=[] #all samples for the same test sequence
-                for w in range(num_samples):
-                    seq_sampled_test = convert_to_letters(all_sampled_index[w],aa_prob)
+                for w in range(n_samples):
+                    seq_sampled_test = convert_to_letters(all_sampled_index[w],aa_probs)
                     pid = perc_identity_pair_seq(seq_TRAIN_obs_letters_i, seq_sampled_test)
                     percent_id_i.append(pid)
-                percent_id_PRED[Dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Average"] = np.mean(np.array(percent_id_i),axis=0)
-                percent_id_PRED[Dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Std"] = np.std(np.array(percent_id_i), axis=0)
+                percent_id_PRED[dataset_train[i,0,1].item()][aa_sequences_predictions[0,j,1]]["Average"] = np.mean(np.array(percent_id_i),axis=0)
+                percent_id_PRED[dataset_train[i,0,1].item()][aa_sequences_predictions[0,j,1]]["Std"] = np.std(np.array(percent_id_i), axis=0)
         return percent_id_PRED
 
 
@@ -1577,14 +1441,14 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ax = fig.add_subplot(111)
 
     ## Indexes where the bars will go
-    ind_lines = np.arange(10,len(Dataset_train)*10,10 )
-    ind_train = np.arange(5,len(Dataset_train)*10,10 )  # the x locations for the train nodes
-    width = 10/len(Dataset_test) -0.3 # the width of the bars
+    ind_lines = np.arange(10,len(dataset_train)*10,10 )
+    ind_train = np.arange(5,len(dataset_train)*10,10 )  # the x locations for the train nodes
+    width = 10/len(dataset_test) -0.3 # the width of the bars
     ind_test = np.arange(0,10,width + 0.3)  # the x locations for the test nodes, taking into account the space between them?
     start = 0
     blue, = sns.color_palette("muted", 1)
-    for train_node in Dataset_train[:,0,1]:
-        for idx,test_node in enumerate(Dataset_test[:,0,1]): #TODO: out of range
+    for train_node in dataset_train[:,0,1]:
+        for idx,test_node in enumerate(dataset_test[:,0,1]): #TODO: out of range
             rects2 = ax.bar(ind_test[idx] + start ,
                             percent_id_OBS[train_node.item()][test_node.item()],
                             width,
@@ -1607,7 +1471,7 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ax.set_ylim(0, 100)
     ax.set_ylabel('%ID')
     ax.set_title('Overlapping Histogram')
-    xTickMarks = ['TrainNode_{}'.format(int(i.item())) for i in Dataset_train[:,0,1]]
+    xTickMarks = ['TrainNode_{}'.format(int(i.item())) for i in dataset_train[:,0,1]]
     ax.set_xticks(ind_train)
     xtickNames = ax.set_xticklabels(xTickMarks)
     plt.setp(xtickNames, rotation=45, fontsize=6)
@@ -1615,62 +1479,10 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ## add a legend--> Not working (inside or outside loop)
     ax.legend((rects1,rects2), ('Sampled',"Observed"),loc=1,bbox_to_anchor=(1.15, 1.1))
     plt.savefig("{}/OverlappingHistogram".format(results_directory))
-def build_dataframes_pairwise_score(Dataset_train,Dataset_test_observed,Dataset_test_predicted,n_samples,aa_prob,results_directory):
-    """Compares the Blosum pairwise score between the Observed training seqs vs Obs test, and Obs train vs Predicted test
-    Gap opening, extension are defined as in https://bioinformaticshome.com/bioinformatics_tutorials/sequence_alignment/how_to_select_right_matrix.html"""
-    n_train = Dataset_train.shape[0]
-    n_test = Dataset_test_observed.shape[0]
-    correlations_dataframe_TRAIN_OBS_test_IDENTITY = pd.DataFrame(index=["Perc_Ident_Train_{}".format(index) for index in range(n_train)],
-                                                         columns=["Test_Obs_{}".format(index_test) for index_test in range(n_test)] )
-    correlations_dataframe_TRAIN_PRED_test_IDENTITY = pd.DataFrame(index=["Perc_Ident_Train_{}".format(index) for index in range(n_train)],
-                                                                   columns=["Test_Sampled_{}_obs_{}".format(index_pred,index_test) for index_pred in range(n_samples) for index_test in range(n_test)]
-                                                                           + ["Average_Seq_{}".format(index_test) for index_test in range(n_test)]
-                                                                           + ["Std_Seq_{}".format(index_test) for index_test in range(n_test)])
 
-    correlations_dataframe_TRAIN_OBS_test_BLOSUM = pd.DataFrame(index=["Blosum_Train_{}".format(index) for index in range(n_train)],
-                                                         columns=["Test_Obs_{}".format(index_test) for index_test in range(n_test)] )
-
-    correlations_dataframe_TRAIN_PRED_test_BLOSUM = pd.DataFrame(index=["Blosum_Train_{}".format(index) for index in range(n_train)],
-                                                                   columns=["Test_Sampled_{}_obs_{}".format(index_pred,index_test) for index_pred in range(n_samples) for index_test in range(n_test)]
-                                                                           + ["Average_Seq_{}".format(index_test) for index_test in range(n_test)]
-                                                                           + ["Std_Seq_{}".format(index_test) for index_test in range(n_test)])
-
-    blosum = MatrixInfo.blosum62
-
-    for index_train, seq_train in enumerate(Dataset_train):
-        seq_train = convert_to_letters(seq_train,aa_prob)
-        for index_pred, _ in enumerate(Dataset_test_predicted): #for sample
-            for index_test, seq_test_pred in enumerate(Dataset_test_predicted[index_pred]): #for sample of test sequence
-                seq_sample = convert_to_letters(seq_test_pred,aa_prob)
-                correlations_dataframe_TRAIN_PRED_test_IDENTITY.loc[["Perc_Ident_Train_{}".format(index_train)],["Test_Sampled_{}_obs_{}".format(index_pred,index_test)]] = perc_identity_pair_seq(seq_sample,seq_train)
-                correlations_dataframe_TRAIN_PRED_test_BLOSUM.loc[["Blosum_Train_{}".format(index_train)],["Test_Sampled_{}_obs_{}".format(index_pred,index_test)]] = score_pairwise(seq_sample,seq_train,blosum,gap_s=11,gap_e=1)
-
-        for index_test_obs, seq_test_obs in enumerate(Dataset_test_observed):#for observed data
-            seq_obs = convert_to_letters(seq_test_obs,aa_prob)
-            correlations_dataframe_TRAIN_OBS_test_IDENTITY.loc[["Perc_Ident_Train_{}".format(index_train)], ["Test_Obs_{}".format(index_test_obs)]] = perc_identity_pair_seq(seq_obs,seq_train)
-            correlations_dataframe_TRAIN_OBS_test_BLOSUM.loc[["Blosum_Train_{}".format(index_train)], ["Test_Obs_{}".format(index_test_obs)]] = score_pairwise(seq_obs, seq_train,blosum,gap_s=11, gap_e=1)
-            # Highlight: Percent identity for the
-
-        for index_test in range(n_test):
-            #Highlight: Average Percent identity scores for the sampled sequences
-            scores_percent_id = correlations_dataframe_TRAIN_PRED_test_IDENTITY.loc[["Perc_Ident_Train_{}".format(index_train)],correlations_dataframe_TRAIN_PRED_test_IDENTITY.columns.str.endswith("obs_{}".format(index_test))].values.tolist()
-            average_percent_id = sum(scores_percent_id[0])/n_samples
-            std_percent_id = statistics.stdev(scores_percent_id[0])
-            correlations_dataframe_TRAIN_PRED_test_IDENTITY.loc[["Perc_Ident_Train_{}".format(index_train)],["Average_Seq_{}".format(index_test)]] = average_percent_id
-            correlations_dataframe_TRAIN_PRED_test_IDENTITY.loc[["Perc_Ident_Train_{}".format(index_train)], ["Std_Seq_{}".format(index_test)]] = std_percent_id
-            #highlight: Average Blosum scores for the sampled sequences
-            scores_blosum = correlations_dataframe_TRAIN_PRED_test_BLOSUM.loc[["Blosum_Train_{}".format(index_train)], correlations_dataframe_TRAIN_PRED_test_BLOSUM.columns.str.endswith("obs_{}".format(index_test))].values.tolist()
-            average_blosum = sum(scores_blosum[0]) / n_samples
-            std_blosum = statistics.stdev(scores_blosum[0])
-            correlations_dataframe_TRAIN_PRED_test_BLOSUM.loc[["Blosum_Train_{}".format(index_train)], ["Average_Seq_{}".format(index_test)]] = average_blosum
-            correlations_dataframe_TRAIN_PRED_test_BLOSUM.loc[["Blosum_Train_{}".format(index_train)], ["Std_Seq_{}".format(index_test)]] = std_blosum
-
-    correlations_dataframe_TRAIN_OBS_test_IDENTITY.to_csv("{}/Correlations_dataframe_TRAIN_OBS_test_IDENTITY.csv".format(results_directory), sep="\t")
-    correlations_dataframe_TRAIN_PRED_test_IDENTITY.to_csv("{}/Correlations_dataframe_TRAIN_PRED_test_IDENTITY.csv".format(results_directory), sep="\t")
-    correlations_dataframe_TRAIN_PRED_test_BLOSUM.to_csv("{}/Correlations_dataframe_TRAIN_PRED_test_BLOSUM.csv".format(results_directory), sep="\t")
-    correlations_dataframe_TRAIN_OBS_test_BLOSUM.to_csv("{}/Correlations_dataframe_TRAIN_OBS_test_BLOSUM.csv".format(results_directory), sep="\t")
 def tree_positional_embeddings(ancestor_info_dict,tree_by_levels_dict):
     """
+    The nodes ordered by tree level order are converted into someshat one-hot encoded embeddings
     Implementation as in
     https://papers.nips.cc/paper/2019/file/6e0917469214d8fbd8c517dcdc6b8dcf-Paper.pdf
     Input: Tree by levels in traversal order
@@ -1701,118 +1513,121 @@ def tree_positional_embeddings(ancestor_info_dict,tree_by_levels_dict):
     nodes_representations_array = np.c_[ np.array(list(nodes_representations.keys()))[:,None], nodes_representations_array]
     return nodes_representations_array
 def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_config):
-        AdditionalInfo = namedtuple("AdditionalInfo",
-                                ["blosum" ,"blosum_dict","children_dict","ancestor_info_dict", "tree_by_levels_dict", "tree_by_levels_array",
-                                 "patristic_info", "graph_coo","patristic_full_sparse","nodes_representations_array","dgl_graph"])
+    """Computes some dictionaries with the nodes ordered in tree level order, processes the blosum matrix and build a graph with the tree nodes and the branch lengths as edges
+     :param namedtuple ancestor_info
+     :param tensor patristic_matrix: [n_leaves + n_internal + 1, n_leaves + n_internal + 1]
+     :param str results_dir
+     :param namedtuple args
+     :param namedtuple build_config"""
+    AdditionalInfo = namedtuple("AdditionalInfo",
+                            ["blosum" ,"blosum_dict","children_dict","ancestor_info_dict", "tree_by_levels_dict", "tree_by_levels_array",
+                             "patristic_info", "graph_coo","patristic_full_sparse","nodes_representations_array","dgl_graph"])
 
-        ancestor_info_dict = dict(zip(ancestor_info[:,0].tolist(),ancestor_info[:,2].tolist()))
-        pickle.dump(ancestor_info_dict, open('{}/Ancestor_info_dict.p'.format(results_dir), 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
-        if isinstance(patristic_matrix,np.ndarray):
-            patristic_info = dict(zip(list(range(len(patristic_matrix)-1)),patristic_matrix[1:,0].astype(int).tolist())) #Skip the fake header
-        else:
+    ancestor_info_dict = dict(zip(ancestor_info[:,0].tolist(),ancestor_info[:,2].tolist()))
+    pickle.dump(ancestor_info_dict, open('{}/Ancestor_info_dict.p'.format(results_dir), 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+    if isinstance(patristic_matrix,np.ndarray):
+        patristic_info = dict(zip(list(range(len(patristic_matrix)-1)),patristic_matrix[1:,0].astype(int).tolist())) #Skip the fake header
+    else:
 
-            patristic_info =dict(zip(list(range(len(patristic_matrix)-1)),patristic_matrix[1:,0].type(torch.int).tolist()))
+        patristic_info =dict(zip(list(range(len(patristic_matrix)-1)),patristic_matrix[1:,0].type(torch.int).tolist()))
 
-        ancestors_info_flipped = np.flip(ancestor_info, axis=1) #So we can evaluate in reverse, we start with the last column
+    ancestors_info_flipped = np.flip(ancestor_info, axis=1) #So we can evaluate in reverse, we start with the last column
 
-        tree_by_levels = []
-        for column in ancestors_info_flipped.T:
-            indexes = np.where(column == 0)
-            level = ancestors_info_flipped.T[-1][indexes]
-            tree_by_levels.append(level)
+    tree_by_levels = []
+    for column in ancestors_info_flipped.T:
+        indexes = np.where(column == 0)
+        level = ancestors_info_flipped.T[-1][indexes]
+        tree_by_levels.append(level)
 
-        tree_by_levels = tree_by_levels[:-1] #the root gets added twice because the first column are the node indexes, cannot be fixed, otherwise we cannot do the trick
+    tree_by_levels = tree_by_levels[:-1] #the root gets added twice because the first column are the node indexes, cannot be fixed, otherwise we cannot do the trick
 
-        tree_by_levels_dict = dict(zip(list(reversed(range(len(tree_by_levels)))),tree_by_levels))
-        pickle.dump(tree_by_levels_dict, open('{}/Tree_by_levels_dict.p'.format(results_dir), 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+    tree_by_levels_dict = dict(zip(list(reversed(range(len(tree_by_levels)))),tree_by_levels))
+    pickle.dump(tree_by_levels_dict, open('{}/Tree_by_levels_dict.p'.format(results_dir), 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
-        length = max(map(len, tree_by_levels_dict.values()))
-        tree_by_levels_array = np.array([xi.tolist() + [None] * (length - len(xi)) for xi in tree_by_levels])
-        # tree_levels_2 = Create_tree_by_levels(children_dict)
+    length = max(map(len, tree_by_levels_dict.values()))
+    tree_by_levels_array = np.array([xi.tolist() + [None] * (length - len(xi)) for xi in tree_by_levels])
+    # tree_levels_2 = Create_tree_by_levels(children_dict)
 
-        children_dict = {}
-        for k, v in ancestor_info_dict.items():
-            children_dict[v] = children_dict.get(v, [])
-            children_dict[v].append(k)
-        pickle.dump(children_dict, open('{}/Children_dict.p'.format(results_dir), 'wb'),
-                    protocol=pickle.HIGHEST_PROTOCOL)
+    children_dict = {}
+    for k, v in ancestor_info_dict.items():
+        children_dict[v] = children_dict.get(v, [])
+        children_dict[v].append(k)
+    pickle.dump(children_dict, open('{}/Children_dict.p'.format(results_dir), 'wb'),
+                protocol=pickle.HIGHEST_PROTOCOL)
 
-        "https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html"
-        #Highlight:Build the matrix representation of the tree graph: Directed (root-> leaves) weighted (patristic dist) graph
-        if build_config.build_graph: #TODO: Fix in server
-            #make graph adjacent matrix
-            patristic_matrix = patristic_matrix[patristic_matrix[:, 0].argsort()]
-            patristic_matrix = patristic_matrix[:, patristic_matrix[0, :].argsort()]
+    "https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html"
+    #Highlight:Build the matrix representation of the tree graph: Directed (root-> leaves) weighted (patristic dist) graph
+    if build_config.build_graph: #TODO: Fix in server
+        #make graph adjacent matrix
+        patristic_matrix = patristic_matrix[patristic_matrix[:, 0].argsort()]
+        patristic_matrix = patristic_matrix[:, patristic_matrix[0, :].argsort()]
 
-            graph_node_matrix = np.zeros_like(patristic_matrix) #Directed (root-> leaves) NOT weighted graph
-            edge_weight_matrix = np.zeros_like(patristic_matrix) #Directed (root-> leaves) weighted (patristic dist) graph
-            graph_node_matrix[0,:] = patristic_matrix[0,:]
-            graph_node_matrix[:,0] = patristic_matrix[:,0]
-            edge_weight_matrix[0, :] = patristic_matrix[0, :]
-            edge_weight_matrix[:, 0] = patristic_matrix[:, 0]
-            for ancestor,children in children_dict.items():
-                ancestor_idx = np.in1d(graph_node_matrix[0,:], ancestor).nonzero()[0]
-                children_idx= np.in1d(graph_node_matrix[0,:], children).nonzero()[0]
-                graph_node_matrix[ancestor_idx,children_idx] = 1 #contains no edges weights
-                graph_node_matrix[children_idx,ancestor_idx] = 1
-                edge_weight_matrix[ancestor_idx, children_idx] = patristic_matrix[ancestor_idx, children_idx]
-                #edge_weight_matrix[children_idx, ancestor_idx] = patristic_matrix[children_idx, ancestor_idx] #Highlight: Not use to avoid creating a self looped graph or bidirectional graphs
-            #Create a coordinates matrix, basically points out which regions from the matrix do not have 0 values and therefore are connected
-            weights_coo = coo_matrix(edge_weight_matrix[1:,1:])
-            try:
-                #The graph connectivity (edge index) should be confined with the COO format,
-                # i.e. the first list contains the index of the source nodes, while the index of target nodes is specified in the second list.
-                #Note that the order of the edge index is irrelevant to the Data object you create since such information is only for computing the adjacency matrix.
-                from torch_geometric.utils.convert import from_scipy_sparse_matrix
-                edge_index,edge_weight = from_scipy_sparse_matrix(weights_coo)
-                graph_coo = (edge_index.cuda(),edge_weight.cuda()) #graph for pytorch geometric for GNN
-                # dgl_graph = dgl.DGLGraph() #graph for TreeLSTM
-                # dgl_graph = dgl.DGLHeteroGraph()
-                # dgl_graph.add_nodes(patristic_matrix[1:, 1:].shape[0])
-                # dgl_graph.add_edges(edge_index[0].cuda(), edge_index[1].cuda())
-                # dgl_graph.edata['y'] = edge_weight.cuda()
-                dgl_graph = dgl.from_scipy(weights_coo).to("cpu")
-                if args.use_cuda:
-                    dgl_graph.edata['y'] = edge_weight.cpu()  # cuda not working for dgl?
-                else:
-                    dgl_graph.edata['y'] = edge_weight.cpu()
+        graph_node_matrix = np.zeros_like(patristic_matrix) #Directed (root-> leaves) NOT weighted graph
+        edge_weight_matrix = np.zeros_like(patristic_matrix) #Directed (root-> leaves) weighted (patristic dist) graph
+        graph_node_matrix[0,:] = patristic_matrix[0,:]
+        graph_node_matrix[:,0] = patristic_matrix[:,0]
+        edge_weight_matrix[0, :] = patristic_matrix[0, :]
+        edge_weight_matrix[:, 0] = patristic_matrix[:, 0]
+        for ancestor,children in children_dict.items():
+            ancestor_idx = np.in1d(graph_node_matrix[0,:], ancestor).nonzero()[0]
+            children_idx= np.in1d(graph_node_matrix[0,:], children).nonzero()[0]
+            graph_node_matrix[ancestor_idx,children_idx] = 1 #contains no edges weights
+            graph_node_matrix[children_idx,ancestor_idx] = 1
+            edge_weight_matrix[ancestor_idx, children_idx] = patristic_matrix[ancestor_idx, children_idx]
+            #edge_weight_matrix[children_idx, ancestor_idx] = patristic_matrix[children_idx, ancestor_idx] #Highlight: Not use to avoid creating a self looped graph or bidirectional graphs
+        #Create a coordinates matrix, basically points out which regions from the matrix do not have 0 values and therefore are connected
+        weights_coo = coo_matrix(edge_weight_matrix[1:,1:])
+        try:
+            #The graph connectivity (edge index) should be confined with the COO format,
+            # i.e. the first list contains the index of the source nodes, while the index of target nodes is specified in the second list.
+            #Note that the order of the edge index is irrelevant to the Data object you create since such information is only for computing the adjacency matrix.
+            from torch_geometric.utils.convert import from_scipy_sparse_matrix
+            edge_index,edge_weight = from_scipy_sparse_matrix(weights_coo)
+            graph_coo = (edge_index.cuda(),edge_weight.cuda()) #graph for pytorch geometric for GNN
+            # dgl_graph = dgl.DGLGraph() #graph for TreeLSTM
+            # dgl_graph = dgl.DGLHeteroGraph()
+            # dgl_graph.add_nodes(patristic_matrix[1:, 1:].shape[0])
+            # dgl_graph.add_edges(edge_index[0].cuda(), edge_index[1].cuda())
+            # dgl_graph.edata['y'] = edge_weight.cuda()
+            dgl_graph = dgl.from_scipy(weights_coo).to("cpu")
+            if args.use_cuda:
+                dgl_graph.edata['y'] = edge_weight.cpu()  # cuda not working for dgl?
+            else:
+                dgl_graph.edata['y'] = edge_weight.cpu()
 
-            except:
-                graph_coo = None
-                dgl_graph = None
-
-        else:
-            graph_coo=None
-            edge_weight_matrix=None
+        except:
+            graph_coo = None
             dgl_graph = None
-        blosum_array,blosum_dict = create_blosum(build_config.aa_prob,args.subs_matrix)
 
-        #dgl_graph.ndata['x'] = torch.zeros((3, 5)) #to add later in the model it will be the latent space that gets transformed to logits
-        #G.nodes[[0, 2]].data['x'] = th.ones((2, 5))
+    else:
+        graph_coo=None
+        edge_weight_matrix=None
+        dgl_graph = None
+    blosum_array,blosum_dict = create_blosum(build_config.aa_probs,args.subs_matrix)
 
-        nodes_representations_array = tree_positional_embeddings(ancestor_info_dict,tree_by_levels_dict)
-        additional_info = AdditionalInfo(blosum=torch.from_numpy(blosum_array),
-                                         blosum_dict=blosum_dict,
-                                         children_dict = children_dict,
-                                         ancestor_info_dict=ancestor_info_dict,
-                                         tree_by_levels_dict=tree_by_levels_dict,
-                                         tree_by_levels_array=tree_by_levels_array,
-                                         patristic_info=patristic_info,
-                                         graph_coo=graph_coo,
-                                         patristic_full_sparse = edge_weight_matrix,
-                                         nodes_representations_array=torch.from_numpy(nodes_representations_array),
-                                         dgl_graph=dgl_graph)
+    #dgl_graph.ndata['x'] = torch.zeros((3, 5)) #to add later in the model it will be the latent space that gets transformed to logits
+    #G.nodes[[0, 2]].data['x'] = th.ones((2, 5))
+
+    nodes_representations_array = tree_positional_embeddings(ancestor_info_dict,tree_by_levels_dict)
+    additional_info = AdditionalInfo(blosum=torch.from_numpy(blosum_array),
+                                     blosum_dict=blosum_dict,
+                                     children_dict = children_dict,
+                                     ancestor_info_dict=ancestor_info_dict,
+                                     tree_by_levels_dict=tree_by_levels_dict,
+                                     tree_by_levels_array=tree_by_levels_array,
+                                     patristic_info=patristic_info,
+                                     graph_coo=graph_coo,
+                                     patristic_full_sparse = edge_weight_matrix,
+                                     nodes_representations_array=torch.from_numpy(nodes_representations_array),
+                                     dgl_graph=dgl_graph)
 
 
-        return additional_info
+    return additional_info
 
-        #return children_dict,ancestor_info_dict, tree_by_levels_dict,tree_by_levels_array ,patristic_info, graph_coo,torch.from_numpy(blosum)
 def create_tree_by_levels(children_dict):
-    """Alternative method to build the tree by levels fixed by Robert"""
+    """Alternative method to build the tree by levels as suggested by Robert"""
     tree_levels = [[0]]
-
     current_nodes = [0]
-
     while len(current_nodes) > 0:
         children_nodes = []
         for node in current_nodes:
@@ -1839,10 +1654,14 @@ class MyDataset(Dataset):#TODO: remove
 
 
 def define_batch_size(n,batch_size=True, benchmarking=False):
-    "Automatic calculation the available divisors of the number of training data points (n). This helps to suggest an appropiate non decimal batch size number, that splits evenly the data"
+    """Automatic calculation the available divisors of the number of training data points (n).
+    This helps to suggest an appropiate integer batch size number, that splits evenly the data
+    :param int n: number of sequences
+    :param bool batch_size
+    :param benchmarking"""
     if not benchmarking:
         assert n >= 100 ,"Not worth batching, number of sequences is < 100 "
-    divisors = DraupnirModelUtils.printDivisors(n)
+    divisors = DraupnirModelUtils.print_divisors(n)
     n_digits = len(list(str(n))) # 100 has 3 digits, 1000 has 4 digits, 10000 has 5 digits and so on
     n_chunks = [min(divisors[n_digits-1:]) if len(divisors) > n_digits-1 else 1][0]  # smallest divisor that is not 1, or just use 1 , when no other divisors are available (prime numbers)
     batchsize = int(DraupnirModelUtils.intervals(n_chunks, n)[0][1])
@@ -1946,7 +1765,7 @@ def gradients_plot(gradient_norms,epochs,directory):
 # def benchmark_dataset(name,aa_prob):
 #     """Processing of the dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
 #     :param str name: project dataset name
-#     :param int aa_prob: amino acid probabilities"""
+#     :param int aa_probs: amino acid probabilities"""
 #     observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
 #     sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
 #     #Select the sequences of only the observed nodes
@@ -1962,7 +1781,7 @@ def gradients_plot(gradient_norms,epochs,directory):
 #                    fasta_file="datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta",
 #                    alignment_file="datasets/default/benchmark_randall_original_naming/benchmark_randall_original.mafft",
 #                    tree_file="benchmark_randall_original_naming/RandallBenchmarkTree_OriginalNaming.tree",
-#                    aa_probs=aa_prob,
+#                    aa_probss=aa_probs,
 #                    rename_internal_nodes=False)
 
 # def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
@@ -2059,40 +1878,40 @@ def renaming(tree):
                 node.name = "A%d" % edge
                 internal_nodes_names.append(node.name)
                 edge += 1
-def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,aa_probs=21):
-    print("Creating aligned TEST SRC Kinases dataset...")
-    if name == "Douglas_SRC": raise ValueError("Not implemented due to ambiguous tree")
-    # Select the sequences of only the observed nodes
-    ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-    tree_file = "{}/Douglas_SRC_Dataset/{}/{}_ALIGNED.mafft.treefile".format(script_dir,name,name.replace("_subtree",""))
-
-    aminoacid_names = aminoacid_names_dict(aa_probs)
-    root_name = name.replace("_subtree","").replace("_","-")
-    tree = TreeEte3(tree_file,format=1)#,quoted_node_names=True)
-    renaming(tree)
-    root_number = [node.name for node in tree.traverse() if node.is_root()]
-
-    nodes_equivalence = {root_name:root_number}
-    internal_fasta_dict = {}
-    for seq in ancestral_fasta:
-        if seq.id == root_name:
-            seq_numbers = []
-            for aa_name in str(seq.seq).replace("-",""):
-                aa_number = aminoacid_names[aa_name]
-                seq_numbers.append(aa_number)
-            seq_id = np.where(np.array(tree_level_order_names) == nodes_equivalence[seq.id])[0][0]
-            internal_fasta_dict[int(seq_id)] = [str(seq.seq).replace("-",""), seq_numbers]
-
-    max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in
-                                       internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-    Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=int)
-    for i, (key, val) in enumerate(internal_fasta_dict.items()):
-        aligned_seq = list(internal_fasta_dict[key][0])
-        Dataset[i, 0, 1] = int(key)  # name in the tree
-        Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][0]).replace("-", ""))  # Fill in the sequence lenght
-        Dataset[i, 2:, 0] = internal_fasta_dict[key][1]
-
-    return torch.from_numpy(Dataset), list(internal_fasta_dict.keys()), max_lenght_internal_aligned, nodes_equivalence
+# def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,aa_probs=21):
+#     print("Creating aligned TEST SRC Kinases dataset...")
+#     if name == "Douglas_SRC": raise ValueError("Not implemented due to ambiguous tree")
+#     # Select the sequences of only the observed nodes
+#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
+#     tree_file = "{}/Douglas_SRC_Dataset/{}/{}_ALIGNED.mafft.treefile".format(script_dir,name,name.replace("_subtree",""))
+#
+#     aminoacid_names = aminoacid_names_dict(aa_probs)
+#     root_name = name.replace("_subtree","").replace("_","-")
+#     tree = TreeEte3(tree_file,format=1)#,quoted_node_names=True)
+#     renaming(tree)
+#     root_number = [node.name for node in tree.traverse() if node.is_root()]
+#
+#     nodes_equivalence = {root_name:root_number}
+#     internal_fasta_dict = {}
+#     for seq in ancestral_fasta:
+#         if seq.id == root_name:
+#             seq_numbers = []
+#             for aa_name in str(seq.seq).replace("-",""):
+#                 aa_number = aminoacid_names[aa_name]
+#                 seq_numbers.append(aa_number)
+#             seq_id = np.where(np.array(tree_level_order_names) == nodes_equivalence[seq.id])[0][0]
+#             internal_fasta_dict[int(seq_id)] = [str(seq.seq).replace("-",""), seq_numbers]
+#
+#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in
+#                                        internal_fasta_dict.items()])  # Find the largest sequence without being aligned
+#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=int)
+#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
+#         aligned_seq = list(internal_fasta_dict[key][0])
+#         Dataset[i, 0, 1] = int(key)  # name in the tree
+#         Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][0]).replace("-", ""))  # Fill in the sequence lenght
+#         Dataset[i, 2:, 0] = internal_fasta_dict[key][1]
+#
+#    return torch.from_numpy(Dataset), list(internal_fasta_dict.keys()), max_lenght_internal_aligned, nodes_equivalence
 
 # def CFPTest(name,ancestral_file,tree_level_order_names,aa_probs):
 #     "Select the root sequence of the Faviina clade as the test sequence"
@@ -2136,17 +1955,27 @@ def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,
 #
 #     return Dataset.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
 
-def calculate_aa_frequencies(Dataset,freq_bins):
-    "Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x."
-    freqs = np.apply_along_axis(lambda x: np.bincount(x, minlength=freq_bins), axis=0, arr=Dataset.astype("int64")).T
-    freqs = freqs/Dataset.shape[0]
+def calculate_aa_frequencies(dataset,freq_bins):
+    """Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x. This is done for numpy arrays
+    :param tensor dataset
+    :param int freq_bins
+    """
+    freqs = np.apply_along_axis(lambda x: np.bincount(x, minlength=freq_bins), axis=0, arr=dataset.astype("int64")).T
+    freqs = freqs/dataset.shape[0]
     return freqs
-def calculate_aa_frequencies_torch(Dataset,freq_bins):
-    freqs = torch.stack([torch.bincount(x_i, minlength=freq_bins) for i, x_i in enumerate(torch.unbind(Dataset.type(torch.int64), dim=1), 0)], dim=1)
+def calculate_aa_frequencies_torch(dataset,freq_bins):
+    """Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x. This is done for torch tensors
+    :param tensor dataset
+    :param int freq_bins
+    """
+    freqs = torch.stack([torch.bincount(x_i, minlength=freq_bins) for i, x_i in enumerate(torch.unbind(dataset.type(torch.int64), dim=1), 0)], dim=1)
     freqs = freqs.T
-    freqs = freqs / Dataset.shape[0]
+    freqs = freqs / dataset.shape[0]
     return freqs
 def compare_trees(t1,t2):
+    """Computes the Rf distance among two tree, it calculates the number of changes requires to transform one tree into the other
+    :param str t1: path to first netwick tree
+    :param str t2: path to second netwick tree"""
     columns = ["RF distance","Maximum RF distance","Common leaves","PartitionsIn_t1_NOT_t2","PartitionsIn_t2_NOT_t1","Discarded_partitions_t1","Discarded_partitions_t2"]
     # t1  = TreeEte3(t1)
     # t2 = TreeEte3(t2)
@@ -2160,17 +1989,19 @@ def compare_trees(t1,t2):
     return distance
 
 def remove_stop_codons(sequence_file):
+    """Remove the stop codons(*) from an alignment file"""
     stop_codons = ["TGA","TAG","TAA"]
     seq_file = open(sequence_file, 'r+')
     seq = seq_file.read()
     seq_file.seek(0)
-    coding_dna = Seq(seq)
-    protein = coding_dna.translate()
+    #coding_dna = Seq(seq)
+    #protein = coding_dna.translate()
     codons = [seq[i:i+3] for i in range(0, len(seq), 3)]
     codons =[cod for cod in codons if len(cod) ==3 and cod not in stop_codons]
     #check = any(item in codons for item in stop_codons)
     seq_file.write("".join(codons))
     seq_file.truncate()  # remove contents
+
 # class LoadFromFile (argparse.Action):
 #     def __call__(self, parser, namespace, values, option_string=None):
 #         with values as f:
@@ -2182,41 +2013,49 @@ def remove_stop_codons(sequence_file):
 #             # set arguments in the target namespace if they haven’t been set yet
 #             if getattr(namespace, k, None) is not None:
 #                 setattr(namespace, k, v)
-def convert_to_integers(Dataset,aa_prob,axis):
+def convert_to_integers(dataset,aa_probs,axis):
+    """Transforms one hot encoded amino acids into 0-indexed integers i.e [1,0,0,0] --> 0  [0,1,0,0] -> 1
+    :param numpy dataset
+    :param aa_probs: amino acid probabilities, dimensions of the one-hot encoding"""
     if axis==3:#use for predictions
-        b = np.argmax(Dataset, axis=axis)
+        b = np.argmax(dataset, axis=axis)
     else:
-        integers = np.argmax(Dataset[:,2:,0:aa_prob],axis=axis)
-        b = torch.zeros(Dataset[:,:,0].shape + (30,)).cpu()
+        integers = np.argmax(dataset[:,2:,0:aa_probs],axis=axis)
+        b = torch.zeros(dataset[:,:,0].shape + (30,)).cpu()
         #b = np.zeros(Dataset[:,:,0].shape + (30,))
         b[:, 2:, 0] = integers
-        b[:,:2] = Dataset[:,:2]
+        b[:,:2] = dataset[:,:2]
     return b
-def process_blosum(blosum,aa_freqs,align_seq_len,aa_prob):
-    """Returns:
-    blosum_max [align_len,aa_prob]: blosum likelihood scores for the most frequent aa in the alignment position
-    blosum_weighted [align_len,aa_prob: weighted average of blosum likelihoods according to the aa frequency
-    variable_core: [] : counts the number of different elements per alignment position"""
+def process_blosum(blosum,aa_freqs,align_seq_len,aa_probs):
+    """
+    Computes the matrices required to build a blosum embedding
+    :param tensor blosum: BLOSUM likelihood  scores
+    :param tensor aa_freqs : amino acid frequencies per position
+    :param align_seq_len: alignment lengths
+    :param aa_probs
+    :out tensor blosum_max [align_len,aa_prob]: blosum likelihood scores for the most frequent aa in the alignment position
+    :out tensor blosum_weighted [align_len,aa_prob: weighted average of blosum likelihoods according to the aa frequency
+    :out variable_core: [align_len] : counts the number of different elements (amino acid diversity) per alignment position"""
 
-    aa_freqs_max = torch.argmax(aa_freqs, dim=1).repeat(aa_prob, 1).permute(1, 0) #[max_len, aa_probs]
-    blosum_expanded = blosum[1:, 1:].repeat(align_seq_len, 1, 1)  # [max_len,aa_prob,aa_prob]
+    aa_freqs_max = torch.argmax(aa_freqs, dim=1).repeat(aa_probs, 1).permute(1, 0) #[max_len, aa_probs]
+    blosum_expanded = blosum[1:, 1:].repeat(align_seq_len, 1, 1)  # [max_len,aa_probs,aa_probs]
     blosum_max = blosum_expanded.gather(1, aa_freqs_max.unsqueeze(1)).squeeze(1)  # [align_seq_len,21] Seems correct
 
     blosum_weighted = aa_freqs[:,:,None]*blosum_expanded #--> replace 0 with nans? otherwise the 0 are in the mean as well....
     blosum_weighted = blosum_weighted.mean(dim=1)
 
-    variable_score = torch.count_nonzero(aa_freqs, dim=1)/aa_prob #higher score, more variable
+    variable_score = torch.count_nonzero(aa_freqs, dim=1)/aa_probs #higher score, more variable
 
     return blosum_max,blosum_weighted, variable_score
-def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_prob,dataset_train, one_hot_encoding):
-    """Returns:
-    aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
+def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_hot_encoding):
+    """Transforms the train dataset, which is formed by a tensor of integers that represent the amino acids, into a dataset where each amino acid (integer) is exchanged with its blosum score
+    :out tensor aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
 
     if one_hot_encoding: #TODO: check that this works
-        dataset_train = convert_to_integers(dataset_train,aa_prob,axis=2)
+        dataset_train = convert_to_integers(dataset_train,aa_probs,axis=2)
 
-    aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_prob,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_prob times]--seems correct
-    blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_prob,aa_prob]
+    aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_probs,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_probs times]--seems correct
+    blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_probs,aa_probs]
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
 
 
