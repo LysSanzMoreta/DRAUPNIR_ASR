@@ -243,7 +243,6 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
 
     dill.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
 def calculate_closest_leaves(name,tree,storage_folder):
     """ Creates a dictionary that contains the closest leave to an internal node {internal_node:leave}
     :param str name: data set project name
@@ -259,8 +258,6 @@ def calculate_closest_leaves(name,tree,storage_folder):
             else:
                 closest_leaves_dict[node.name] = [node.get_closest_leaf()[0].name]
     pickle.dump(closest_leaves_dict, open('{}/{}_Closest_leaves_dict.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
-
 def calculate_directly_linked_nodes(name,tree,storage_folder):
     """Creates a dictionary that contains the 2 children nodes directly linked to a node (not all the children from that node) {node:children}
     :param str name: data set project name
@@ -270,8 +267,6 @@ def calculate_directly_linked_nodes(name,tree,storage_folder):
     for node in tree.traverse():
         closest_children_dict[node.name] = [node.name for node in node.get_children()]
     pickle.dump(closest_children_dict, open('{}/{}_Closest_children_dict.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
-
 def calculate_descendants(name,tree,storage_folder):
     """Creates a dictionary that contains all the internal nodes and leaves that descend from that internal node {internal_node:descendants}
     :param str name: data set project name
@@ -330,8 +325,6 @@ def Pfam_parser(family_name,first_match=False,update_pfam=False):
         chains_list = [chain[-2] for chain in chains_list]
         pfam_dict = {a:{b:c,d:e} for a, b, c,d,e in zip(pdb_list, res,residues_list,chain, chains_list)}
     return pfam_dict, pdb_list
-
-
 def tree_pair_for_rooting(distance_matrix):
     """Finds the pair of sequences with the largest pairwise distance to set as an outgroup to form the root of an unrooted tree
     :param pandas dataframe distance_matrix: contains pairwise distances across the sequences in the tree"""
@@ -350,19 +343,6 @@ def tree_pair_for_rooting(distance_matrix):
     sequence_0 = sorted_distance_matrix.loc[rank].Sequence_0
     sequence_1 = sorted_distance_matrix.loc[rank].Sequence_1
     return sequence_0,sequence_1
-# def Parse_Fasta_Headers(file):
-#     import pandas as pd
-#     file_df = pd.read_csv(file, sep=",", header=None)
-#     file_df = pd.DataFrame(file_df.iloc[:, 1].str.split('_', 1).tolist(),
-#                            columns=['PDB_ID', 'Chain'])
-#
-#     pdb_list = file_df["PDB_ID"].tolist()
-#     return pdb_list
-# def Parse_Fasta_Headers_PDBe(file):
-#     import pandas as pd
-#     file_df = pd.read_csv(file, sep=",")
-#     pdb_list = file_df["pdb_id"].tolist()
-#     return pdb_list
 def download_PDB(files_list, directory):
     """Reads a list of PDB_files and downloads them to a folder
     :param list files_list: list of PDB files names to download
@@ -382,8 +362,6 @@ def convert_to_pandas(distance_matrix):
     b = b + b_transpose
     df = pd.DataFrame(b, index=distance_matrix.names, columns=distance_matrix.names)
     return  df
-
-
 def infer_tree(alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
     """ Performs tree inference or reads an input given tree, returns an ete3 tree formated tree
     :param biopython alignment alignment: biopython alignment class
@@ -520,7 +498,6 @@ def calculate_pairwise_distance(name,alignment,storage_folder):
         print("Finish implementing for larger datasets")
         #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
         pass
-
 def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,tree,tree_file, storage_folder):
     """Calculates the patristic distances or branch lengths across the nodes in a tree. It also saves the tree in different formats needed for benchmarking etc
     :param str name_file: data set project name
@@ -605,7 +582,6 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
             print("Patristic matrix file already exists, not calculated")
-
 def my_layout(node):
     """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
     :param ete3-node node: node from an ete3 tree"""
@@ -617,7 +593,6 @@ def my_layout(node):
         name_face = AttrFace("name", fsize=8,fgcolor="red")
     # Adds the name face to the image at the preferred position
     faces.add_face_to_node(name_face, node, column=0, position="branch-right")
-
 def render_tree(tree,storage_folder,name_file):
     """Function to render an ete3 tree into an image
     :param ete3-tree tree: Ete3 tree object
@@ -640,7 +615,6 @@ def render_tree(tree,storage_folder,name_file):
         tree.render("{}/return_{}.png".format(storage_folder,name_file),w=1000, units="mm",tree_style=ts)
     except:
         tree.render("{}/return_{}.png".format(storage_folder,name_file), w=1000, units="mm")
-
 def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
     """Rename the internal nodes of an ete3 tree to a label I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array
     :param ete3-tree tree: Ete3 tree
@@ -666,7 +640,6 @@ def rename_tree_internal_nodes_simulations(tree,with_indexes=False):
                 internal_nodes_names.append(node.name)
                 edge += 1
     return tree
-
 def rename_tree_internal_nodes(tree):
     """Rename the internal nodes of a tree to a label A + number, unless the given newick file already has the names on it
     :param ete3-tree tree: Ete3 tree constructor"""
@@ -681,7 +654,6 @@ def rename_tree_internal_nodes(tree):
             internal_nodes_names.append(node.name)
             edge += 1
     return tree
-
 def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
     """"Extract information from the PDB files
     :param str PDB_folder: path to folder containing the PFB files
@@ -766,7 +738,6 @@ def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
                 prot_aa_dict[files_list[i][3:7]] = aa_list
                 duplicates.append("".join(aa_list))
     return prot_aa_dict,prot_info_dict
-
 def create_dataset(name_file,
                    one_hot_encoding,
                    min_len=30,
@@ -996,8 +967,6 @@ def pandas_to_numpy(matrix):
     matrix = np.column_stack((rows_names, matrix))
     matrix = np.row_stack((column_names, matrix))
     return matrix
-
-
 def convert_to_letters(seq,aa_probs):
     """Converts back the integers assigned to the amino acids to letters
     :param seq: seq
@@ -1124,7 +1093,6 @@ def incorrectly_predicted_aa(seq1,seq2):
         if s == len(s) * s[0]:
             i += 1 #same aa
     return len(aln[0])-i
-
 def to_ete3(tree):
     import tempfile
     from ete3 import Tree as EteTree
@@ -1388,8 +1356,6 @@ def heatmaps(predictions_samples,dataset_test,name, num_samples,nodes_indexes,re
     Plot_Heatmap(df_blosum_OBS_OBS, "OBS seqs vs OBS seqs Blosum Score", "Blosum_{}_OBS_OBS".format(folder),annot=annot,mask=None,vmax=vmax)
     Plot_Heatmap(df_blosum_SAMPLED_OBS, "OBS vs SAMPLED seqs AVERAGE Blosum Score", "Blosum_{}_OBS_SAMPLED".format(folder),annot=annot,mask=None,vmax=vmax)
     Plot_Heatmap(df_blosum_SAMPLED_SAMPLED, "SAMPLED vs SAMPLED seqs AVERAGE Blosum Score", "Blosum_{}_SAMPLED_SAMPLED".format(folder),annot=annot,mask=None,vmax = vmax)
-
-
 def build_dataframes_overlapping_histograms(aa_sequences_predictions, dataset_train,dataset_test, name, n_samples,nodes_indexes,results_directory,aa_probs,correspondence_dict=None):
     """Plot histogram whose bars represent the percentage identity between the true ancestors vs true leaves and the predicted ancestors vs true leaves
     :param tensor aa_sequences_predictions:
@@ -1479,11 +1445,9 @@ def build_dataframes_overlapping_histograms(aa_sequences_predictions, dataset_tr
     ## add a legend--> Not working (inside or outside loop)
     ax.legend((rects1,rects2), ('Sampled',"Observed"),loc=1,bbox_to_anchor=(1.15, 1.1))
     plt.savefig("{}/OverlappingHistogram".format(results_directory))
-
 def tree_positional_embeddings(ancestor_info_dict,tree_by_levels_dict):
-    """
-    The nodes ordered by tree level order are converted into someshat one-hot encoded embeddings
-    Implementation as in
+    """The nodes ordered by tree level order are converted into somewhat one-hot encoded like embeddings
+    Implementated following
     https://papers.nips.cc/paper/2019/file/6e0917469214d8fbd8c517dcdc6b8dcf-Paper.pdf
     Input: Tree by levels in traversal order
     Output: Representations of the position of the node in the tree in one hot bit encoding. They represent the one hot encoded path from root to the node """
@@ -1623,7 +1587,6 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
 
 
     return additional_info
-
 def create_tree_by_levels(children_dict):
     """Alternative method to build the tree by levels as suggested by Robert"""
     tree_levels = [[0]]
@@ -1638,8 +1601,6 @@ def create_tree_by_levels(children_dict):
         current_nodes = children_nodes
 
     return tree_levels
-
-#
 class MyDataset(Dataset):#TODO: remove
     def __init__(self,labels,data_arrays):
         self.labels = labels
@@ -1651,8 +1612,6 @@ class MyDataset(Dataset):#TODO: remove
         return {'family_name': label, 'family_data': data}
     def __len__(self):
         return len(self.labels)
-
-
 def define_batch_size(n,batch_size=True, benchmarking=False):
     """Automatic calculation the available divisors of the number of training data points (n).
     This helps to suggest an appropiate integer batch size number, that splits evenly the data
@@ -1667,16 +1626,12 @@ def define_batch_size(n,batch_size=True, benchmarking=False):
     batchsize = int(DraupnirModelUtils.intervals(n_chunks, n)[0][1])
     if batch_size:return batchsize
     else:return n_chunks
-
-
-
 def covariance(x,y):
     """Computes cross-covariance between vectors, and is defined by cov[X,Y]=E[(X−μX)(Y−μY)T]"""
     A = torch.sqrt(torch.arange(12).reshape(3, 4))  # some 3 by 4 array
     b = torch.tensor([[2], [4], [5]])  # some 3 by 1 vector
     cov = torch.dot(b.T - b.mean(), A - A.mean(dim=0)) / (b.shape[0] - 1)
     return cov
-
 def find_nan(array,nan=True):
     """Drops rows in a tensor containing any nan values
     :param tensor array"""
@@ -1716,7 +1671,6 @@ def ramachandran_plot( data_angles,save_directory,plot_title, one_hot_encoded = 
     plt.savefig(save_directory)
     plt.clf()
     plt.close(fig)
-
 def ramachandran_plot_sampled(phi,psi,save_directory,plot_title,plot_kappas=False):
     """Plots Ramachandran plots between the phi and psi angles in the dataset
     :param tensor phi
@@ -1743,7 +1697,6 @@ def ramachandran_plot_sampled(phi,psi,save_directory,plot_title,plot_kappas=Fals
     plt.savefig(save_directory)
     plt.clf()
     plt.close()
-
 def gradients_plot(gradient_norms,epochs,directory):
     """Visualization of the gradient descent per model parameter
     :param dict gradient_norms: dictionary with the model parameters and the partial derivatives

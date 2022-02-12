@@ -36,7 +36,6 @@ def plot_ELBO(train_elbo,results_dict):
         plt.title("Training Error Loss (min -ELBO, min KL)")
         plt.savefig("{}/ELBO_error.png".format(results_dict))
         plt.close()
-
 def plot_entropy(train_entropy,results_dict):
     """Plots the model's entropy
     :param list train_entropy: list of accumulated entropies
@@ -73,7 +72,7 @@ def plot_z(latent_space, children_dict, results_dir):
     plt.xlabel(r"$\mathcal{Z}$ dimensions",fontsize=40)
     plt.title(r"Latent space ($\mathcal{Z}$) vector coloured by ancestor and respective children nodes",fontsize=40)
     plt.savefig("{}/z_vector_plot".format(results_dir))
-def plotting_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
+def plot_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined
     :param namedtuple samples_out: contains the output from Draupnir.samples
     :param tensor dataset_test
@@ -118,7 +117,7 @@ def plotting_angles(samples_out,dataset_test,results_dir,additional_load,additio
     DraupnirUtils.ramachandran_plot_sampled(sum(phi_angles_list,[]),sum(psi_angles_list,[]),"{}/Angles_Predictions_NoGAPS".format(results_dir),r"Sampled angles (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
     DraupnirUtils.ramachandran_plot_sampled(sum(phi_mean_list,[]),sum(psi_mean_list,[]),"{}/Angles_MEANS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's means (φ,ψ) (without GAPS); {}".format(additional_load.full_name))
     DraupnirUtils.ramachandran_plot_sampled(sum(phi_kappa_list,[]),sum(psi_kappa_list,[]),"{}/Angles_KAPPAS_Predictions_NoGAPS".format(results_dir),r"Sampled angles's kappas (φ,ψ) (without GAPS); {}".format(additional_load.full_name),plot_kappas=True)
-def plotting_angles_per_aa(samples_out,dataset_test,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes):
+def plot_angles_per_aa(samples_out,dataset_test,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined
     :param namedtuple samples_out: contains the output from Draupnir.samples
     :param tensor dataset_test
@@ -201,39 +200,43 @@ def save_ancestors_predictions_coral(name,test_ordered_nodes,aa_sequences_predic
                 splitted_seq = [full_seq[i:i + n] for i in range(0, len(full_seq), n)]
                 for segment in splitted_seq:
                     f.write("{}\n".format(segment))
-
 def percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory):
-        """Fast version to calculate %ID among predictions and observed data. It also calculates the number of incorrectly predicted amino acids
-        :param tensor dataset_test
-        :param tensor aa_sequences_predictions
-        :param tensor node_info
-        :param int n_samples
-        :param node_names
-        :param str results_directory
-        """
-        align_lenght = dataset_test[:,2:,0].shape[1]
-        #node_names = ["{}//{}".format(correspondence_dict[index], index) for index in Dataset_test[:, 0, 1].tolist()]
-        samples_names =  ["sample_{}".format(index) for index in range(n_samples)]
-        equal_aminoacids = (aa_sequences_predictions[:,:,3:]== dataset_test[:, 2:, 0]).float() #is correct #[n_samples,n_nodes,L]
-        #Highlight: Incorrectly predicted sites
-        incorrectly_predicted_sites = (~equal_aminoacids.bool()).float().sum(-1)
-        incorrectly_predicted_sites_per_sample = np.concatenate([node_info.cpu().detach().numpy(),incorrectly_predicted_sites.cpu().detach().numpy()[:,:,np.newaxis]],axis=-1)
-        np.save("{}/Incorrectly_Predicted_Sites_Fast".format(results_directory), incorrectly_predicted_sites_per_sample)
-        incorrectly_predicted_sites_df = pd.DataFrame(incorrectly_predicted_sites.T.cpu().detach().numpy(),index=node_names)
-        incorrectly_predicted_sites_df.columns = samples_names
-        incorrectly_predicted_sites_df["Average"] =incorrectly_predicted_sites_df.mean(1).values.tolist()
-        incorrectly_predicted_sites_df["Std"] = incorrectly_predicted_sites_df.std(1).values.tolist()
-        incorrectly_predicted_sites_df.to_csv("{}/Incorrectly_predicted_sites_df.csv".format(results_directory), sep="\t")
-        #Highlight: PERCENT ID
-        equal_aminoacids = equal_aminoacids.sum(-1)/align_lenght#equal_aminoacids.sum(-1)
-        percent_id_df = pd.DataFrame(equal_aminoacids.T.cpu().detach().numpy()*100, index=node_names ) #[n_nodes, n_samples]
-        percent_id_df.columns = samples_names
-        percent_id_df["Average"] = percent_id_df.mean(1).values.tolist()
-        percent_id_df["Std"] = percent_id_df.std(1).values.tolist()
-        percent_id_df.to_csv("{}/PercentID_df.csv".format(results_directory),sep="\t")
-        return percent_id_df, incorrectly_predicted_sites_df, align_lenght
-
+    """Fast version to calculate %ID among predictions and observed data. It also calculates the number of incorrectly predicted amino acids
+    :param tensor dataset_test
+    :param tensor aa_sequences_predictions
+    :param tensor node_info
+    :param int n_samples
+    :param node_names
+    :param str results_directory
+    """
+    align_lenght = dataset_test[:,2:,0].shape[1]
+    #node_names = ["{}//{}".format(correspondence_dict[index], index) for index in Dataset_test[:, 0, 1].tolist()]
+    samples_names =  ["sample_{}".format(index) for index in range(n_samples)]
+    equal_aminoacids = (aa_sequences_predictions[:,:,3:]== dataset_test[:, 2:, 0]).float() #is correct #[n_samples,n_nodes,L]
+    #Highlight: Incorrectly predicted sites
+    incorrectly_predicted_sites = (~equal_aminoacids.bool()).float().sum(-1)
+    incorrectly_predicted_sites_per_sample = np.concatenate([node_info.cpu().detach().numpy(),incorrectly_predicted_sites.cpu().detach().numpy()[:,:,np.newaxis]],axis=-1)
+    np.save("{}/Incorrectly_Predicted_Sites_Fast".format(results_directory), incorrectly_predicted_sites_per_sample)
+    incorrectly_predicted_sites_df = pd.DataFrame(incorrectly_predicted_sites.T.cpu().detach().numpy(),index=node_names)
+    incorrectly_predicted_sites_df.columns = samples_names
+    incorrectly_predicted_sites_df["Average"] =incorrectly_predicted_sites_df.mean(1).values.tolist()
+    incorrectly_predicted_sites_df["Std"] = incorrectly_predicted_sites_df.std(1).values.tolist()
+    incorrectly_predicted_sites_df.to_csv("{}/Incorrectly_predicted_sites_df.csv".format(results_directory), sep="\t")
+    #Highlight: PERCENT ID
+    equal_aminoacids = equal_aminoacids.sum(-1)/align_lenght#equal_aminoacids.sum(-1)
+    percent_id_df = pd.DataFrame(equal_aminoacids.T.cpu().detach().numpy()*100, index=node_names ) #[n_nodes, n_samples]
+    percent_id_df.columns = samples_names
+    percent_id_df["Average"] = percent_id_df.mean(1).values.tolist()
+    percent_id_df["Std"] = percent_id_df.std(1).values.tolist()
+    percent_id_df.to_csv("{}/PercentID_df.csv".format(results_directory),sep="\t")
+    return percent_id_df, incorrectly_predicted_sites_df, align_lenght
 def save_predictions_to_fasta(aa_sequences_predictions,aa_prob,name,node_names,results_directory):
+    """Transforms via vectorization the integer encoded aminoacids into the amino acid letters. Saves the results into a fasta file
+    :param aa_sequences_predictions: tensor dataframe with the predictions
+    :param int aa_prob
+    :param name: data set project name
+    :param node_names: list of the real nodes names in the same order as in the dataset
+    :param str results_directory"""
     aa_dict = DraupnirUtils.aminoacid_names_dict(aa_prob)
     aa_dict  = {float(v): k for k, v in aa_dict.items()}
 
@@ -251,9 +254,19 @@ def save_predictions_to_fasta(aa_sequences_predictions,aa_prob,name,node_names,r
                 splitted_seq = [full_seq[i:i+n] for i in range(0, len(full_seq), n)]
                 for segment in splitted_seq:
                     f.write("{}\n".format(segment))
-
-def plotting_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_probs,additional_load,additional_info,replacement_plots=True):
-    """Number of incorrectly inferred amino acid sites for each node of the phylogeny."""
+def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predictions,n_samples,results_directory,correspondence_dict,aa_probs,additional_load,additional_info,replacement_plots=True):
+    """Prepares the output from Draupnir for plotting by re-adding the nodes names to the data sets. It also detects large data sets and selects only
+     a few nodes to plot
+     :param str name: data set project name
+     :param tensor dataset_test: true data [n_nodes,align_len + 2, 30]
+     :param tensor aa_sequences_predictions: predictions [n_samples,n_nodes,align_len]
+     :param int n_samples
+     :param str results_directory
+     :param dict correspondence_dict: contains the information about which node index corresponds to which node name
+     :param int aa_probs
+     :param namedtuple additional_load
+     :param namedtuple additional_info
+     :param bool replacement_plots: True --> plots the amino acid replacements occurred per site and per sequence"""
     #TODO: By simple permutation it rearranges to [n_seq,n_samples], preserving the right order?
     len_info = dataset_test[:, 0, 0].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
     node_info = dataset_test[:, 0, 1].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
@@ -317,16 +330,16 @@ def plotting_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_pre
         test_indx = (torch.rand(size=(n_test,)) < percentage_test).int().bool() #create n  (n= n internal nodes) random True and False, Supposedly 45% of the values will be 1(True)
         dataset_test = dataset_test[test_indx]
         nodes_indexes = dataset_test[:, 0, 1]
-        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], children_indexes)]
+        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], nodes_indexes)]
         children_indexes_str = nodes_indexes.numpy().astype(str).tolist()
         incorrectly_predicted_sites_df = incorrectly_predicted_sites_df[incorrectly_predicted_sites_df.index.str.split("//").str[1].isin(children_indexes_str)]
 
 
     else:
         nodes_indexes = dataset_test[:, 0, 1]  #test indexes
-        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], children_indexes)]
+        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], node_indexes)]
 
-    incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load)
+    plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load)
 
     DraupnirUtils.heatmaps(dataset_children_predicted,
                            dataset_test,
@@ -402,14 +415,15 @@ def plot_overlapping_histogram(name,dataset_train,dataset_test, aa_sequences_pre
                                                          results_directory,
                                                          aa_prob,
                                                          correspondence_dict)
-
 def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, results_dir, triTSNE):
-    """t_SNE projection of a n-dimensions latent space onto a 2D space. The latent space represents the sequences in the tree, we plot in same group the ancestors and children
+    """t-SNE projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
     https://towardsdatascience.com/visualizing-feature-vectors-embeddings-using-pca-and-t-sne-ef157cea3a42
-    :param tensor latent_space
+    :param tensor latent_space: [n_leaves + n_internal,1+ z_dim], first column contains the nodes indexes
     :param namedtuple additional_load
     :param int epoch
     :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
     """
     # Create a two dimensional t-SNE projection of the z dim latent space
     print("Building T-SNE plot by clades")
@@ -472,12 +486,15 @@ def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, result
         plt.axis("off")
     plt.savefig("{}/t_SNE_z_space_by_clade_epoch_{}.png".format(results_dir, epoch))
 def plot_latent_space_tsne_by_clade_leaves(latent_space, additional_load, epoch, results_dir, triTSNE):
-    """t_SNE projection of a n-dimensions latent space onto a 2D space. The latent space represents the sequences in the tree, we plot in same group the ancestors and children
+    """t-SNE projection of a z-dimensional latent space onto a 2D space.
+    The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
     https://towardsdatascience.com/visualizing-feature-vectors-embeddings-using-pca-and-t-sne-ef157cea3a42
-    :param tensor latent_space
+    :param tensor latent_space [n_leaves, 1 + z_dim]
     :param namedtuple additional_load
     :param int epoch
     :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
     """
     # Create a two dimensional t-SNE projection of the z dim latent space
     print("Building t-SNE plot COLOURED by clades (only leaves)")
@@ -522,10 +539,15 @@ def plot_latent_space_tsne_by_clade_leaves(latent_space, additional_load, epoch,
         plt.title("UMAP projection of the tree's latent space; \n" + "{}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/UMAP_z_space_by_clade__only_leaves_epoch_{}.png".format(results_dir, epoch))
     #plt.savefig("{}/Tree latent space representation (T-SNE projection); SH3 domain 200 leaves simulation".format(results_dir))
-
 def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, results_dir, triTSNE):
-    """t_SNE projection of a n-dimensions latent space onto a 2D space. The latent space represents the sequences in the tree, we plot in same group the ancestors and children
-    https://towardsdatascience.com/visualizing-feature-vectors-embeddings-using-pca-and-t-sne-ef157cea3a42"""
+    """UMAP projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
+    :param tensor latent_space: [n_leaves + n_internal,1+ z_dim], first column contains the nodes indexes
+    :param namedtuple additional_load
+    :param int epoch
+    :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
+    """
     # Create a two dimensional t-SNE projection of the z dim latent space
     print("Building UMAP plot by clades (both internal and leaves)")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
@@ -588,8 +610,14 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         plt.axis("off")
     plt.savefig("{}/UMAP_z_space_by_clade_epoch_{}.png".format(results_dir, epoch))
 def plot_latent_space_umap_by_clade_leaves(latent_space, additional_load, epoch, results_dir, triTSNE):
-    """t_SNE projection of a n-dimensions latent space onto a 2D space. The latent space represents the sequences in the tree, we plot in same group the ancestors and children
-    https://towardsdatascience.com/visualizing-feature-vectors-embeddings-using-pca-and-t-sne-ef157cea3a42"""
+    """UMAP projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
+    :param tensor latent_space: [n_leaves,1+ z_dim], first column contains the nodes indexes
+    :param namedtuple additional_load
+    :param int epoch
+    :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
+    """
     # Create a two dimensional t-SNE projection of the z dim latent space
     print("Building UMAP plot COLOURED by clades")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
@@ -635,9 +663,15 @@ def plot_latent_space_umap_by_clade_leaves(latent_space, additional_load, epoch,
         plt.title("UMAP projection of the tree's latent space; \n" + "{}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/UMAP_z_space_by_clade__only_leaves_epoch_{}.png".format(results_dir, epoch))
     #plt.savefig("{}/Tree latent space representation (T-SNE projection); SH3 domain 200 leaves simulation".format(results_dir))
-
 def plot_latent_space_pca_by_clade(latent_space,additional_load,num_epochs, results_dir):
-    """"""
+    """PCA projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
+    :param tensor latent_space: [n_leaves + n_internal,1+ z_dim], first column contains the nodes indexes
+    :param namedtuple additional_load
+    :param int epoch
+    :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
+    """
     print("Building PCA plot")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
     annotate = False
@@ -684,6 +718,15 @@ def plot_latent_space_pca_by_clade(latent_space,additional_load,num_epochs, resu
         plt.title("PCA projection of the tree's latent space;\n" + r"{}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/PCA_z_space_epoch_{}.png".format(results_dir, num_epochs))
 def plot_latent_space_pca_by_clade_leaves(latent_space,additional_load,num_epochs, results_dir):
+    """PCA projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
+    the clade membership
+    https://towardsdatascience.com/visualizing-feature-vectors-embeddings-using-pca-and-t-sne-ef157cea3a42
+    :param tensor latent_space: [n_leaves,1+ z_dim], first column contains the nodes indexes
+    :param namedtuple additional_load
+    :param int epoch
+    :param str results_dir
+    :param bool triTSNE: boolean paramter to indicate whether to perform a 3D latent space projection, Not used right now
+    """
     """"""
     print("Building PCA plot")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
@@ -716,9 +759,12 @@ def plot_latent_space_pca_by_clade_leaves(latent_space,additional_load,num_epoch
     plt.legend(title='Clades', bbox_to_anchor=(1.01, 1), loc='upper left', prop={'size': 10},ncol=1,shadow=True,fontsize=10)
     plt.title("PCA projection of the tree's latent space;\n" + r"{}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/PCA_z_space_epoch_{}.png".format(results_dir, num_epochs))
-
 def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir):
-    "Plot distance between the latent space vectors of 2 linked nodes vs the branch length between them"
+    """Plots the pairwise distance between the latent space vectors of 2 nodes in the tree vs the branch length/patristic distance between them
+    :param tensor latent_space
+    :param namedtuple additional_load
+    :param int num_epochs
+    :param str results_dir"""
     print("Plotting z distances vs branch lengths...")
     clades_dict_all = additional_load.clades_dict_all
 
@@ -775,77 +821,14 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     # correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
     # with open("{}/correlation_coeff.txt".format(results_dir),"a") as the_file:
     #     the_file.write('Correlation coefficient between branch lengths and latent space: {}\n'.format(correlation_coefficient[0,1]))
-def plot_pairwise_distances_only_leaves_old(latent_space,additional_load,num_epochs, results_dir,patristic_matrix_train):
-    "Plot distance between the latent space vectors of 2 linked nodes and the branch length between them"
-    print("Plotting z distances vs branch lengths...")
-    clades_dict_all = additional_load.clades_dict_all
-
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]  # nipy_spectral, gist_rainbow
-    clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
-    patristic_matrix_train = patristic_matrix_train.detach().cpu()
-    patristic_matrix_train_no_indexes = patristic_matrix_train[1:,1:]
-    patristic_matrix_train_no_top_indexes = patristic_matrix_train[1:,:].detach().cpu().numpy()
-    latent_space_no_indexes = latent_space[:,1:]
-    latent_space_indexes = latent_space[:,0]
-    latent_space = latent_space.detach().cpu()
-    proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
-    #reducer = umap.UMAP()
-    #proj = reducer.fit_transform(latent_space[:, 1:])
-    fig, ax = plt.subplots(figsize=(22, 15), dpi=200)
-    distances_list = []
-    use_cosine_similarity = False
-    def cosine_similarity(a,b):
-        return  np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
-    def pairwise_dist(a,b):
-        return np.linalg.norm(a-b)
-
-    if use_cosine_similarity:
-        distance_type = "Cosine_similarity"
-        distance_fn = cosine_similarity
-    else:
-        distance_type = "Pairwise_distance"
-        distance_fn = pairwise_dist
-    visited_nodes = []
-    for leaf_branch_lengths in patristic_matrix_train_no_top_indexes:
-        #Highlight: only compute the distances once d(A,B) == d(B,A)
-
-        #Highlight: pick the leave with the shortest patristic distance
-        node_name = leaf_branch_lengths[0].item()
-        if node_name not in visited_nodes:
-            visited_nodes.append(node_name)
-            for idx, (clade, nodes) in enumerate(clades_dict_all.items()):
-                if node_name in nodes["leaves"]:
-                    color_clade = clrs(idx)
-            leaf_branch_lengths_no_index = leaf_branch_lengths[1:]
-            min_branch_length = np.min(leaf_branch_lengths_no_index[np.nonzero(leaf_branch_lengths_no_index)])
-            min_branch_length_index = np.where(leaf_branch_lengths_no_index==min_branch_length)[0][0]
-            closest_leave_name = latent_space_indexes[min_branch_length_index].detach().cpu().numpy().item()
-            visited_nodes.append(closest_leave_name)
-            print("Leave: {}, Closest leave {}".format(node_name,closest_leave_name))
-            nodes_pairs = torch.tensor([node_name,closest_leave_name]).cpu()
-            pair_indexes_latent_space = (latent_space[:,0][..., None] == nodes_pairs).any(-1)
-            vector_pair_latent_space = latent_space_no_indexes[pair_indexes_latent_space].detach().cpu().numpy()
-            #vector_pair_latent_space = proj[pair_indexes_latent_space]
-            latent_space_distance = distance_fn(vector_pair_latent_space[0], vector_pair_latent_space[1])
-            distances_list.append(np.array([min_branch_length,latent_space_distance]).T)
-            ax.scatter(min_branch_length,latent_space_distance,color = color_clade, s=200)
-    distances_array = np.vstack(distances_list)
-    print(distances_array.shape)
-    pearson_correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
-    print("Correlation coefficient: {}".format(pearson_correlation_coefficient))
-    spearman_correlation_coefficient = stats.spearmanr(distances_array[:,0],distances_array[:,1])
-    print("Spearman correlation coefficient {}".format(spearman_correlation_coefficient))
-    plt.ylabel("Z vector distance between closest leaves",fontsize=20)
-    plt.xlabel("Branch length between closest leaves",fontsize=20)
-    plt.title("Ordinary VAE: Z {} vs Branch lengths between closest leaves. \n Correlation coefficient : {}".format(distance_type,pearson_correlation_coefficient[0,1]),fontsize=20)
-    plt.savefig("{}/Distances_VAE_z_vs_branch_lengths_{}_ONLY_LEAVES.png".format(results_dir,distance_type))
 
 def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs, results_dir,patristic_matrix_train):
-    "Plot distance between the latent space vectors of 2 linked nodes and the branch length between them"
+    """Plots the distance between the latent space vectors of 2 leaf nodes in the tree and the branch length between them
+    :param tensor latent_space [n_leaves, 1 + z_dim]
+    :param namedtuple additional_load
+    :param int num_epochs
+    :param str results_dir
+    :param patristic_matrix_train : [n_leaves + 1, n_leaves + 1]"""
     print("Plotting z distances vs branch lengths...")
     clades_dict_all = additional_load.clades_dict_all
 
@@ -914,10 +897,10 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     #plt.title("Standard VAE",fontsize=50)
     #plt.title("Draupnir marginal", fontsize=50)
     plt.savefig("{}/Distances_GP_VAE_z_vs_branch_lengths_{}_ONLY_LEAVES.png".format(results_dir,distance_type))
-
-
-def align_true_predicted(records,results_dir): #TODO: can be faster, although is mainly used with the coral sequences
-    """Writes the list of records (sampled and true), transforms into fasta file  """
+def align_true_predicted(records,results_dir): #TODO: can be faster, although is mainly used with the coral sequences, which only have 5 sequences
+    """Writes the list of records (sampled and true), transforms into fasta file
+    :param list records: list of biopython Seq records with the sequences in the alignment
+    :param str results_dir"""
     samples_out_file = os.path.join(results_dir,"samples_plus_true_to_align.fasta")
     SeqIO.write(records, samples_out_file, "fasta")
     alignment_out_file = os.path.join(results_dir,"samples_plus_true_aligned.fasta")
@@ -937,7 +920,17 @@ def clean_and_realign_test(name,dataset_test,aa_sequences_predictions,test_order
      b) Convert to sequences
      c) Remove gaps
      d) Save to file both samples and the true observed nodes (for coral, there is only 1 node)
-     c) Align to the 'observed' """
+     c) Align to the 'observed' sequences to determine percent identity
+     :param str name
+     :param tensor dataset_test
+     :param tensor aa_sequences_predictions
+     :param test_ordered_nodes
+     :param int n_samples
+     :param int aa_probs
+     :param str results_dir
+     :param namedtuple additional_load
+     :param namedtuple additional_info
+      """
     node_info = test_ordered_nodes.repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(test_ordered_nodes), 1)
     aa_sequences_predictions = torch.cat((node_info,aa_sequences_predictions),dim=2)
     #aa_sequences_predictions = aa_sequences_predictions.permute(1,0,2)
@@ -1058,9 +1051,8 @@ def clean_and_realign_test(name,dataset_test,aa_sequences_predictions,test_order
 
 
     plot_results()
-
 def clean_and_realign_train(name,dataset_test,dataset_train,aa_sequences_predictions,test_ordered_nodes,n_samples,aa_probs,results_dir,additional_load,additional_info):
-    """Function designed to deal with data sets whose ancestral sequences are not aligned
+    """Function designed to deal with data sets whose ancestral sequences aree not aligned to the leaves.
      :param str name
      :param dataset_test
      :param dataset_train
@@ -1186,8 +1178,13 @@ def clean_and_realign_train(name,dataset_test,dataset_train,aa_sequences_predict
             plt.title(r"% ID of the predicted internal node (root) against the leaves; {}".format(additional_load.full_name))
             plt.savefig("{}/PercentID_node_{}_against_train_seq.pdf".format(results_dir,node_idx))
             plt.close()
-
-def incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_directory,max_len, additional_load):
+def plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,align_len, additional_load):
+    """Plots a histogram with the number of incorrectly predicted sites per sequence
+    :param pandas-dataframe incorrectly_predicted_sites_df
+    :param str results_directory
+    :param align_len: alignment length
+    :param namedtuple additional_load
+    """
     print("Building Fast Incorrectly Predicted aa...")
     average_incorrectly_predicted_sites = incorrectly_predicted_sites_df["Average"].values
     try:
@@ -1231,7 +1228,7 @@ def incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_direct
     DraupnirUtils.autolabel(rects1,ax)
     # axes and labels
     ax.set_xlim(-width, N* + width)
-    ax.set_ylim(0, max_len)
+    ax.set_ylim(0, align_len)
     ax.set_ylabel('Number of incorrect sites')
     ax.set_title('Incorrectly predicted aa sites (%ID); {} \n'.format(data_name) + r'{}'.format(additional_load.full_name))
     xTickMarks = incorrectly_predicted_sites_df.index.tolist()
@@ -1240,27 +1237,26 @@ def incorrectly_predicted_aa_plots(incorrectly_predicted_sites_df,results_direct
     plt.setp(xtickNames, rotation=45, fontsize=8)
 
     plt.savefig("{}/IncorrectlyPredictedAA_BarPlot".format(results_directory))
-
-def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,Dataset_test, name, num_samples,children_indexes,results_directory,aa_probs,correspondence_dict=None):
-    "https://matplotlib.org/3.1.1/gallery/units/bar_unit_demo.html#sphx-glr-gallery-units-bar-unit-demo-py"
+def build_dataframes_overlapping_histograms(predictions_samples, dataset_train,dataset_test, name, num_samples,children_indexes,results_directory,aa_probs,correspondence_dict=None):
+    #TODO: remove????
     print("Building Overlapping Histogram...")
     n_children = len(children_indexes)
     def Percent_ID_OBS_OBS():
         "Generate the  %ID of the OBS TEST sequences against the OBS train"
-        percent_id_OBS = dict.fromkeys(Dataset_train[:,0,1].tolist(), dict.fromkeys(Dataset_test[:,0,1].tolist(),[]))
-        for i,trainseq in enumerate(Dataset_train):
-            seq_TRAIN_obs_letters_i = DraupnirUtils.convert_to_letters(Dataset_train[i, 2:,0],aa_probs)
-            for j,testseq in enumerate(Dataset_test):
-                seq_TEST_obs_letters_i = DraupnirUtils.convert_to_letters(Dataset_test[j, 2:,0],aa_probs)
+        percent_id_OBS = dict.fromkeys(dataset_train[:,0,1].tolist(), dict.fromkeys(dataset_test[:,0,1].tolist(),[]))
+        for i,trainseq in enumerate(dataset_train):
+            seq_TRAIN_obs_letters_i = DraupnirUtils.convert_to_letters(dataset_train[i, 2:,0],aa_probs)
+            for j,testseq in enumerate(dataset_test):
+                seq_TEST_obs_letters_i = DraupnirUtils.convert_to_letters(dataset_test[j, 2:,0],aa_probs)
                 pid =DraupnirUtils.perc_identity_pair_seq(seq_TRAIN_obs_letters_i,seq_TEST_obs_letters_i)
-                percent_id_OBS[Dataset_train[i,0,1].item()][Dataset_test[j,0,1].item()] = pid
+                percent_id_OBS[dataset_train[i,0,1].item()][dataset_test[j,0,1].item()] = pid
         return percent_id_OBS
     def Percent_ID_PRED_OBS():
         "Generate the Average and STD %ID of the sampled sequences against the OBS train"
         #percent_id_PRED = dict.fromkeys(Dataset_train[:,0,1].tolist(), dict.fromkeys(predictions_samples[0,:,1].tolist(),{"Average":[],"Std":[]})) #{"Average":[],"Std":[]}
         percent_id_PRED = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-        for i, seq in enumerate(Dataset_train):
-            seq_TRAIN_obs_letters_i = DraupnirUtils.convert_to_letters(Dataset_train[i, 2:,0],aa_probs)
+        for i, seq in enumerate(dataset_train):
+            seq_TRAIN_obs_letters_i = DraupnirUtils.convert_to_letters(dataset_train[i, 2:,0],aa_probs)
             for j in range(n_children):#for test node #n_children
                 all_sampled_index = predictions_samples[:,j,3:]  # All samples for same test seq
                 percent_id_i=[] #all samples for the same test sequence
@@ -1268,8 +1264,8 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
                     seq_sampled_test = DraupnirUtils.convert_to_letters(all_sampled_index[w],aa_probs)
                     pid = DraupnirUtils.perc_identity_pair_seq(seq_TRAIN_obs_letters_i, seq_sampled_test)
                     percent_id_i.append(pid)
-                percent_id_PRED[Dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Average"] = np.mean(np.array(percent_id_i),axis=0)
-                percent_id_PRED[Dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Std"] = np.std(np.array(percent_id_i), axis=0)
+                percent_id_PRED[dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Average"] = np.mean(np.array(percent_id_i),axis=0)
+                percent_id_PRED[dataset_train[i,0,1].item()][predictions_samples[0,j,1]]["Std"] = np.std(np.array(percent_id_i), axis=0)
         return percent_id_PRED
 
 
@@ -1280,14 +1276,14 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ax = fig.add_subplot(111)
 
     ## Indexes where the bars will go
-    ind_lines = np.arange(10,len(Dataset_train)*10,10 )
-    ind_train = np.arange(5,len(Dataset_train)*10,10 )  # the x locations for the train nodes
-    width = 10/len(Dataset_test) -0.3 # the width of the bars
+    ind_lines = np.arange(10,len(dataset_train)*10,10 )
+    ind_train = np.arange(5,len(dataset_train)*10,10 )  # the x locations for the train nodes
+    width = 10/len(dataset_test) -0.3 # the width of the bars
     ind_test = np.arange(0,10,width + 0.3)  # the x locations for the test nodes, taking into account the space between them?
     start = 0
     blue, = sns.color_palette("muted", 1)
-    for train_node in Dataset_train[:,0,1]:
-        for idx,test_node in enumerate(Dataset_test[:,0,1]): #TODO: out of range
+    for train_node in dataset_train[:,0,1]:
+        for idx,test_node in enumerate(dataset_test[:,0,1]): #TODO: out of range
             rects2 = ax.bar(ind_test[idx] + start ,
                             percent_id_OBS[train_node.item()][test_node.item()],
                             width,
@@ -1310,7 +1306,7 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ax.set_ylim(0, 100)
     ax.set_ylabel('%ID')
     ax.set_title('Overlapping Histogram')
-    xTickMarks = ['TrainNode_{}'.format(int(i.item())) for i in Dataset_train[:,0,1]]
+    xTickMarks = ['TrainNode_{}'.format(int(i.item())) for i in dataset_train[:,0,1]]
     ax.set_xticks(ind_train)
     xtickNames = ax.set_xticklabels(xTickMarks)
     plt.setp(xtickNames, rotation=45, fontsize=6)
@@ -1318,19 +1314,27 @@ def build_dataframes_overlapping_histograms(predictions_samples, Dataset_train,D
     ## add a legend--> Not working (inside or outside loop)
     ax.legend((rects1,rects2), ('Sampled',"Observed"),loc=1,bbox_to_anchor=(1.15, 1.1))
     plt.savefig("{}/OverlappingHistogram".format(results_directory))
-
-def barplot_aa_replacement(predictions_samples, Dataset_test,full_name, num_samples,children_indexes,results_directory,aa_probs,correspondence_dict=None):
-    """Plots a"""
+def barplot_aa_replacement(predictions_samples, dataset_test,full_name, num_samples,nodes_indexes,results_directory,aa_probs,correspondence_dict=None):
+    """Plots the amino acid replacements occurred during the evolutionary process. It visualizes the frequency of the amino acids have been
+    predicted to replace the true amino acid
+    :param predictions_samples  [n_nodes,n_samples,align_len]
+    :param dataset_test
+    :param full_name: complete name of the data set project
+    :param num_samples
+    :param nodes_indexes
+    :param results_directory
+    :param aa_probs
+    :param correspondence_dict: contains the correspondence among the nodes indexes and their true names"""
     print("Building aa replacement plots...this might take a while")
     results_directory_path = os.path.dirname(results_directory)
     folder_type =os.path.basename(results_directory).split("_")[0]
     aa_types_dict = DraupnirUtils.aminoacid_names_dict(aa_probs) #apply
     for index,aa in enumerate(list(aa_types_dict.keys())):
-        for seq_idx,seq_name in zip(range(Dataset_test.shape[0]),children_indexes):
+        for seq_idx,seq_name in zip(range(dataset_test.shape[0]),nodes_indexes):
             seq_name = int(seq_name.item())
-            positions = np.where(Dataset_test[seq_idx] == index)[0]
+            positions = np.where(dataset_test[seq_idx] == index)[0]
             prediction_for_seq = predictions_samples[:,seq_idx,positions] #predictions for positions where there should be aa == aa_type
-            if prediction_for_seq.size !=0:#if it's not empty (for example in the benchmark there are no gaps and then it gets empty)
+            if prediction_for_seq.size !=0:#if it's not empty (for example in the benchmark there are no gaps and then it becomes empty)
                 aa_count = np.apply_along_axis(lambda x: np.bincount(x, minlength=aa_probs), axis=0,arr=prediction_for_seq.astype("int64")).T
                 aa_count = pd.DataFrame(aa_count,index=positions,columns=list(aa_types_dict.keys()))
                 fig = plt.figure(figsize=(16, 12))

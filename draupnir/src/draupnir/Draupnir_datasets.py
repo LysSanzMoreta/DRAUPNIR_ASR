@@ -16,6 +16,7 @@ import torch
 from Bio import AlignIO, SeqIO
 from ete3 import Tree as TreeEte3
 def available_datasets(print_dict = False):
+    """Displays the available default data sets shown in the paper"""
     datasets = {"simulations_blactamase_1": "BetaLactamase_seq",# EvolveAGene4 Betalactamase simulation # 32 leaves
                 "simulations_calcitonin_1": "Calcitonin_seq",# EvolveAGene4 Calcitonin simulation #50 leaves
                 "simulations_src_sh3_1": "SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 1 #100 leaves
@@ -49,7 +50,6 @@ def available_datasets(print_dict = False):
                 "aminopeptidase":"Amino Peptidase",
                 "PF00096":"PF00096 protein kinases"}
     return datasets,datasets_full_names
-
 def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=None,tree_file=None,alignment_file=None):
     """In:
     :param str name: Dataset name
@@ -268,9 +268,8 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
 
 
     return build_config,settings_config, root_sequence_name
-
 def benchmark_randalls_dataset_train(name,aa_prob):
-    """Processing of the dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
+    """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name
     :param int aa_prob: amino acid probabilities"""
     observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
@@ -290,9 +289,10 @@ def benchmark_randalls_dataset_train(name,aa_prob):
                    tree_file="benchmark_randall_original_naming/RandallBenchmarkTree_OriginalNaming.tree",
                    aa_probs=aa_prob,
                    rename_internal_nodes=False)
-
 def benchmark_randalls_dataset_test(scriptdir,aa_probs=21):
-    "Pick from the ancestral sequences those of interest/available in the Iqtree"
+    """Processing of the internal nodes dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction
+    :param str scriptdir
+    :param int aa_probs"""
     internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
     sequences_file = "{}/datasets/default/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
     # Select the sequences of only the observed nodes
@@ -320,16 +320,72 @@ def benchmark_randalls_dataset_test(scriptdir,aa_probs=21):
         dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
 
     return dataset, internal_nodes
-
-def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
-    """Load and format the ancestral sequences from the simulations
-    :param ancestral_file
+# def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
+#     """Load and format the ancestral sequences from the EvolveAGene4 simulations
+#     :param ancestral_file
+#     :param tree_level_order_names
+#     :param aligned
+#     :param align_max_len
+#     :param aa_probs
+#     """
+#     # Select the sequences of only the observed nodes
+#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
+#     aminoacid_names = DraupnirUtils.aminoacid_names_dict(aa_probs)
+#     internal_fasta_dict = {}
+#     tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
+#
+#     for seq in ancestral_fasta:
+#             seq_numbers =[]
+#             #Highlight: replace all stop codons with a gap and also the sequence coming after it
+#             sequence_no_stop_codons = str(seq.seq).split("*", 1)[0]
+#             len_diff = len(str(seq.seq)) - len(sequence_no_stop_codons)
+#             sequence_no_stop_codons = sequence_no_stop_codons + "-"*len_diff
+#             #for aa_name in seq.seq :
+#             for aa_name in sequence_no_stop_codons:
+#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0])
+#                 aa_number = aminoacid_names[aa_name]
+#                 seq_numbers.append(aa_number)
+#             seq_id = np.where(np.array(tree_level_order_names) == seq.id.strip("Node"))[0][0]
+#             #internal_fasta_dict[int(seq_id)] = [seq.seq,seq_numbers]
+#             internal_fasta_dict[int(seq_id)] = [sequence_no_stop_codons, seq_numbers]
+#
+#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
+#     print("Creating aligned TEST simulation dataset...")
+#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
+#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
+#         aligned_seq = list(internal_fasta_dict[key][0])
+#         Dataset[i, 0, 1] = key  # name in the tree
+#         Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
+#         Dataset[i, 2:,0] = internal_fasta_dict[key][1]
+#
+#     return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
+def load_randalls_benchmark_ancestral_sequences(scriptdir):
+    dataset_test,internal_names_test = benchmark_randalls_dataset_test(scriptdir)
+    dataset_test = np.array(dataset_test, dtype="float64")
+    dataset_test = torch.from_numpy(dataset_test)
+    return dataset_test,internal_names_test
+def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree_levelorder_names,root_sequence_name,aa_probs,script_dir):
+    """Load and format the ancestral sequences from the EvolveAGene4 simulations
+    :param name
+    :param settings_config
+    :param align_seq_len
+    :param tree_levelorder_names: names of the nodes in tree level order
+    :param root_sequence_name
+    :param aa_probs
+    :param script_dir
     """
+    # dataset_test, leaves_names_test,max_len_test = simulations_dataset_test(ancestral_file="{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name),
+    #                                                                        tree_level_order_names=tree_levelorder_names,
+    #                                                                        aligned=settings_config.aligned_seq,
+    #                                                                        align_max_len=align_seq_len,
+    #                                                                        aa_probs=aa_probs)
+    ancestral_file = "{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name)
+
     # Select the sequences of only the observed nodes
     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
     aminoacid_names = DraupnirUtils.aminoacid_names_dict(aa_probs)
     internal_fasta_dict = {}
-    tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
+    tree_level_order_names = np.char.strip(tree_levelorder_names, 'I') #removing the letter added while processing the full tree
 
     for seq in ancestral_fasta:
             seq_numbers =[]
@@ -348,34 +404,26 @@ def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align
 
     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
     print("Creating aligned TEST simulation dataset...")
-    Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
+    dataset_test = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
     for i, (key, val) in enumerate(internal_fasta_dict.items()):
         aligned_seq = list(internal_fasta_dict[key][0])
-        Dataset[i, 0, 1] = key  # name in the tree
-        Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
-        Dataset[i, 2:,0] = internal_fasta_dict[key][1]
+        dataset_test[i, 0, 1] = key  # name in the tree
+        dataset_test[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
+        dataset_test[i, 2:,0] = internal_fasta_dict[key][1]
 
-    return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
-
-def load_randalls_benchmark_ancestral_sequences(scriptdir):
-    dataset_test,internal_names_test = benchmark_randalls_dataset_test(scriptdir)
+    leaves_names_test = internal_fasta_dict.keys()
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
-    return dataset_test,internal_names_test
+    return dataset_test,leaves_names_test,max_lenght_internal_aligned
 
-def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree_levelorder_names,root_sequence_name,aa_prob,script_dir):
 
-    dataset_test, leaves_names_test,max_len_test = simulations_dataset_test(ancestral_file="{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name),
-                                                                           tree_level_order_names=tree_levelorder_names,
-                                                                           aligned=settings_config.aligned_seq,
-                                                                           align_max_len=align_seq_len,
-                                                                           aa_probs=aa_prob)
-    dataset_test = np.array(dataset_test, dtype="float64")
-    dataset_test = torch.from_numpy(dataset_test)
-    return dataset_test,leaves_names_test,max_len_test
-
-def coral_fluorescent_proteins_test_dataset(name,ancestral_file,tree_level_order_names,aa_probs):
-    "Select the root sequence of the Faviina clade as the test sequence"
+def load_coral_fluorescent_proteins_ancestral_sequences(name,ancestral_file,tree_levelorder_names,aa_probs):
+    """Loads the 5 ancestral root nodes from the coral fluorescent proteins as the data set test.
+    :param str name
+    :param str ancestral_file
+    :param list tree_levelorder_names
+    :param int aa_probs
+    """
     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
     if name == "Coral_Faviina":
         root = "A35" #TODO: root detection system?
@@ -402,17 +450,17 @@ def coral_fluorescent_proteins_test_dataset(name,ancestral_file,tree_level_order
                 aa_number = aminoacid_names[aa_name]
                 seq_numbers.append(aa_number)
             id = nodes_dict[seq.id]
-            seq_id = np.where(np.array(tree_level_order_names) == id)[0][0]
+            seq_id = np.where(np.array(tree_levelorder_names) == id)[0][0]
             test_nodes_names.append(seq_id)
             internal_fasta_dict[seq.id] = [seq_id,seq.seq, seq_numbers]
 
     max_lenght_internal_aligned = max([int(len(sequence[1])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
     print("Creating aligned Coral Faviina dataset...")
-    Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=object)
+    dataset_test = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=object)
     for i, (key, val) in enumerate(internal_fasta_dict.items()):
-        Dataset[i, 0, 1] = int(val[0])  # name in the tree
-        Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][1]).replace("-", ""))  # Fill in the sequence lenght
-        Dataset[i, 2:, 0] = internal_fasta_dict[key][2]
+        dataset_test[i, 0, 1] = int(val[0])  # name in the tree
+        dataset_test[i, 0, 0] = len(str(internal_fasta_dict[key][1]).replace("-", ""))  # Fill in the sequence lenght
+        dataset_test[i, 2:, 0] = internal_fasta_dict[key][2]
 
-    return Dataset.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
+    return dataset_test.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
 

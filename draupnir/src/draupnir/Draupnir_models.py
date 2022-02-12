@@ -96,7 +96,8 @@ class DRAUPNIRModelClass(nn.Module):
         name = str(full_name).split(".")[-1].replace("'>","")
         return name
     def gp_prior(self,patristic_matrix_sorted):
-        "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"
+        """Computes a Ornstein Ulenbeck process prior over the latent space, representing the evolutionary process.
+        The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"""
         # Highlight; OU kernel parameters
         alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
         sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
@@ -128,134 +129,10 @@ class DRAUPNIRModelClass(nn.Module):
         assert latent_space_internal.shape == (self.n_internal, self.z_dim)
         return latent_space_internal
 
-    def conditional_sampling_descendants(self,map_estimates,patristic_matrix_full):
-        "Conditionally sample the internal nodes based only on the descendant internal nodes and leaves"
-        sigma_f = map_estimates["sigma_f"]
-        sigma_n = map_estimates["sigma_n"]
-        lambd = map_estimates["lambd"]
-        OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
-        OU_covariance_full = OU.forward(patristic_matrix_full[1:, 1:])
-        Inverse_full = torch.linalg.inv(OU_covariance_full)
-        assert Inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
-        internal_latent_spaces = dict.fromkeys(self.internal_nodes.tolist())
-        for ancestor, descendants in sorted(self.descendants_dict.items()):
-            ancestor = torch.tensor(ancestor)
-            descendants_internal = torch.tensor(descendants["internal"])
-            descendants_leaves = torch.tensor(descendants["leaves"])
-            internal_indexes = (patristic_matrix_full[1:, 0][..., None] == descendants_internal).any(-1)
-            leaves_indexes = (patristic_matrix_full[1:, 0][..., None] == descendants_leaves).any(-1)
-            leaves_indexes_xb = (self.leaves_nodes[..., None] == descendants_leaves).any(-1) #self.leaves nodes has the same node order as the latent space from the leaves
-            Inverse_ancestor = Inverse_full[:, internal_indexes, :]
-            Inverse_ancestor = Inverse_ancestor[:, :, internal_indexes]
-            OU_mean_internal = torch.zeros((descendants_internal.shape[0],))
-            Inverse_ancestor_leaves = Inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            Inverse_ancestor_leaves = Inverse_ancestor_leaves[:, :, leaves_indexes]  # [z_dim,n_test,n_train]
-            assert Inverse_ancestor_leaves.shape == (self.z_dim, descendants_internal.shape[0], descendants_leaves.shape[0])
-            xb = map_estimates["latent_z"][:, leaves_indexes_xb]
-            assert xb.shape == (self.z_dim,descendants_leaves.shape[0])
-            OU_mean_leaves = torch.zeros((descendants_leaves.shape[0],))
-            part1 = torch.matmul(torch.linalg.inv(Inverse_ancestor),Inverse_ancestor_leaves)  # [z_dim,n_test,n_train]
-            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
-            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
-            assert OU_mean.squeeze(-1).shape == (self.z_dim, descendants_internal.shape[0])
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(Inverse_ancestor)).to_event(1).sample()
-            assert latent_space.shape == (self.z_dim, descendants_internal.shape[0])
-            internal_latent_spaces[ancestor.item()] = latent_space[:,0].unsqueeze(-1) #the first value corresponds to the ancestor we are interested in
-
-        internal_latent_spaces = dict(sorted(internal_latent_spaces.items()))  # luckily all the time everything is sorted in ascending order
-        latent_space = torch.cat(list(internal_latent_spaces.values()), dim=1).T
-        assert latent_space.shape == (self.n_internal, self.z_dim)
-        return latent_space
-
-    def conditional_sampling_descendants_leaves(self,map_estimates,patristic_matrix_full):
-        "Conditionally sample the internal nodes based only on the descendant leaves and in all the internal nodes"
-        sigma_f = map_estimates["sigma_f"]
-        sigma_n = map_estimates["sigma_n"]
-        lambd = map_estimates["lambd"]
-        OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
-        OU_covariance_full = OU.forward(patristic_matrix_full[1:, 1:])
-        Inverse_full = torch.linalg.inv(OU_covariance_full)
-        assert Inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
-        internal_latent_spaces = dict.fromkeys(self.internal_nodes.tolist())
-        for ancestor, descendants in sorted(self.descendants_dict.items()):
-            ancestor = torch.tensor(ancestor)
-            #descendants_internal = torch.tensor(descendants["internal"])
-            descendants_leaves = torch.tensor(descendants["leaves"])
-            internal_indexes = (patristic_matrix_full[1:, 0][..., None] == self.internal_nodes).any(-1)
-            leaves_indexes = (patristic_matrix_full[1:, 0][..., None] == descendants_leaves).any(-1)
-            leaves_indexes_xb = (self.leaves_nodes[..., None] == descendants_leaves).any(-1) #self.leaves nodes has the same node order as the latent space from the leaves
-            Inverse_ancestor = Inverse_full[:, internal_indexes, :]
-            Inverse_ancestor = Inverse_ancestor[:, :, internal_indexes]
-            OU_mean_internal = torch.zeros((self.n_internal,))
-            Inverse_ancestor_leaves = Inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            Inverse_ancestor_leaves = Inverse_ancestor_leaves[:, :, leaves_indexes]  # [z_dim,n_test,n_train]
-            assert Inverse_ancestor_leaves.shape == (self.z_dim, self.n_internal, descendants_leaves.shape[0])
-            xb = map_estimates["latent_z"][:, leaves_indexes_xb]
-            assert xb.shape == (self.z_dim,descendants_leaves.shape[0])
-            OU_mean_leaves = torch.zeros((descendants_leaves.shape[0],))
-            part1 = torch.matmul(torch.linalg.inv(Inverse_ancestor),Inverse_ancestor_leaves)  # [z_dim,n_test,n_train]
-            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
-            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
-            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.internal_nodes.shape[0])
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(Inverse_ancestor)).to_event(1).sample()
-            assert latent_space.shape == (self.z_dim, self.n_internal)
-            internal_latent_spaces[ancestor.item()] = latent_space[:,0].unsqueeze(-1) #the first value corresponds to the ancestor we are interested in
-
-        internal_latent_spaces = dict(sorted(internal_latent_spaces.items()))  # luckily all the time everything is sorted in ascending order
-        latent_space = torch.cat(list(internal_latent_spaces.values()), dim=1).T
-        assert latent_space.shape == (self.n_internal, self.z_dim)
-        return latent_space
-
-    def conditional_sampling_progressive(self,map_estimates,patristic_matrix_full):
-        "Conditional sampling each ancestor on their exact respective children"
-        #Highlight: Calculate the inverse covariance for the entire space
-        sigma_f = map_estimates["sigma_f"]
-        sigma_n = map_estimates["sigma_n"]
-        lambd = map_estimates["lambd"]
-        OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
-        OU_covariance_full = OU.forward(patristic_matrix_full[1:,1:])
-        Inverse_full = torch.linalg.inv(OU_covariance_full)
-        assert Inverse_full.shape == (self.z_dim,self.n_all,self.n_all)
-        internal_latent_spaces = dict.fromkeys(self.internal_nodes.tolist())
-        for ancestor, children in reversed(sorted(self.children_dict.items())): #First the most recent common ancestors of the leaves
-            if ancestor is not np.nan:
-                ancestor = torch.tensor(ancestor)
-                children = torch.tensor(children)
-                ancestor_indexes = (patristic_matrix_full[1:, 0][..., None] == ancestor).any(-1)
-                children_indexes = (patristic_matrix_full[1:, 0][..., None] == children).any(-1)
-                Inverse_ancestor = Inverse_full[:, ancestor_indexes, :]
-                Inverse_ancestor = Inverse_ancestor[:, :, ancestor_indexes]
-                OU_mean_ancestor = torch.zeros((torch.numel(ancestor),))
-                Inverse_ancestor_children = Inverse_full[:,ancestor_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-                Inverse_ancestor_children = Inverse_ancestor_children[:, :, children_indexes]  # [z_dim,n_test,n_train]
-                assert Inverse_ancestor_children.shape == (self.z_dim, torch.numel(ancestor), children.shape[0])
-                children_leaves_idx = (self.leaves_nodes[..., None] == children).any(-1)
-                check = children_leaves_idx.int().sum()
-                if check.item() == children.shape[0]: #all are leaves
-                    children_leaves_idx = (self.leaves_nodes[..., None] == children).any(-1)  # should be ordered
-                    xb = map_estimates["latent_z"][:,children_leaves_idx]
-                elif 0 < check.item() < children.shape[0]: #some are internal nodes and some are leaves
-                    xb_leaf = map_estimates["latent_z"][:,children_leaves_idx]
-                    xb_internal = [internal_latent_spaces[child.item()] for child in children if child.item() in internal_latent_spaces.keys()] #should only find one child, the internal one
-                    xb = torch.cat([xb_leaf,torch.cat(xb_internal,dim=0)],dim=1) #general solution with 2 cats, in case is a non binary tree
-                else: #all internal nodes
-                    xb = [internal_latent_spaces[child.item()] for child in children]#find the keys of the children indexes and concatenate them
-                    xb = torch.cat(xb, dim=1)
-                OU_mean_children = torch.zeros((children.shape[0],))
-                part1 = torch.matmul(torch.linalg.inv(Inverse_ancestor),Inverse_ancestor_children)  # [z_dim,n_test,n_train]
-                part2 = xb - OU_mean_children[None, :]  # [z_dim,n_train]
-                OU_mean = OU_mean_ancestor[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
-                assert OU_mean.squeeze(-1).shape == (self.z_dim, torch.numel(ancestor))
-                latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1),torch.linalg.inv(Inverse_ancestor)).to_event(1).sample()
-                assert latent_space.shape == (self.z_dim,torch.numel(ancestor))
-                internal_latent_spaces[ancestor.item()] = latent_space
-        internal_latent_spaces = dict(sorted(internal_latent_spaces.items())) #luckily all the time everything is sorted in ascending order
-        latent_space = torch.cat(list(internal_latent_spaces.values()),dim=1).T
-        assert latent_space.shape == (self.n_internal,self.z_dim)
-        return latent_space
-
     def conditional_sampling(self,map_estimates, patristic_matrix):
-            """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
+            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
+            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
+            :param patristic_matrix: full patristic matrix"""
             sigma_f = map_estimates["sigma_f"]
             sigma_n = map_estimates["sigma_n"]
             lambd = map_estimates["lambd"]
@@ -299,7 +176,9 @@ class DRAUPNIRModelClass(nn.Module):
             assert latent_space.shape == (self.n_internal, self.z_dim)
             return latent_space
     def conditional_samplingMAP(self,map_estimates, patristic_matrix):
-            """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
+            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
+            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
+            :param patristic_matrix: full patristic matrix"""
             sigma_f = map_estimates["sigma_f"]
             sigma_n = map_estimates["sigma_n"]
             lambd = map_estimates["lambd"]
@@ -345,7 +224,7 @@ class DRAUPNIRModelClass(nn.Module):
 
 
 class DRAUPNIRModel_classic(DRAUPNIRModelClass):
-    "Blosum weighted average embedding. Training on leaves, testing on internal nodes, no batching"
+    """Implements the ordinary version of Draupnir. It receives as an input the entire leaves dataset, uses a GRU as the mapping function and blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
@@ -420,7 +299,8 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
-    "OU process alone, no blosum embeddings"
+    """Implements the ordinary version of Draupnir without blosum embeddings.
+    It receives as an input the entire leaves dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
@@ -481,7 +361,11 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
-    "Blosum weighted average embedding. Plating the train sequences in order. No  blosum embedding splitting"
+    """Implements the plated version of Draupnir.
+     a) It receives as an input the entire leaves dataset
+     b) plates or subsamples the sequences when mapping them to the observations, no blosum embedding split
+     c) uses a GRU as the mapping function.
+    NOTE: The plating of the leaves nodes can be with the ordered nodes (same order as input) or random order"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
@@ -586,7 +470,10 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_plating(DRAUPNIRModelClass):
-    """Plating the training sequences (subsampling the observations) and SPLITTING the blosum embedding accordingly"""
+    """Implements the plated version of Draupnir.
+     a) It receives as an input the entire leaves dataset and patristic distance matrix to perform full inference over the latent space
+     b) Plates or subsamples the sequences when mapping them to the observations, SPLITS the blosum embeddings accordingly.
+     c) uses a GRU as the mapping function from z to aa"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
@@ -622,7 +509,7 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
             #with pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2,subsample_size=self.plate_size) as indx:#Highlight: Random subsampling
             with pyro.plate("plate_seq", aminoacid_sequences.shape[0], dim=-2,subsample= self.splitted_leaves_indexes.pop(0))as indx:  # Highlight: Ordered subsampling
                 latent_space_subsample = latent_space[indx]
-                aa_frequencies = Draupnir_utils.calculate_aa_frequencies_torch(aminoacid_sequences[indx],self.aa_prob) #TODO, merge in class function
+                aa_frequencies = DraupnirUtils.calculate_aa_frequencies_torch(aminoacid_sequences[indx],self.aa_prob) #TODO, merge in class function
                 blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(self.blosum, aa_frequencies,self.align_seq_len,self.aa_prob)
                 blosum_embedding = blosum_weighted.repeat(latent_space_subsample.shape[0], 1).reshape(latent_space_subsample.shape[0],
                                                                                        self.align_seq_len,
@@ -673,7 +560,10 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
 
 
 class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
-    """Clade batch training and sampling, with full latent space inference"""
+    """Implements the clade batched version of Draupnir with full latent space inference.
+     a) It receives as an input a clade of the leaves dataset
+     b) uses the unsplitted leaves patristic matrix for full latent space inference
+     c} uses a GRU as the mapping function and blosum embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
@@ -749,7 +639,7 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
-    "Leaves training and testing. Train on full leave latent space (train + test), only observe the train leaves"
+    """Leaves training and testing. Train on full leave latent space (train + test), only observe the pre-selected train leaves"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_prob
