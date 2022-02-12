@@ -1955,10 +1955,10 @@ def preparing_plots(samples_out,
 
         DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
     elif args.infer_angles and plot_angles:
-        DraupnirPlots.plotting_angles(samples_out,dataset_true,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes)
-        DraupnirPlots.plotting_angles_per_aa(samples_out,dataset_true,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes)
+        DraupnirPlots.plot_angles(samples_out,dataset_true,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes)
+        DraupnirPlots.plot_angles_per_aa(samples_out,dataset_true,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes)
     else:
-        DraupnirPlots.plotting_heatmap_and_incorrect_aminoacids(name,
+        DraupnirPlots.plot_heatmap_and_incorrect_aminoacids(name,
                                                                 dataset_true,
                                                                 samples_out.aa_sequences,
                                                                 n_samples,
@@ -2063,7 +2063,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     #graph_coo = additional_info.graph_coo
     if args.generate_samples:
         print("Generating samples not training!")
-        assert name in args.load_pretrained_path, "Please use a pretrained model with the same dataset, fine tuning is not implemented"
+        assert name in args.load_pretrained_path, "Please use a pretrained model with the same dataset, fine tuning is not available"
         draupnir_sample(train_load,
                             test_load,
                             additional_load,

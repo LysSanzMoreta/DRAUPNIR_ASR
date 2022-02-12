@@ -4,18 +4,19 @@ Lys Sanz Moreta
 Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
-from abc import ABC, abstractmethod
 # TORCH
 import torch.nn as nn
+import torch
+from torch.distributions import constraints
 import math
-from pyro.infer import SVI
 from ignite.engine import Engine, Events
 from abc import ABC, abstractmethod
 from typing import Callable
-import torch
+#Pyro
+from pyro.infer import SVI
 from pyro import distributions as dist
 from pyro.distributions.torch_distribution import TorchDistribution
-from torch.distributions import constraints
+
 
 
 class RNNEncoder(nn.Module):
@@ -54,8 +55,6 @@ class RNNEncoder(nn.Module):
         output_means = self.linear_means(rnn_output)
         output_std = self.softplus(self.linear_std(rnn_output))
         return output_means,output_std
-
-
 class RNNEncoder_no_mean(nn.Module):
     def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNEncoder_no_mean, self).__init__()
@@ -92,8 +91,6 @@ class RNNEncoder_no_mean(nn.Module):
         #output_means = self.linear_means(rnn_output)
         output_std = self.softplus(self.linear_std(rnn_output))
         return output_std
-
-
 class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
@@ -152,60 +149,6 @@ class RNNDecoder_Tiling(nn.Module):
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
-
-
-class TransformerDecoder_Tiling(nn.Module):
-    def __init__(self, align_seq_len, aa_prob, gru_hidden_dim, z_dim, rnn_input_size, kappa_addition, num_layers,
-                 pretrained_params):
-        super(TransformerDecoder_Tiling, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = num_layers
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(self.rnn_input_size ,self.gru_hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"], requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-            self.linear_probs = nn.Linear(self.rnn_input_size, self.aa_prob)
-            self.linear_probs.weight = nn.Parameter(pretrained_params["decoder.linear_probs.weight"],requires_grad=False)
-            self.linear_probs.bias = nn.Parameter(pretrained_params["decoder.linear_probs.bias"], requires_grad=False)
-            #TRANSFORMER#
-            self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.rnn_input_size, nhead=1,dim_feedforward=2048, dropout=0.1, activation="relu")
-            self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=self.num_layers)
-
-            self.transformer_decoder.linear1.weight = nn.Parameter(pretrained_params["decoder.transformer_decoder.linear1.weight"], requires_grad=False)
-            self.transformer_decoder.linear1.bias = nn.Parameter(pretrained_params["decoder.transformer_decoder.linear1.bias"], requires_grad=False)
-            self.transformer_decoder.linear2.weight = nn.Parameter(pretrained_params["decoder.transformer_decoder.linear2.weight"], requires_grad=False)
-            self.transformer_decoder.linear2.bias = nn.Parameter(pretrained_params["decoder.transformer_decoder.linear2.bias"], requires_grad=False)
-            self.transformer_decoder.norm1.weight = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm1.weight"],requires_grad=False)
-            self.transformer_decoder.norm1.bias = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm1.bias"], requires_grad=False)
-            self.transformer_decoder.norm2.weight = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm2.weight"],requires_grad=False)
-            self.transformer_decoder.norm2.bias = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm2.bias"], requires_grad=False)
-            self.transformer_decoder.norm3.weight = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm3.weight"],requires_grad=False)
-            self.transformer_decoder.norm3.bias = nn.Parameter(pretrained_params["decoder.transformer_decoder.norm3.bias"], requires_grad=False)
-
-
-
-        else:
-            self.fc1 = nn.Linear(self.rnn_input_size, self.rnn_input_size)
-            self.linear_probs = nn.Linear(self.rnn_input_size, self.aa_prob)
-            self.decoder_layer = nn.TransformerDecoderLayer(d_model=self.align_seq_len, nhead=1,dim_feedforward=self.gru_hidden_dim, dropout=0.1, activation="relu") #d_model / n_heads
-            self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer,num_layers=self.num_layers,)
-
-    def forward(self, sequences, latent):
-        #sequences.unsqueeze(-1).permute(1,0,2),
-        transformer_output = self.transformer_decoder(tgt=latent.permute(2,0,1),tgt_mask=None, memory=latent.permute(2,0,1))  #TODO: Are the targets the sequences and memory the latent_space?
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(transformer_output.permute(1,2,0))))  # [n_nodes,align_seq_len,aa_probs]
-        return output_logits
-
-
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
@@ -279,8 +222,6 @@ class RNNDecoder_Tiling_Angles(nn.Module):
         output_means = self.tanh(self.fc2_means(output))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output))
         return output_logits,output_means,output_kappas
-
-
 class RNNDecoder_Tiling_AnglesComplex(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_AnglesComplex, self).__init__()

@@ -7,6 +7,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Seq import Seq
 from Bio import SeqIO
+import re
 sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 import Draupnir_models_utils as DraupnirModelUtils
@@ -23,7 +24,13 @@ AdditionalLoad = namedtuple("AdditionalLoad",
                              "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies",
                              "correspondence_dict","special_nodes_dict","full_name"])
 def convert_clades_dict(name,clades_dict,leave_nodes_dict,internal_nodes_dict, only_leaves):
-    "Transforms the names of the nodes to their tree transversal level order number"
+    """Transforms the names of the nodes to their tree transversal level order number
+    :param str name
+    :param dict clades_dict: dictionary containing the tree organized by clades, with the naming stablished in the newick tree (a string)
+    :param dict leave_nodes_dict: dictionary that contains the name of the leaf and the tre and its correspondant index in tree level order
+    :param dict internal_nodes_dict: dictionary that contains the name of the internal node and the tre and its correspondant index in tree level order
+    :param dict only_leaves: True --> Translate only the leaves to tree level order index
+    """
     if only_leaves:
         values_list = []
         if name == "benchmark_randall_original_naming": #TODO: needs to be checked
@@ -74,7 +81,12 @@ def convert_clades_dict(name,clades_dict,leave_nodes_dict,internal_nodes_dict, o
 
         return clades_dict_renamed
 def convert_closest_leaves_dict(name,closest_leaves_dict,internal_nodes_dict,leave_nodes_dict):
-    "Transforms the names of the nodes to their tree transversal level order number"
+    """Transforms the names of the nodes to their tree transversal level order number
+    :param str name
+    :param dict closest_leaves_dict: dictionary containing the internal nodes and the immediate closest leaves
+    :param dict internal_nodes_dict: dictionary that contains the name of the internal node and the tre and its correspondant index in tree level order
+    :param dict leave_nodes_dict: dictionary that contains the name of the leaf and the tre and its correspondant index in tree level order
+    """
     keys_list = []
     values_list = []
     if name == "benchmark_randall_original_naming":
@@ -100,7 +112,11 @@ def convert_closest_leaves_dict(name,closest_leaves_dict,internal_nodes_dict,lea
     closest_leaves_dict = dict(zip(keys_list, values_list))
     return closest_leaves_dict
 def convert_only_linked_children(name,linked_nodes_dict,internal_nodes_dict,leaves_nodes_dict):
-    "Transform the nodes names to tree level order"
+    """Transform the nodes names to tree transversal level order
+    :param str name
+    :param dict linked_nodes_dict: dictionary containing the 2 children nodes directly linked to a node (not all the children from that node) {node:children}
+    :param dict internal_nodes_dict: dictionary that contains the name of the internal node and the tre and its correspondant index in tree level order
+    :param dict leave_nodes_dict: dictionary that contains the name of the leaf and the tre and its correspondant index in tree level order"""
     #merge the internal nodes and leaves dict
     all_nodes_dict = {**internal_nodes_dict, **leaves_nodes_dict}
     if name == "benchmark_randall_original_naming": #leaves keep their numeration , internal nodes have A in front
@@ -119,19 +135,22 @@ def convert_only_linked_children(name,linked_nodes_dict,internal_nodes_dict,leav
             else:
                 linked_nodes_renamed_dict[all_nodes_dict[key]] = []
     return linked_nodes_renamed_dict
-
-def convert_nearest_leaf(name, nearest_leaf_dict,leaves_nodes_dict):
-    nearest_leaf_renamed_dict = defaultdict()
-    if name == "benchmark_randall_original_naming": #leaves keep their numeration , internal nodes have A in front
-        for key, val in nearest_leaf_dict.items():
-            nearest_leaf_renamed_dict[int(key.replace("A",""))] = int(val.replace("A",""))
-    else:
-        for key, val in nearest_leaf_dict.items():
-
-            nearest_leaf_renamed_dict[leaves_nodes_dict[key]] = leaves_nodes_dict[val]
-    return nearest_leaf_renamed_dict
-
+# def convert_nearest_leaf(name, nearest_leaf_dict,leaves_nodes_dict):
+#     nearest_leaf_renamed_dict = defaultdict()
+#     if name == "benchmark_randall_original_naming": #leaves keep their numeration , internal nodes have A in front
+#         for key, val in nearest_leaf_dict.items():
+#             nearest_leaf_renamed_dict[int(key.replace("A",""))] = int(val.replace("A",""))
+#     else:
+#         for key, val in nearest_leaf_dict.items():
+#
+#             nearest_leaf_renamed_dict[leaves_nodes_dict[key]] = leaves_nodes_dict[val]
+#     return nearest_leaf_renamed_dict
 def convert_descendants(name, descendants_dict,internal_nodes_dict,leave_nodes_dict):
+    """Transform the nodes names to tree transversal level order
+    :param str name
+    :param dict descendants_dict: dictionary containing a node and all of its descendants (internal and leaves){node:descendants}
+    :param dict internal_nodes_dict: dictionary that contains the name of the internal node and the tre and its correspondant index in tree level order
+    :param dict leave_nodes_dict: dictionary that contains the name of the leaf and the tre and its correspondant index in tree level order"""
     if name == "benchmark_randall_original_naming": #TODO: check that is correct
         descendants_dict_renamed = defaultdict(lambda: defaultdict())
         for key, values in descendants_dict.items():
@@ -158,19 +177,27 @@ def convert_descendants(name, descendants_dict,internal_nodes_dict,leave_nodes_d
             descendants_dict_renamed[new_node_name]["leaves"] = sorted(leaves_list)
 
     return descendants_dict_renamed
-def create_children_array(Dataset,ancestor_info_numbers):
-    """Group nodes by common ancestors"""
-    c = ancestor_info_numbers[:, [0, 2]]
-    unique_nodes = np.unique(c[:, 1].astype(str), return_index=True)  # returns ordered nodes and indexes
-    v = np.split(c[:, 0], unique_nodes[1])[1:]  # Highlight: cast the values as string type, otherwise np.unique messes up with the string types
+def create_children_array(dataset,ancestor_info_numbers):
+    """Group nodes by common ancestors and update dataset with new information about immediate ancestors of the leaves
+     :param dataset: leaves dataset [n_leaves, L, 30]
+     :param ancestor_info_numbers: array containing  [ancestor number,root distance, ancestors,...]
+     :out dataset: it is updated in the 1st row, 3rd position of every node with the immediate ancestor
+     :out children_array: contains the node and then the list of descendants"""
+    c = ancestor_info_numbers[:, [0, 2]] #column 0 contains the node of interest and the second one the immediate ancestor (column 1 is distance to root)
+    unique_nodes = np.unique(c[:, 1].astype(str), return_index=True)  # returns ordered nodes and indexes # Highlight: cast the values as string type, otherwise np.unique messes up with the string types
+    v = np.split(c[:, 0], unique_nodes[1])[1:]
     length = max(map(len, v))
     children_array = np.array([xi.tolist() + [None] * (length - len(xi)) for xi in v])
     # unique_nodes = np.array(pd.DataFrame(c[:, 1]).drop_duplicates().values).squeeze(-1) #Highlight: Replaces np.unique(c[:, 1]
     children_array = np.concatenate((unique_nodes[0].astype(float)[:, np.newaxis], children_array), axis=1)
     # Add ancestors to Dataset, to the 1 row, in position 3 ---> Skip row 0 (name)
-    Dataset[:, 1, 3] = [c[np.isin(c[:, 0], node)][0][1] for node in Dataset[:, 1, 1]]
-    return Dataset,children_array
+    dataset[:, 1, 3] = [c[np.isin(c[:, 0], node)][0][1] for node in dataset[:, 1, 1]]
+    return dataset,children_array
 def convert_ancestor_info(name,ancestor_info,tree_levelorder_names):
+    """Transforms the nodes names to their tree lever order index in the ancestors dataframe
+    :param str name: project data name
+    :param pandas-array ancestor_info: dataframe that contains on each row a leaf node and all of its ancestors
+    :param dict tree_levelorder_names: dictionary with the nodes and their tree level order names"""
     # Highlight: Assign nodes to their tree level order index
     ancestor_info = ancestor_info.to_numpy()
     ancestor_info_numbers = ancestor_info  # keep a copy
@@ -190,19 +217,27 @@ def convert_ancestor_info(name,ancestor_info,tree_levelorder_names):
                     ancestor_info_numbers[index_row, index_element] = np.nan
     return ancestor_info_numbers
 def validate_aa_probs(alignment,build_config):
-    """Validating that the selected aa probs are correct"""
-    alignment_ids = []
-    alignment_seqs = []
-    for i, aligned in enumerate(alignment):
-        alignment_ids.append(alignment[i].id)
-        alignment_seqs.append(alignment[i].seq.strip("*"))
-    dict_alignment = dict(zip(alignment_ids, alignment_seqs))
-    summary_aa_probs = [DraupnirUtils.validate_sequence_alphabet(value) for key, value in dict_alignment.items()]  # finds the alphabets of each of the sequences in the alignment, checks for dna
-    aa_probs_updated = max(build_config.aa_prob,
-                           max(summary_aa_probs))  # if the input aa_probs is different from those found, the aa_probs change. And also the aa substitution  matrix
+    """Validating that the pre-selected amino acid probabilities are correct.
+    If the data set contains more character types than the selected ones, it updates the aa_probs. It also detects DNA
+    :param alignment; biopython alignment"""
+
+    align_array = np.array([record.seq for record in alignment])
+    different_elements = "".join(np.unique(align_array).tolist())
+    aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements)
     return aa_probs_updated
+    # alignment_ids = []
+    # alignment_seqs = []
+    # for i, aligned in enumerate(alignment):
+    #     alignment_ids.append(alignment[i].id)
+    #     alignment_seqs.append(alignment[i].seq.strip("*"))
+    # dict_alignment = dict(zip(alignment_ids, alignment_seqs))
+    # summary_aa_probs = [DraupnirUtils.validate_sequence_alphabet(value) for key, value in dict_alignment.items()]  # finds the alphabets of each of the sequences in the alignment, checks for dna
+    # aa_probs_updated = max(build_config.aa_prob,max(summary_aa_probs))  # if the input aa_probs is different from those found, the aa_probs change. And also the aa substitution  matrix
+    # return aa_probs_updated
 def pairwise_distance_matrix(name,script_dir):
-    """Reads any of the available pairwise distances file and sorts them in pairs in ascending order"""
+    """Reads any of the available pairwise distances file and sorts them in pairs in ascending order
+    :param str name
+    :param str script_dir"""
     distance_matrix_file = "{}/{}_distance_matrix.csv".format(script_dir, name) #file given by iqtree
     pairwise_distance_matrix_file = "{}/{}_pairwise_distance_matrix.csv".format(script_dir,name) #file computed while creating the dataset
     if os.path.isfile(distance_matrix_file) :
@@ -224,11 +259,13 @@ def pairwise_distance_matrix(name,script_dir):
         # sorted_distance_matrix.drop_duplicates(subset=['Distance'])
         sorted_distance_matrix = sorted_distance_matrix[~sorted_distance_matrix[['Sequence_1', 'Sequence_0']].apply(frozenset,axis=1).duplicated()]  # Remove repeated combinations of sequences
         sorted_distance_matrix = sorted_distance_matrix.reset_index(drop=True)
-    else:
+    else: #This has been fixed already
         sorted_distance_matrix = None
     return sorted_distance_matrix
-def remove_nan2(dataset):
-    """Detect and remove nan angle pair, where either phi or psi are nan , due mostly to nh3 or coo terminals. We assign the aminoacid where there are any nan values to gap"""
+def remove_nan2(dataset): #TODO: remove if its not been used anywhere
+    """Detect and remove nan angle pair, where either phi or psi are nan, due mostly to nh3 or coo terminals.
+    We assign the aminoacid where there are any nan values to gap
+    :param numpy-array dataset: [N_leaves, align_len,30]"""
     aa_angles = dataset[:,3:,0:3].astype(float) #[n_seq,len_seq,[phi,psi]]
     #print(angles[np.isnan(angles)])
     indexes_nan = np.argwhere(np.isnan(aa_angles))#.squeeze(0) #n_matches, dim0,dim1,dim2 ---> we only want dim0 and dim1
@@ -238,21 +275,36 @@ def remove_nan2(dataset):
     dataset[:, 3:, 0:3] = aa_angles
     return dataset
 def remove_nan(dataset):
-    """Detect and remove nan angle pair, where either phi or psi are nan , due mostly to nh3 or coo terminals. We assign the aminoacid where there are any nan values to gap"""
+    """Detect and remove nan angle pair, where either phi or psi are nan, due mostly to nh3 or coo terminals.
+    To solve it, we assign the aminoacid where there are any nan values to gap
+    :param numpy-array dataset: [N_leaves, align_len,30]"""
     aa_angles = dataset[:,3:,0:3].astype(float) #[n_seq,len_seq,[phi,psi]]
     aa_angles = np.apply_along_axis(lambda r: np.zeros_like(r) if np.isnan(r).any() else r, 2, aa_angles)
     dataset[:, 3:, 0:3] = aa_angles
     return dataset
-def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_distance_matrix,n_seq_train,n_seq_test,now,name,aa_probs,leaves_nodes,one_hot_encoding,nodes=[],ancestral =True):
-    """Divides the Dataset into train and test, also the evolutionary/patristic matrices.
-     ancestral : Keeps(true) or discard (false) the information on the ancestral nodes"""
+def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_distance_matrix,n_seq_train,n_seq_test,now,name,aa_probs,leaves_names_list,one_hot_encoding,nodes=[],ancestral =True):
+    """Divides the dataset into train and test, also the evolutionary/patristic matrices.
+    :param str results_dir
+    :param pandas-array dataset
+    :param patristic_matrix: contains all the patristic distances or branch lengths between the nodes in the tree
+    :param cladistic_matrix: contains the number of nodes that separate the nodes in the tree
+    :param sorted_distance_matrix: contains the pairwise distances between the nodes in the tree
+    :param n_seq_train: not used, supposedly for selecting the number of train sequences to use, using all
+    :param n_seq_test: used with leaf testing, selects a percentage of leaves, randomly, to act as the test sequences
+    :param str-time now: inherit the execution time of the main script to open the Hyperparameters file
+    :param name: data project name
+    :param aa_probs: amino acid probabilities
+    :param leaves_nodes: list of the names of the leaves nodes
+    :param one_hot_encoding
+    :param nodes: tree level order names of the nodes
+    :param ancestral : Keeps(true) or discard (false) the ancestral nodes from the dataset. We use False when we are performing leaf testing"""
     if n_seq_test == 0:
-        Dataset_train = Dataset
+        dataset_train = dataset
         # Write the train sequences to a fasta file
-        with open("{}/{}_training.fasta".format(Results_dir, name), "w") as output_handle,open("{}/{}_training_aligned.fasta".format(Results_dir, name), "w") as output_handle2:
+        with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle,open("{}/{}_training_aligned.fasta".format(results_dir, name), "w") as output_handle2:
             records = []
             records_aligned = []
-            for sequence in Dataset_train:
+            for sequence in dataset_train:
                 if one_hot_encoding:
                     sequence_to_translate = np.argmax(sequence[3:,0:21],axis=1)
                 else:
@@ -271,8 +323,8 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
             SeqIO.write(records_aligned, output_handle2, "fasta")
 
         # Eliminate the name part in the row, so that not everything needs to be changed
-        Dataset_train = Dataset_train[:, 1:].astype('float64')
-        Dataset_test = None
+        dataset_train = dataset_train[:, 1:].astype('float64')
+        dataset_test = None
         patristic_matrix_train = DraupnirUtils.symmetrize_and_clean(patristic_matrix,ancestral=ancestral)  # Highlight: if ancestral is true, patristic_matrix_train = patristic_matrix_full
         patristic_matrix_train = DraupnirUtils.rename_axis(patristic_matrix_train, nodes, name_file=name)
         if cladistic_matrix is not None:
@@ -293,14 +345,14 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
         position_test = [None, None]
         leaves_names_test = None
 
-    else:
-        n_train = Dataset.shape[0]
-        n_test = int(Dataset.shape[0] * n_seq_test/ 100)
+    else: #pick some of the train sequences as test
+        n_train = dataset.shape[0]
+        n_test = int(dataset.shape[0] * n_seq_test/ 100)
         #find the leaves in the 25%-75% area, in the middle, not the extremes
         n_25 = int((n_train*25)/100)
         n_75 = int((n_train*75)/100)
         test_indexes = np.random.choice(np.arange(n_25,n_75),n_test,replace=False)
-        leaves_names_test = [leaves_nodes[index] for index in test_indexes]
+        leaves_names_test = [leaves_names_list[index] for index in test_indexes]
         #leaves_names_test = ["5vei","2m0y","1wdx","6pbc","1gbr","3uat","4a65","2cud","7d7s","1x2p","1x27"]
 
 
@@ -309,17 +361,17 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
         # sequence_1 = sorted_distance_matrix.loc[rank].Sequence_1
         #
         print("Using {} leaves for testing".format(len(leaves_names_test)))
-        file_hyperparams = open("{}/Hyperparameters_{}_{}.txt".format(Results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"), Results_dir.split("_")[-1]), "a")
+        file_hyperparams = open("{}/Hyperparameters_{}_{}.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"), results_dir.split("_")[-1]), "a")
         file_hyperparams.write('Test sequences names: {} \n'.format(leaves_names_test))
         file_hyperparams.close()
 
-        Dataset_test = Dataset[np.isin(Dataset[:, 0, 0], leaves_names_test)]
-        Dataset_train = Dataset[np.logical_not(np.isin(Dataset[:, 0, 0], leaves_names_test))]
+        dataset_test = dataset[np.isin(dataset[:, 0, 0], leaves_names_test)]
+        dataset_train = dataset[np.logical_not(np.isin(dataset[:, 0, 0], leaves_names_test))]
 
         # Write the train sequences to a fasta file
-        with open("{}/{}_training.fasta".format(Results_dir, name), "w") as output_handle:
+        with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle:
             records = []
-            for sequence in Dataset_train:
+            for sequence in dataset_train:
                 train_sequence = DraupnirUtils.convert_to_letters(sequence[2:, 0],aa_probs)
                 record = SeqRecord(Seq(''.join(train_sequence).replace("-", "")),
                                    annotations={"molecule_type": "protein"},
@@ -370,8 +422,8 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
         patristic_matrix_test = DraupnirUtils.pandas_to_numpy(patristic_matrix_test)
 
         # Eliminate the name part in the row, so that not everything needs to be changed
-        Dataset_test = Dataset_test[:, 1:].astype('float64')
-        Dataset_train = Dataset_train[:, 1:].astype('float64')
+        dataset_test = dataset_test[:, 1:].astype('float64')
+        dataset_train = dataset_train[:, 1:].astype('float64')
 
 
     #train_mask = np.where(~Dataset_train[:, 3:].any(axis=2), 0, 1)
@@ -386,9 +438,7 @@ def processing(Results_dir,Dataset,patristic_matrix,cladistic_matrix,sorted_dist
     else:
         cladistic_matrix_full = cladistic_matrix
 
-    return Dataset_train,Dataset_test,evolutionary_matrix_train,evolutionary_matrix_test,patristic_matrix_train,patristic_matrix_test,patristic_matrix_full, cladistic_matrix_train,cladistic_matrix_test,cladistic_matrix_full,position_test,leaves_names_test
-
-
+    return dataset_train,dataset_test,evolutionary_matrix_train,evolutionary_matrix_test,patristic_matrix_train,patristic_matrix_test,patristic_matrix_full, cladistic_matrix_train,cladistic_matrix_test,cladistic_matrix_full,position_test,leaves_names_test
 def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build_config):
     """ALigns the order of the nodes in the dataset and the patristic and cladistic matrices. Calculates the amino acid frequencies.
     :param tensor dataset_train
@@ -396,19 +446,18 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     :param tensor cladistic_matrix_full
     :param namedtuple build_config
     """
-    #Highlight: AA freqs
-
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
     aa_frequencies = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_prob)
     aa_frequencies = torch.from_numpy(aa_frequencies)
     aa_properties = DraupnirUtils.aa_properties(build_config.aa_prob,build_config.script_dir)
 
     def matrix_sort(matrix,trim=False):
+        """Sorts the input matrix by the nodes indexes in ascending order"""
         # Highlight: Sort by descent the patristic distances by node id
         matrix_sorted, matrix_sorted_idx = torch.sort(matrix[:, 0])
         matrix_sorted = matrix[matrix_sorted_idx]  # sorted rows
         matrix_sorted = matrix_sorted[:, matrix_sorted_idx]  # sorted columns
-        if trim:
+        if trim: #remove the ancestors info
             # Highlight: Find only the observed/train/leaves nodes indexes on the patristic matrix
             obs_indx = (matrix_sorted[:, 0][..., None] == dataset_train[:, 0, 1]).any(-1)
             obs_indx[0] = True  # To re-add the node names
@@ -428,27 +477,26 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
 
     return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
-
-def pretreatment_Bayes(training_Dataset, patristic_matrix,aa_prob):
-    "Works when the nodes have their name from their order in the traversal tree order (otherwise the names could be repeated and the sorting will not work)"
-    #Highlight: AA freqs
-    aa_frequencies = DraupnirUtils.calculate_aa_frequencies(training_Dataset[:,2:,0],freq_bins=aa_prob)
-    # Highlight: Sort by descent the patristic distances by node id
-    patristic_matrix_sorted = patristic_matrix[patristic_matrix[:,0].argsort()] #sort rows
-    patristic_matrix_sorted = patristic_matrix_sorted[:,patristic_matrix[0,:].argsort(axis=0)] #sort columns
-    # Highlight: Find only the observed node indexes on the patristic matrix
-    obs_indx = (patristic_matrix_sorted[:, 0][..., None] == training_Dataset[:, 0, 1]).any(-1)
-    obs_indx[0] = True  # To re-add the node names
-    patristic_matrix_sorted = patristic_matrix_sorted[obs_indx]
-    patristic_matrix_sorted = patristic_matrix_sorted[:, obs_indx]
-    # Highlight: Sort by descent the family data by node id, so that the order of the patristic distances and the sequences are matching
-    #training_Dataset_sorted, training_Dataset_sorted_idx = torch.sort(training_Dataset[:, 0, 1])
-    training_Dataset = training_Dataset[training_Dataset[:, 0, 1].argsort()]
-    aminoacid_sequences = training_Dataset[:, 2:, 0]
-    # aminoacid_sequences = aminoacid_sequences.unsqueeze(2)  # to add a 3rd dimension to allow for the gru to do time series
-    angles = training_Dataset[:, 2:, 1:3]
-
-    return training_Dataset, aminoacid_sequences, angles, patristic_matrix_sorted,aa_frequencies
+# def pretreatment_Bayes(training_Dataset, patristic_matrix,aa_prob):
+#     "Works when the nodes have their name from their order in the traversal tree order (otherwise the names could be repeated and the sorting will not work)"
+#     #Highlight: AA freqs
+#     aa_frequencies = DraupnirUtils.calculate_aa_frequencies(training_Dataset[:,2:,0],freq_bins=aa_prob)
+#     # Highlight: Sort by descent the patristic distances by node id
+#     patristic_matrix_sorted = patristic_matrix[patristic_matrix[:,0].argsort()] #sort rows
+#     patristic_matrix_sorted = patristic_matrix_sorted[:,patristic_matrix[0,:].argsort(axis=0)] #sort columns
+#     # Highlight: Find only the observed node indexes on the patristic matrix
+#     obs_indx = (patristic_matrix_sorted[:, 0][..., None] == training_Dataset[:, 0, 1]).any(-1)
+#     obs_indx[0] = True  # To re-add the node names
+#     patristic_matrix_sorted = patristic_matrix_sorted[obs_indx]
+#     patristic_matrix_sorted = patristic_matrix_sorted[:, obs_indx]
+#     # Highlight: Sort by descent the family data by node id, so that the order of the patristic distances and the sequences are matching
+#     #training_Dataset_sorted, training_Dataset_sorted_idx = torch.sort(training_Dataset[:, 0, 1])
+#     training_Dataset = training_Dataset[training_Dataset[:, 0, 1].argsort()]
+#     aminoacid_sequences = training_Dataset[:, 2:, 0]
+#     # aminoacid_sequences = aminoacid_sequences.unsqueeze(2)  # to add a 3rd dimension to allow for the gru to do time series
+#     angles = training_Dataset[:, 2:, 1:3]
+#
+#     return training_Dataset, aminoacid_sequences, angles, patristic_matrix_sorted,aa_frequencies
 def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,cladistic_matrix,test_nodes_observed,device,inferred=True,original_naming=True):
     if inferred:
         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,25]  # numbers in the benchmark dataset paper/original names
@@ -520,56 +568,62 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
-def pretreatment_Benchmark_Bayes(Dataset_test,training_Dataset,patristic_matrix,test_nodes_observed,inferred=False,original_naming=True):
-
-    if inferred:
-        test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,
-                                              25]  # numbers in the benchmark dataset paper/original names
-        test_nodes_inferred_list = [19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33, 34,
-                                    35]  # iqtree correspondence
-    else:
-        if original_naming:
-            test_nodes_observed_correspondence = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
-            test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
-        else:
-            test_nodes_observed_correspondence = [37, 22, 30, 23, 28, 31, 32, 24, 27, 29, 33, 34, 25, 26, 35,
-                                                  36]  # original names
-            test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-                                        36]  # new names for ancestral nodes (it's the observed tree but ete3 changes the names of the ancestral)
-    correspondence_dict = dict(zip(test_nodes_observed_correspondence, test_nodes_inferred_list))
-    test_nodes_inferred_list_correspondence = [correspondence_dict[val] for val in test_nodes_observed]
-
-    # Highlight: Keep only the ancestral nodes, because , some of the ancestral nodes have the same number as the leaves
-    n_obs = training_Dataset.shape[0]
-    patristic_matrix_test = patristic_matrix[:n_obs - 1]
-    patristic_matrix_test = patristic_matrix_test[:, :n_obs - 1]
-    test_nodes = np.array(test_nodes_inferred_list_correspondence)
-    #Highlight: replace also in the original dataset with the correspondent node names
-    Dataset_test[:,0,1] = test_nodes
-    Dataset_test = Dataset_test[Dataset_test[:,0,1].argsort()] #sort rows (in case they are not sorted)
-    test_indx_patristic = (patristic_matrix_test[:, 0][..., None] == test_nodes).any(-1)
-    test_indx_patristic[0] = True  # To re-add the node names
-    patristic_matrix_test = patristic_matrix_test[test_indx_patristic]
-    patristic_matrix_test = patristic_matrix_test[:, test_indx_patristic]
-    #Highlight:  Sort by descent the patristic distances by node id ( for the train sequences is done in Draupnir.preprocessing)
-    patristic_matrix_test = patristic_matrix_test[patristic_matrix_test[:, 0].argsort()]  # sort rows
-    patristic_matrix_test = patristic_matrix_test[:, patristic_matrix_test[0, :].argsort(axis=0)]  # sort columns
-    #Highlight : Training matrix
-    obs_node_names = patristic_matrix[n_obs - 1:, 0]
-    train_indx_patristic = (patristic_matrix[:, 0][..., None] == obs_node_names).any(-1)
-    train_indx_patristic[0] = True
-    # Highlight: Skip ancestral number 19 (repeated!!!)
-    train_indx_patristic[1] = False
-    patristic_matrix = patristic_matrix[train_indx_patristic]
-    patristic_matrix = patristic_matrix[:, train_indx_patristic]
-    #Highlight: Need to invert the dict mapping for later
-    correspondence_dict = {v: k for k, v in correspondence_dict.items()}
-    return patristic_matrix,patristic_matrix_test,Dataset_test,correspondence_dict
-
+# def pretreatment_Benchmark_Bayes(Dataset_test,training_Dataset,patristic_matrix,test_nodes_observed,inferred=False,original_naming=True):
+#
+#     if inferred:
+#         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,
+#                                               25]  # numbers in the benchmark dataset paper/original names
+#         test_nodes_inferred_list = [19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33, 34,
+#                                     35]  # iqtree correspondence
+#     else:
+#         if original_naming:
+#             test_nodes_observed_correspondence = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
+#             test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
+#         else:
+#             test_nodes_observed_correspondence = [37, 22, 30, 23, 28, 31, 32, 24, 27, 29, 33, 34, 25, 26, 35,
+#                                                   36]  # original names
+#             test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+#                                         36]  # new names for ancestral nodes (it's the observed tree but ete3 changes the names of the ancestral)
+#     correspondence_dict = dict(zip(test_nodes_observed_correspondence, test_nodes_inferred_list))
+#     test_nodes_inferred_list_correspondence = [correspondence_dict[val] for val in test_nodes_observed]
+#
+#     # Highlight: Keep only the ancestral nodes, because , some of the ancestral nodes have the same number as the leaves
+#     n_obs = training_Dataset.shape[0]
+#     patristic_matrix_test = patristic_matrix[:n_obs - 1]
+#     patristic_matrix_test = patristic_matrix_test[:, :n_obs - 1]
+#     test_nodes = np.array(test_nodes_inferred_list_correspondence)
+#     #Highlight: replace also in the original dataset with the correspondent node names
+#     Dataset_test[:,0,1] = test_nodes
+#     Dataset_test = Dataset_test[Dataset_test[:,0,1].argsort()] #sort rows (in case they are not sorted)
+#     test_indx_patristic = (patristic_matrix_test[:, 0][..., None] == test_nodes).any(-1)
+#     test_indx_patristic[0] = True  # To re-add the node names
+#     patristic_matrix_test = patristic_matrix_test[test_indx_patristic]
+#     patristic_matrix_test = patristic_matrix_test[:, test_indx_patristic]
+#     #Highlight:  Sort by descent the patristic distances by node id ( for the train sequences is done in Draupnir.preprocessing)
+#     patristic_matrix_test = patristic_matrix_test[patristic_matrix_test[:, 0].argsort()]  # sort rows
+#     patristic_matrix_test = patristic_matrix_test[:, patristic_matrix_test[0, :].argsort(axis=0)]  # sort columns
+#     #Highlight : Training matrix
+#     obs_node_names = patristic_matrix[n_obs - 1:, 0]
+#     train_indx_patristic = (patristic_matrix[:, 0][..., None] == obs_node_names).any(-1)
+#     train_indx_patristic[0] = True
+#     # Highlight: Skip ancestral number 19 (repeated!!!)
+#     train_indx_patristic[1] = False
+#     patristic_matrix = patristic_matrix[train_indx_patristic]
+#     patristic_matrix = patristic_matrix[:, train_indx_patristic]
+#     #Highlight: Need to invert the dict mapping for later
+#     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
+#     return patristic_matrix,patristic_matrix_test,Dataset_test,correspondence_dict
 def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir):
-    """ Constructs and corrects the test and train datasets, parsing sequences when necessary
+    """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
     :param str name: dataset_name
     :param str root_sequence_name: for the default simulated datasets, we need an additional name string to retrieve the ancestral sequences
+    :param namedtuple train_load: namedtuple with all tensors concerning the leaves
+    :param namedtuple test_load
+    :param namedtuple additional_load
+    :param namedtuple build_config
+    :param device: torch cpu or torch gpu
+    :param namedtuple settings_config
+    :param str script_dir
     """
     #Highlight: Loading for special test datasets
     if name.startswith("simulation"):
@@ -602,7 +656,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
 
 
     elif name.startswith("benchmark"):
-        dataset_test, internal_names_test = DraupnirDatasets.load_randalls_benchmark_ancestral_sequences(script_dir) #TODO: this directory is not correct
+        dataset_test, internal_names_test = DraupnirDatasets.load_randalls_benchmark_ancestral_sequences(script_dir)
         test_nodes_observed =  dataset_test[:, 0, 1].tolist()
         special_nodes_dict=None
         patristic_matrix_train, \
@@ -625,7 +679,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
         dataset_test, \
         internal_names_test , \
         max_lenght_internal_aligned,\
-        special_nodes_dict =DraupnirDatasets.coral_fluorescent_proteins_test_dataset(name = name,
+        special_nodes_dict =DraupnirDatasets.load_coral_fluorescent_proteins_ancestral_sequences(name = name,
                                                          ancestral_file="{}/datasets/default/{}/Ancestral_Sequences.fasta".format(script_dir,name),
                                                          tree_level_order_names =additional_load.tree_levelorder_names,
                                                          aa_probs=build_config.aa_prob)
@@ -732,15 +786,6 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                                      full_name=additional_load.full_name)
 
     return train_load,test_load,additional_load
-
-
-
-
-
-
-
-
-
 def check_if_exists(a, b, key):
     "Deals with datasets that were trained before the current configuration of namedtuples"
     try:
@@ -763,10 +808,10 @@ def tryexcept(a, key):
 def load_dict_to_namedtuple(load_dict):
 
     sample_out = SamplingOutput(aa_sequences=one_or_another(load_dict),
-                                # TODO: the old results have the name as predictions instead of aa_sequences
+                                # TODO: the old results have the name as predictions instead of aa_predictions
                                 latent_space=load_dict["latent_space"],
                                 logits=load_dict["logits"],
-                                phis=tryexcept(load_dict, "phis"),  # TODO: try , excep None
+                                phis=tryexcept(load_dict, "phis"),  # TODO: try , except None
                                 psis=tryexcept(load_dict, "psis"),
                                 mean_phi=tryexcept(load_dict, "mean_phi"),
                                 mean_psi=tryexcept(load_dict, "mean_psi"),
@@ -774,8 +819,8 @@ def load_dict_to_namedtuple(load_dict):
                                 kappa_psi=tryexcept(load_dict, "kappa_psi"))
 
     return sample_out
-
 class CladesDataset(Dataset):
+    """Dataloader modifyed class for the clades batching case"""
     def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum):
         self.clades_names = clades_names
         self.clades_data = clades_data
@@ -791,6 +836,7 @@ class CladesDataset(Dataset):
     def __len__(self):
         return len(self.clades_names)
 class SplittedDataset(Dataset):
+    """Dataloader modifyed class for the normal batch case"""
     def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted):
         self.batches_names = batches_names
         self.batches_data = batches_data
@@ -806,8 +852,18 @@ class SplittedDataset(Dataset):
 
     def __len__(self):
         return len(self.batches_names)
-
 def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
+    """Loads the data set into the model. There are 3 modalities of data loading:
+    a) No batching, load the entire data set (batch_dim_0, batch_size=1)
+    b) batching, split evenly the data set, the batch size is automatically calculated if None is given (batch_dim_0, batch_size>1 or None)
+    c) Clade batching, loads the data divided by tree clades, the latent space is not splitted, full inference (args.batch_by_clade=True: 1 batch= 1 clade )
+    :param dataset
+    :param patristic_matrix_train
+    :param clades_dict: dictionary containing the tree nodes divided by clades
+    :param blosum: BLOSUM matrix
+    :param namedtuple build_config
+    :param namedtuple args
+    :param method: batching method"""
     '''If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used'''
     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
@@ -819,7 +875,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
             train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
                 train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
-        else:
+        else: #split the dataset for batching
             blocks = DraupnirModelUtils.intervals(n_seqs//build_config.batch_size, n_seqs) #TODO: make sure it makes sense
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
             batch_datasets = []
@@ -852,11 +908,11 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
                     batch_patristic.to('cuda', non_blocking=True)
                     batch_blosum_weighted.to('cuda', non_blocking=True)
 
-    elif method == "batch_dim_1": #batching over the length of the alignment #TODO: Remove
-        batchsize = 157#DraupnirModelUtils.printDivisors(Dataset[:,2:].shape[1])
-        train_loader = DataLoader(Dataset[:,2:].permute(1,0,2).cpu(), batch_size=batchsize, shuffle=False, **kwargs)
-        if use_cuda:
-            train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
+    # elif method == "batch_dim_1": #batching over the length of the alignment #TODO: Remove
+    #     batchsize = 157#DraupnirModelUtils.printDivisors(Dataset[:,2:].shape[1])
+    #     train_loader = DataLoader(Dataset[:,2:].permute(1,0,2).cpu(), batch_size=batchsize, shuffle=False, **kwargs)
+    #     if use_cuda:
+    #         train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
     else:
         clade_labels = []
         clades_datasets = []

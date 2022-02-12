@@ -10,7 +10,7 @@ from Bio.PDB import MMCIFParser, PDBIO
 import pnerf as pnerf
 from collections import namedtuple
 import pymol2
-from SUPERPOSITION import *
+from superposition import *
 import calculate_coords as nerf
 sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
@@ -154,7 +154,7 @@ def load_angles(args):
             print("################ Protein {} Sample {} #####################".format(protein_name,n))
             folder_name = "{}_{}_sample_{}_{}".format(protein_name,type,n,now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"))
             protein_folder = "{}/{}".format(folder_structures,folder_name)
-            DraupnirUtils.Folders(folder_name, folder_structures)
+            DraupnirUtils.folders(folder_name, folder_structures)
             #Highlight: Predicted protein
             predicted_dihedrals = torch.cat([phi[:,p].unsqueeze(1), psi[:,p].unsqueeze(1), omega[:,p].unsqueeze(1)], dim=2)  # [len,n_proteins,3]
             predicted_dihedrals = predicted_dihedrals[predicted_aa[:,p] !=0] #[len,3]remove angles assigned to gaps
