@@ -29,7 +29,7 @@ def convert_clades_dict(name,clades_dict,leave_nodes_dict,internal_nodes_dict, o
     :param dict clades_dict: dictionary containing the tree organized by clades, with the naming stablished in the newick tree (a string)
     :param dict leave_nodes_dict: dictionary that contains the name of the leaf and the tre and its correspondant index in tree level order
     :param dict internal_nodes_dict: dictionary that contains the name of the internal node and the tre and its correspondant index in tree level order
-    :param dict only_leaves: True --> Translate only the leaves to tree level order index
+    :param bool only_leaves: True --> Translate only the leaves to tree level order index
     """
     if only_leaves:
         values_list = []
@@ -197,7 +197,7 @@ def convert_ancestor_info(name,ancestor_info,tree_levelorder_names):
     """Transforms the nodes names to their tree lever order index in the ancestors dataframe
     :param str name: project data name
     :param pandas-array ancestor_info: dataframe that contains on each row a leaf node and all of its ancestors
-    :param dict tree_levelorder_names: dictionary with the nodes and their tree level order names"""
+    :param numpy-array tree_levelorder_names: array with the nodes and their tree level order names"""
     # Highlight: Assign nodes to their tree level order index
     ancestor_info = ancestor_info.to_numpy()
     ancestor_info_numbers = ancestor_info  # keep a copy

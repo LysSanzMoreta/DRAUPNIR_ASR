@@ -344,12 +344,7 @@ def save_checkpoint_guide(guide,save_directory):
     :param str save_directory"""
     save_directory = ("{}/Draupnir_Checkpoints/".format(save_directory))
     torch.save(guide.state_dict(), save_directory + "/Guide_state_dict.p")
-# def save_checkpoint_preloaded(state_dict,save_directory, optimizer_state):
-#     """Saves the model and optimizer dict states to disk"""
-#     save_directory = ("{}/Draupnir_Checkpoints/".format(save_directory))
-#     torch.save(optimizer_state,save_directory + "/Optimizer_state.p")
-#     #keys = [key for key in Draupnir.state_dict() if "decoder_attention.rnn" not in key]
-#     torch.save(state_dict, save_directory + "/Model_state_dict.p")
+
 def load_checkpoint(model_dict_dir,optim_dir,optim,model):
     """Loads the model and optimizer states from disk
     :param str model_dict_dir
@@ -1098,7 +1093,7 @@ def draupnir_train(train_load,
                    results_dir,
                    graph_coo=None,
                    clades_dict=None):
-    """Trains Draupnir by performing SVI inference
+    """Trains Draupnir-OU by performing SVI inference
     :param namedtuple train_load
     :param namedtuple test_load
     :param namedtuple additional_load
@@ -1256,8 +1251,8 @@ def draupnir_train(train_load,
     output_file = open("{}/output.log".format(results_dir),"w")
     while epoch < args.num_epochs:
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
-            DraupnirPlots.plot_ELBO(train_loss, results_dir, test_frequency=1)
-            DraupnirPlots.plot_entropy(entropy, results_dir, test_frequency=1)
+            DraupnirPlots.plot_ELBO(train_loss, results_dir)
+            DraupnirPlots.plot_entropy(entropy, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
         total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
@@ -1379,9 +1374,7 @@ def draupnir_train(train_load,
     text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
     text_file.write("Running time: {}\n".format(str(datetime.timedelta(seconds=end_total-start_total))))
     text_file.write("Total epochs (+added epochs): {}\n".format(args.num_epochs + added_epochs))
-    if Draupnir.use_attention:
-        pytorch_total_params = sum(val.numel() for param_name, val in pyro.get_param_store().named_parameters() if val.requires_grad and not param_name.startswith("decoder$$$"))
-    elif args.select_guide.startswith("variational"):
+    if args.select_guide.startswith("variational"):
         pytorch_total_params = sum([val.numel() for param_name,val in pyro.get_param_store().named_parameters() if val.requires_grad and not param_name.startswith("DRAUPNIRGUIDES.draupnir")])
     else: #TODO: Investigate again, but seems correct
         pytorch_total_params = sum(val.numel() for param_name,val in pyro.get_param_store().named_parameters() if val.requires_grad and not param_name.startswith("decoder_attention"))
@@ -2035,7 +2028,6 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     :param namedtuple build_config
     :param str script_dir
     """
-    #global params_config,build_config,name,results_dir,align_seq_len,full_name
     results_dir = "{}/PLOTS_GP_VAE_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs, args.select_guide)
     print("Loading datasets....")
     param_config = config_build(args)
