@@ -43,7 +43,7 @@ class SVIEngine(Engine):
 class DataManagement():
     def __init__(self):
         super(DataManagement, self).__init__()
-    def Extract_coordinates_from_PDB(self,PDB_file,type):
+    def extract_coordinates_from_PDB(self,PDB_file,type):
         ''' Returns both the alpha carbon coordinates contained in the PDB file and the residues coordinates for the desired chains'''
         from Bio.PDB.PDBParser import PDBParser
         from Bio.PDB import MMCIFParser
@@ -88,26 +88,26 @@ class DataManagement():
                     # except:
                     # pass
             return alpha_carbon_coordinates
-    def Average_Structure(self,tuple_struct):
+    def average_structure(self,tuple_struct):
         average = sum(list(tuple_struct))/len(tuple_struct)
         return average
-    def Max_variance(self,structure):
+    def max_variance(self,structure):
         '''Calculates the maximum distance to the origin of the structure, this value will define the variance of the prior's distribution'''
-        centered = self.Center_torch(structure)
+        centered = self.center_torch(structure)
         mul = centered@torch.t(structure)
         max_var = torch.sqrt(torch.max(torch.diag(mul)))
         return max_var
-    def Center_numpy(self,Array):
+    def center_numpy(self,Array):
         '''Centering to the origin the data'''
         mean = np.mean(Array,axis=0)
         centered_array = Array-mean
         return centered_array
-    def Center_torch(self,Array):
+    def center_torch(self,Array):
         '''Centering to the origin the data'''
         mean = torch.mean(Array, dim=0)
         centered_array = Array - mean
         return centered_array
-    def PairwiseDistances(self,X1,X2):
+    def pairwise_distances(self,X1,X2):
         '''Computes pairwise distances among coordinates'''
         import torch.nn.functional as F
         return F.pairwise_distance(X1,X2)
@@ -118,7 +118,7 @@ class DataManagement():
         sup.run()
         rot, tran = sup.get_rotran()
         return rot
-    def Read_Data(self,prot1,prot2,type='models',models =(0,1),RMSD=True):
+    def read_data(self,prot1,prot2,type='models',models =(0,1),RMSD=True):
         '''Reads different types of proteins and extracts the alpha carbons from the:
          a) models : NMR files contain several snapshots of the same protein
          b) chains: Proteins caan have dulicated chains in the same file
@@ -126,18 +126,18 @@ class DataManagement():
          '''
 
         if type == 'models': #we compare NMR models
-            X1_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]]
-            X2_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot2),type)[models[1]]
+            X1_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]]
+            X2_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot2),type)[models[1]]
         elif type == 'chains':#we compare chains in the same file against each other
-            X1_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]][0:50]
-            X2_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot2),type)[models[1]][0:50]
+            X1_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]][0:50]
+            X2_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot2),type)[models[1]][0:50]
 
         elif type == 'all': #we compare segments of proteins against each other
-            X1_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]:models[1]]
-            X2_coordinates = self.Extract_coordinates_from_PDB('{}'.format(prot2),type)[models[0]:models[1]]
+            X1_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot1),type)[models[0]:models[1]]
+            X2_coordinates = self.extract_coordinates_from_PDB('{}'.format(prot2),type)[models[0]:models[1]]
         #Apply RMSD to the protein that needs to be superimposed
-        X1_Obs_Stacked = self.Center_numpy(np.vstack(X1_coordinates))
-        X2_Obs_Stacked = self.Center_numpy(np.vstack(X2_coordinates))
+        X1_Obs_Stacked = self.center_numpy(np.vstack(X1_coordinates))
+        X2_Obs_Stacked = self.center_numpy(np.vstack(X2_coordinates))
         if RMSD:
             X2_Obs_Stacked = torch.from_numpy(np.dot(X2_Obs_Stacked,self.RMSD_biopython(X1_Obs_Stacked,X2_Obs_Stacked)))
             X1_Obs_Stacked = torch.from_numpy(X1_Obs_Stacked)
@@ -148,17 +148,17 @@ class DataManagement():
         data_obs = (X1_Obs_Stacked,X2_Obs_Stacked)
 
         # ###PLOT INPUT DATA################
-        x= self.Center_numpy(np.vstack(X1_coordinates))[:, 0]
-        y= self.Center_numpy(np.vstack(X1_coordinates))[:, 1]
-        z= self.Center_numpy(np.vstack(X1_coordinates))[:, 2]
+        x= self.center_numpy(np.vstack(X1_coordinates))[:, 0]
+        y= self.center_numpy(np.vstack(X1_coordinates))[:, 1]
+        z= self.center_numpy(np.vstack(X1_coordinates))[:, 2]
         fig = plt.figure(figsize=(18, 16), dpi=80)
         ax = fig.add_subplot(111, projection='3d')
         plt.plot(x, y, z)
         ax.plot(x, y,z ,c='b', label='data1',linewidth=3.0)
         #orange graph
-        x2=self.Center_numpy(np.vstack(X2_coordinates))[:, 0]
-        y2=self.Center_numpy(np.vstack(X2_coordinates))[:, 1]
-        z2=self.Center_numpy(np.vstack(X2_coordinates))[:, 2]
+        x2=self.center_numpy(np.vstack(X2_coordinates))[:, 0]
+        y2=self.center_numpy(np.vstack(X2_coordinates))[:, 1]
+        z2=self.center_numpy(np.vstack(X2_coordinates))[:, 2]
         ax.plot(x2, y2,z2, c='r', label='data2',linewidth=3.0)
         ax.legend()
         plt.savefig(r"Initial.png")
@@ -166,7 +166,7 @@ class DataManagement():
         plt.close()
 
         return data_obs
-    def Write_PDB(self,initialPDB,Rotation,Translation,N):
+    def write_PDB(self,initialPDB,Rotation,Translation,N):
         ''' Transform by rotating and translating the atom coordinates from the original PDB file and rewrite it '''
         from Bio.PDB.PDBParser import PDBParser
         from Bio.PDB import MMCIFParser,PDBIO
@@ -221,7 +221,7 @@ class DataManagement():
         if launch:
             pymol.pymol_argv = ['pymol'] + sys.argv[1:]
             pymol.finish_launching(['pymol'])
-        def Colour_Backbone(selection,color):
+        def colour_backbone(selection,color):
             """Colouring function"""
             pymol.cmd.show("ribbon", selection)
             pymol.cmd.color(color,selection)
@@ -232,14 +232,14 @@ class DataManagement():
             pymol.cmd.load(file, sname) #discrete 1 will create different sets of atoms for each model
             pymol.cmd.enable(sname)
             pymol.cmd.bg_color("white")
-            pymol.cmd.extend("Colour_Backbone", Colour_Backbone)
-            Colour_Backbone(sname,color)
+            pymol.cmd.extend("Colour_Backbone", colour_backbone)
+            colour_backbone(sname,color)
         pymol.cmd.align(ntpath.basename(pdb_files[0]),ntpath.basename(pdb_files[1]))
         pymol.cmd.png("{}/Superposition_Pymol".format(results_folder))
     def Pymol_newinstance(self,cmd, results_folder,pdb_files):
         '''Visualization program for multiple instances'''
         cmd.set("max_threads",1)
-        def Colour_Backbone(selection,color):
+        def colour_backbone(selection,color):
             """Colouring function"""
             cmd.show("ribbon", selection)
             cmd.color(color,selection)
@@ -250,8 +250,8 @@ class DataManagement():
             cmd.load(file, sname) #discrete 1 will create different sets of atoms for each model
             cmd.enable(sname)
             cmd.bg_color("white")
-            cmd.extend("Colour_Backbone", Colour_Backbone)
-            Colour_Backbone(sname,color)
+            cmd.extend("Colour_Backbone", colour_backbone)
+            colour_backbone(sname,color)
         cmd.align(ntpath.basename(pdb_files[0]),ntpath.basename(pdb_files[1]))
         #print("Saving to {}".format(results_folder))
         cmd.png("{}/Superposition_Pymol".format(results_folder),quiet=0)
@@ -290,6 +290,7 @@ class SuperpositionModel():
         R[2, 2]= qw**2 - qx**2 - qy**2 + qz**2
         return R
     def model(self,data):
+        """Superposition of 2 proteins onto each other via rotation and translation"""
         max_var,data1, data2 = data
         ### 1. prior over mean M
         M = pyro.sample("M", dist.StudentT(1,0, 3).expand_by([data1.size(0),data1.size(1)]).to_event(2))
@@ -309,7 +310,7 @@ class SuperpositionModel():
             # pyro.sample("X2", dist.StudentT(1,M_R2_T2.view(-1), U), obs=data2.view(-1))
             pyro.sample("X1", dist.StudentT(1, M_T1.contiguous().view(-1), U), obs=data1.contiguous().view(-1))
             pyro.sample("X2", dist.StudentT(1, M_R2_T2.contiguous().view(-1), U), obs=data2.contiguous().view(-1))
-    def Run(self,data_obs,average,name,results_folder):
+    def run(self,data_obs,average,name,results_folder):
         #INITIALIZING PRIOR :
         def init_prior(site):
             if site["name"] == "ri_vec":
@@ -404,10 +405,10 @@ class SuperpositionModel():
         ax.plot(x3, y3,z3, c='g', label='M',linewidth=3.0)
         ax.legend()
         plt.savefig(r"{}/Superposition_Result_Matplotlib_{}".format(results_folder,name))
-        distances = data_management.PairwiseDistances(torch.from_numpy(X1),torch.from_numpy(X2)).numpy()
+        distances = data_management.pairwise_distances(torch.from_numpy(X1),torch.from_numpy(X2)).numpy()
         plt.clf()
-        plt.plot(data_management.PairwiseDistances(data1,data2).numpy(), linewidth = 8.0)
-        plt.plot(data_management.PairwiseDistances(torch.from_numpy(X1),torch.from_numpy(X2)).numpy(), linewidth=8.0)
+        plt.plot(data_management.pairwise_distances(data1,data2).numpy(), linewidth = 8.0)
+        plt.plot(data_management.pairwise_distances(torch.from_numpy(X1),torch.from_numpy(X2)).numpy(), linewidth=8.0)
         plt.ylabel('Pairwise distances',fontsize='46')
         plt.xlabel('Amino acid position',fontsize='46')
         plt.yticks(fontsize=30)
