@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_blactamase_1",
+                        default="Coral_all",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                              'Further customization under Draupnir_Datasets.py')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
                                                                 'If set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
-                                                                'If set to None it automatically suggests a batch size. '
+                                                                'If set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (given by clades_dict).'
                                                                 'Else set the batchsize to the given number')
     parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available "delta_map" or "diagonal_normal" or "variational"')

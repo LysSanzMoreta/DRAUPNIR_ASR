@@ -447,9 +447,9 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     :param namedtuple build_config
     """
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
-    aa_frequencies = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_prob)
+    aa_frequencies = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
     aa_frequencies = torch.from_numpy(aa_frequencies)
-    aa_properties = DraupnirUtils.aa_properties(build_config.aa_prob,build_config.script_dir)
+    aa_properties = DraupnirUtils.aa_properties(build_config.aa_probs,build_config.script_dir)
 
     def matrix_sort(matrix,trim=False):
         """Sorts the input matrix by the nodes indexes in ascending order"""
@@ -681,8 +681,8 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
         max_lenght_internal_aligned,\
         special_nodes_dict =DraupnirDatasets.load_coral_fluorescent_proteins_ancestral_sequences(name = name,
                                                          ancestral_file="{}/datasets/default/{}/Ancestral_Sequences.fasta".format(script_dir,name),
-                                                         tree_level_order_names =additional_load.tree_levelorder_names,
-                                                         aa_probs=build_config.aa_prob)
+                                                         tree_levelorder_names =additional_load.tree_levelorder_names,
+                                                         aa_probs=build_config.aa_probs)
 
 
         dataset_test = torch.from_numpy(dataset_test)
