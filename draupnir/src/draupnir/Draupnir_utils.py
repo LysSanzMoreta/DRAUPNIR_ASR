@@ -1985,7 +1985,7 @@ def process_blosum(blosum,aa_freqs,align_seq_len,aa_probs):
     :param tensor blosum: BLOSUM likelihood  scores
     :param tensor aa_freqs : amino acid frequencies per position
     :param align_seq_len: alignment lengths
-    :param aa_probs
+    :param aa_probs: amino acid probabilities, types of amino acids in the alignment
     :out tensor blosum_max [align_len,aa_prob]: blosum likelihood scores for the most frequent aa in the alignment position
     :out tensor blosum_weighted [align_len,aa_prob: weighted average of blosum likelihoods according to the aa frequency
     :out variable_core: [align_len] : counts the number of different elements (amino acid diversity) per alignment position"""

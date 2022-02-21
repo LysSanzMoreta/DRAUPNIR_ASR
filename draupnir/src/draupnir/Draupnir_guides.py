@@ -16,7 +16,6 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.dataset_train_blosum = self.draupnir.dataset_train_blosum
         if self.draupnir.pretrained_params is not None:
             self.h_0_GUIDE = nn.Parameter(self.draupnir.pretrained_params["h_0_GUIDE"], requires_grad=True).to(self.draupnir.device)
-
         else:
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
         self.encoder = RNNEncoder(self.draupnir.max_seq_len, self.draupnir.aa_prob,self.draupnir.n_leaves, self.draupnir.gru_hidden_dim, self.draupnir.z_dim, self.encoder_rnn_input_size,self.draupnir.kappa_addition,self.draupnir.num_layers,self.draupnir.pretrained_params)

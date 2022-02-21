@@ -337,7 +337,7 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
 
     else:
         nodes_indexes = dataset_test[:, 0, 1]  #test indexes
-        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], node_indexes)]
+        dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], nodes_indexes)]
 
     plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load)
 
@@ -429,8 +429,8 @@ def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, result
     print("Building T-SNE plot by clades")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
     annotate = False
-    stripped = False
-    if stripped:
+    stripped = True
+    if stripped: #no legend, no axis, nothing
         clades_dict_all = additional_load.clades_dict_all
         #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
 

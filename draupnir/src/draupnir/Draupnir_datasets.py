@@ -15,6 +15,10 @@ import numpy as np
 import torch
 from Bio import AlignIO, SeqIO
 from ete3 import Tree as TreeEte3
+import gzip
+from sys import stdout
+
+
 def available_datasets(print_dict = False):
     """Displays the available default data sets shown in the paper"""
     datasets = {"simulations_blactamase_1": "BetaLactamase_seq",# EvolveAGene4 Betalactamase simulation # 32 leaves
@@ -65,7 +69,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
         :int n_test: percentage of train/leaves sequences to be used as test, i-e n_test = 20 ---> 20% leaves will be th etest datasets
         build_graph: make a graph for CNN #TODO: remove?
         :int aa_prob: Number of amino acid probabilities (21 or 24), depends on the different types of amino acids in the sequence alignment
-        triTSNE: Whether to plot TSNE in 3D (True) or not #TODO: Remove
+        :bool triTSNE: Whether to plot TSNE in 3D (True) or not #TODO: Remove
         :bool leaves_testing: True (uses all the leaf's evolutionary distances for training, it only observes (n-n_test) leafsequences. USE WITH n_test), False (uses all the leaf's evolutionary distances for training
                             and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
         """
@@ -73,10 +77,42 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
     SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name"])
     #script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
-        warnings.warn("You have selected a pre-defined dataset. Otherwise set use_custom to True")
+        warnings.warn("You have selected a pre-defined dataset, if not present, it will be downloaded. Otherwise set use_custom to True")
         root_sequence_name = available_datasets()[0][name]
         full_name = available_datasets()[1][name]
-        storage_folder = "datasets/default"
+        storage_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "data")) #changed from "datasets/default"
+        print(storage_folder)
+        print(os.path.dirname(storage_folder))
+
+        def gunzip(file_path, output_path):
+            with gzip.open(file_path, "rb") as f_in, open(output_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        #if not os.path.exists(storage_folder):
+        if not os.listdir(storage_folder):
+            print("Default data is missing. Downloading")
+            drive_folder_zip = "https://drive.google.com/uc?id=1rRwZ-819_SBkjYNClAOpj_mhlYViMUtH&export=download"
+            drive_folder_sevenz = "https://drive.google.com/uc?id=1Gyw0tT9ryv4Cfo5YrJnRYrsbvP3aypQh&export=download"
+            drive_data_folder= "https://drive.google.com/uc?id=1hhV9gcIQVUT9COjjItQ3F7SPasAZ5Kbd&export=download" #does not work
+            from google_drive_downloader import GoogleDriveDownloader as gdd
+            import shutil
+            import subprocess
+            #    d = "https://drive.google.com/uc?export=download&id=1Tc3dkIUaGVvOWOnTv2VVmrhXn5o3sfUC"
+
+            gdd.download_file_from_google_drive(file_id=drive_folder_zip,
+                                                dest_path='{}/data.zip'.format(os.path.dirname(storage_folder)),
+                                                unzip=False,
+                                                showsize=True)
+            zip_exe_path = "unzip"
+            logfile_path = '{}/data.zip'.format(os.path.dirname(storage_folder))
+            subprocess.call([zip_exe_path, logfile_path])
+            # with gzip.GzipFile('{}/data.zip'.format(os.path.dirname(storage_folder)), 'r+') as z:
+            #         print("herere")
+            #         z.extractall(storage_folder)
+            # with gzip.open('{}/data.zip'.format(os.path.dirname(storage_folder)), 'rb') as f_in:
+            #     with open('file.txt', 'wb') as f_out:
+            #         shutil.copyfileobj(f_in, f_out)
+
+        exit()
 
         # Highlight: Simulation datasets, Simulations might produce stop codons---Use probabilities == 21
         if name.startswith("simulations"):

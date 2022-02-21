@@ -1345,8 +1345,8 @@ def draupnir_train(train_load,
         del sample_out_train
         entropy.append(torch.mean(train_entropy_epoch[:,1]).item())
         if epoch == (args.num_epochs-1):
-            DraupnirPlots.plot_ELBO(train_loss, results_dir, test_frequency=1)
-            DraupnirPlots.plot_entropy(entropy, results_dir, test_frequency=1)
+            DraupnirPlots.plot_ELBO(train_loss, results_dir)
+            DraupnirPlots.plot_entropy(entropy, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
             save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
