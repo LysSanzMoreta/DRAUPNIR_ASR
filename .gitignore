@@ -3,7 +3,10 @@
 __pycache*
 # Ada Library Information
 *.ali
+data/*
 datasets/*
+draupnir/src/draupnir/data/*
+dist/*
 .idea/*
 Benchmark_Results/*
 !Benchmark_Results/PhyloBayes/PhyloBayes_Parser.py
@@ -15,3 +18,5 @@ README.md
 PLOTS*
 *.tar.gz
 *.whl
+*.png
+*.zip
