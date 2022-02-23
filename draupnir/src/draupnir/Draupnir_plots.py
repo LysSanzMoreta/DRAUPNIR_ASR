@@ -9,7 +9,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
 import matplotlib
-from mpl_toolkits.mplot3d import Axes3D
 from Bio import SeqRecord, SeqIO
 from Bio.Seq import Seq
 import seaborn as sns

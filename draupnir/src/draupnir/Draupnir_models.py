@@ -6,20 +6,12 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 """
 import torch
 import sys
-from collections import defaultdict,namedtuple
-from torch.distributions import constraints, transform_to
+from collections import namedtuple
 sys.path.append("./draupnir/src/draupnir")
 import Draupnir_utils as DraupnirUtils
 from Draupnir_models_utils import *
-#from Draupnir_models_utils_bis import *
 import pyro
-#from tree_lstm import TreeLSTM
 import pyro.distributions as dist
-from pyro.nn import PyroModule, PyroSample, PyroParam
-try:
-    from torch_geometric.data import Data
-except:
-    pass
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 class DRAUPNIRModelClass(nn.Module):
     def __init__(self, ModelLoad):
