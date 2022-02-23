@@ -58,7 +58,8 @@ SettingsConfig = namedtuple("SettingsConfig",["one_hot_encoding", "model_design"
 ModelLoad = namedtuple("ModelLoad",["z_dim","align_seq_len","device","args","build_config","leaves_nodes","n_tree_levels","gru_hidden_dim","pretrained_params","aa_frequencies","blosum",
                                     "blosum_max","blosum_weighted","dataset_train_blosum","variable_score","internal_nodes","graph_coo","nodes_representations_array","dgl_graph","children_dict",
                                     "closest_leaves_dict","descendants_dict","clades_dict_all","leaves_testing","plate_unordered","one_hot_encoding"])
-BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_probs","triTSNE","align_seq_len","leaves_testing","batch_size","plate_subsample_size","script_dir","no_testing"])
+BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_probs","triTSNE","align_seq_len",
+                                        "leaves_testing","batch_size","plate_subsample_size","script_dir","no_testing"])
 
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
@@ -85,7 +86,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     aligned = ["aligned" if settings_config.aligned_seq else "NOT_aligned"]
     one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "integers"]
 
-    dataset = np.load("{}/{}/{}/{}_dataset_numpy_{}_{}.npy".format(script_dir,settings_config.data_folder,name,name,aligned[0], one_hot[0]),allow_pickle=True)
+    dataset = np.load("{}/{}_dataset_numpy_{}_{}.npy".format(settings_config.data_folder,name,aligned[0], one_hot[0]),allow_pickle=True)
 
     DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
     DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)
@@ -196,15 +197,14 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         text_file.write(str(param_config) + "\n")
 
     hyperparameters()
-    patristic_matrix = pd.read_csv("{}/{}/{}/{}_patristic_distance_matrix.csv".format(script_dir,settings_config.data_folder,name,name), low_memory=False)
+    patristic_matrix = pd.read_csv("{}/{}_patristic_distance_matrix.csv".format(settings_config.data_folder,name,name), low_memory=False)
     patristic_matrix = patristic_matrix.rename(columns={'Unnamed: 0': 'rows'})
     patristic_matrix.set_index('rows',inplace=True)
     try:
-        cladistic_matrix = pd.read_csv("{}/{}/{}/{}_cladistic_distance_matrix.csv".format(script_dir,settings_config.data_folder,name,name), index_col="rows",low_memory=False)
+        cladistic_matrix = pd.read_csv("{}/{}_cladistic_distance_matrix.csv".format(settings_config.data_folder,name), index_col="rows",low_memory=False)
     except: #Highlight: For larger datasets , I do not calculate the cladistic matrix, because there is not a fast method. So no cladistic matrix and consequently , no patrocladistic matrix = evolutionary matrix
         cladistic_matrix = None
-
-    ancestor_info = pd.read_csv("{}/{}/{}/{}_tree_levelorder_info.csv".format(script_dir,settings_config.data_folder,name,name,name), sep="\t",index_col=False,low_memory=False)
+    ancestor_info = pd.read_csv("{}/{}_tree_levelorder_info.csv".format(settings_config.data_folder,name), sep="\t",index_col=False,low_memory=False)
     ancestor_info["0"] = ancestor_info["0"].astype(str)
     ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
     nodes_names = ancestor_info["0"].tolist()
@@ -230,19 +230,19 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
 
     #Highlight: Load The clades and reassigning their names to the ones in tree levelorder
-    clades_dict_leaves = pickle.load(open('{}/{}/{}/{}_Clades_dict_leaves.p'.format(script_dir,settings_config.data_folder,name,name), "rb"))
+    clades_dict_leaves = pickle.load(open('{}/{}_Clades_dict_leaves.p'.format(settings_config.data_folder,name), "rb"))
     clades_dict_leaves = DraupnirLoadUtils.convert_clades_dict(name, clades_dict_leaves, leaves_nodes_dict, internal_nodes_dict,only_leaves=True)
-    clades_dict_all = pickle.load(open('{}/{}/{}/{}_Clades_dict_all.p'.format(script_dir,settings_config.data_folder,name,name), "rb"))
+    clades_dict_all = pickle.load(open('{}/{}_Clades_dict_all.p'.format(settings_config.data_folder,name), "rb"))
     clades_dict_all = DraupnirLoadUtils.convert_clades_dict(name, clades_dict_all, leaves_nodes_dict, internal_nodes_dict,only_leaves=False)
     # Highlight: Load the dictionary containing the closests leaves to the INTERNAL nodes, transform the names to their tree level order
-    closest_leaves_dict = pickle.load(open('{}/{}/{}/{}_Closest_leaves_dict.p'.format(script_dir,settings_config.data_folder,name,name), "rb"))
+    closest_leaves_dict = pickle.load(open('{}/{}_Closest_leaves_dict.p'.format(settings_config.data_folder,name), "rb"))
     closest_leaves_dict = DraupnirLoadUtils.convert_closest_leaves_dict(name, closest_leaves_dict, internal_nodes_dict, leaves_nodes_dict)
     #Highlight: Load the dictionary containing all the internal and leaves that descend from the each ancestor node
-    descendants_dict = pickle.load(open('{}/{}/{}/{}_Descendants_dict.p'.format(script_dir,settings_config.data_folder,name,name), "rb"))
+    descendants_dict = pickle.load(open('{}/{}_Descendants_dict.p'.format(settings_config.data_folder,name), "rb"))
     descendants_dict = DraupnirLoadUtils.convert_descendants(name,descendants_dict,internal_nodes_dict,leaves_nodes_dict)
     #Highlight: Load dictionary with the directly linked children nodes--> i only have it for one dataset
     try:
-        linked_nodes_dict = pickle.load(open('{}/{}/{}/{}_Closest_children_dict.p'.format(script_dir,settings_config.data_folder,name,name),"rb"))
+        linked_nodes_dict = pickle.load(open('{}/{}_Closest_children_dict.p'.format(settings_config.data_folder,name),"rb"))
         linked_nodes_dict = DraupnirLoadUtils.convert_only_linked_children(name, linked_nodes_dict, internal_nodes_dict, leaves_nodes_dict)
     except:
         linked_nodes_dict = None
@@ -250,7 +250,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     dataset,children_array = DraupnirLoadUtils.create_children_array(dataset,ancestor_info_numbers)
     sorted_distance_matrix = DraupnirLoadUtils.pairwise_distance_matrix(name,script_dir)
 
-    leaves_names_list = pickle.load(open('{}/{}/{}/{}_Leafs_names_list.p'.format(script_dir,settings_config.data_folder,name,name),"rb"))
+    leaves_names_list = pickle.load(open('{}/{}_Leafs_names_list.p'.format(settings_config.data_folder,name),"rb"))
 
     #Highlight: Organize, conquer and divide
     dataset_train,\

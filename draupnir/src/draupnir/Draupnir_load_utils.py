@@ -632,7 +632,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                                                                                         build_config.align_seq_len,#TODO: Hopefully this is always correct
                                                                                         additional_load.tree_levelorder_names,
                                                                                         root_sequence_name,
-                                                                                        build_config.aa_prob,
+                                                                                        build_config.aa_probs,
                                                                                         script_dir)
 
         test_nodes_observed = dataset_test[:, 0, 1].tolist()
@@ -656,7 +656,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
 
 
     elif name.startswith("benchmark"):
-        dataset_test, internal_names_test = DraupnirDatasets.load_randalls_benchmark_ancestral_sequences(script_dir)
+        dataset_test, internal_names_test = DraupnirDatasets.load_randalls_benchmark_ancestral_sequences(settings_config)
         test_nodes_observed =  dataset_test[:, 0, 1].tolist()
         special_nodes_dict=None
         patristic_matrix_train, \
@@ -680,7 +680,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
         internal_names_test , \
         max_lenght_internal_aligned,\
         special_nodes_dict =DraupnirDatasets.load_coral_fluorescent_proteins_ancestral_sequences(name = name,
-                                                         ancestral_file="{}/datasets/default/{}/Ancestral_Sequences.fasta".format(script_dir,name),
+                                                         ancestral_file="{}/Ancestral_Sequences.fasta".format(settings_config.data_folder),
                                                          tree_levelorder_names =additional_load.tree_levelorder_names,
                                                          aa_probs=build_config.aa_probs)
 
