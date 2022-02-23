@@ -5,17 +5,12 @@ Lys Sanz Moreta
 Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
-import argparse
 import time
-import warnings
 from collections import namedtuple
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import sys
 import re
-import ast
-import subprocess
 import ntpath
 import pandas as pd
 from collections import defaultdict
@@ -81,7 +76,8 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
     aligned = ["aligned" if settings_config.aligned_seq else "NOT_aligned"]
     one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "Integers"]
-
+    print("The paths need to be fixed")
+    exit()
     dataset = np.load("{}/{}/{}/{}_dataset_numpy_{}_{}.npy".format(script_dir, settings_config.data_folder, name, name, aligned[0],one_hot[0]), allow_pickle=True)
     DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
     DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)

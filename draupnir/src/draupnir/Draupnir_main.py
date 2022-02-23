@@ -5,7 +5,6 @@ Lys Sanz Moreta
 Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
-import argparse
 import os
 import time
 #import easydict
@@ -23,9 +22,9 @@ from collections import defaultdict
 from Bio import AlignIO
 import torch
 import pyro
-from pyro.infer import SVI, config_enumerate,infer_discrete
-from pyro.infer.autoguide import AutoMultivariateNormal, AutoDiagonalNormal,AutoDelta,AutoNormal
-from pyro.infer import Trace_ELBO, JitTrace_ELBO,TraceMeanField_ELBO,JitTraceMeanField_ELBO,TraceEnum_ELBO
+from pyro.infer import SVI
+from pyro.infer.autoguide import  AutoDiagonalNormal,AutoDelta,AutoNormal
+from pyro.infer import Trace_ELBO
 sys.path.append("./draupnir/src/draupnir")
 import draupnir
 draupnir_path = draupnir.__file__

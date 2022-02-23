@@ -1,52 +1,8 @@
 from ete3 import Tree, faces, AttrFace, TreeStyle, NodeStyle, Tree
-# from PyQt4 import QtCore
-# from PyQt4.QtGui import QGraphicsRectItem, QGraphicsSimpleTextItem, \
-#     QGraphicsEllipseItem, QColor, QPen, QBrush
 import matplotlib.pyplot as plt
 import matplotlib
 import pickle, os
 
-# class InteractiveItem(QGraphicsRectItem):
-#     def __init__(self, *arg, **karg):
-#         QGraphicsRectItem.__init__(self, *arg, **karg)
-#         self.node = None
-#         self.label = None
-#         self.setCursor(QtCore.Qt.PointingHandCursor)
-#         self.setAcceptsHoverEvents(True)
-#
-#     def hoverEnterEvent (self, e):
-#         # There are many ways of adding interactive elements. With the
-#         # following code, I show/hide a text item over my custom
-#         # DynamicItemFace
-#         if not self.label:
-#             self.label = QGraphicsRectItem()
-#             self.label.setParentItem(self)
-#             # This is to ensure that the label is rendered over the
-#             # rest of item children (default ZValue for items is 0)
-#             self.label.setZValue(1)
-#             self.label.setBrush(QBrush(QColor("white")))
-#             self.label.text = QGraphicsSimpleTextItem()
-#             self.label.text.setParentItem(self.label)
-#
-#         self.label.text.setText(self.node.name)
-#         self.label.setRect(self.label.text.boundingRect())
-#         self.label.setVisible(True)
-#
-#     def hoverLeaveEvent(self, e):
-#         if self.label:
-#             self.label.setVisible(False)
-#
-# def random_color(h=None):
-#     """Generates a random color in RGB format."""
-#     if not h:
-#         h = random.random()
-#     s = 0.5
-#     l = 0.5
-#     return _hls2hex(h, l, s)
-#
-# def _hls2hex(h, l, s):
-#     return '#%02x%02x%02x' %tuple(map(lambda x: int(x*255),
-#                                       colorsys.hls_to_rgb(h, l, s)))
 def Renaming():
     "Rename the internal nodes, unless the given newick file already has the names on it"
     # Rename the internal nodes
@@ -83,48 +39,6 @@ def Renaming_simulations(with_indexes=False):
                 node.name = "I" + node.name
                 internal_nodes_names.append(node.name)
                 edge += 1
-# def ellipse_face(node, *args, **kargs):
-#     """ This is my item generator. It must receive a node object, and
-#     returns a Qt4 graphics item that can be used as a node face.
-#     """
-#
-#     # receive an arbitrary number of arguments, in this case width and
-#     # height of the faces
-#     width = args[0][0]
-#     height = args[0][1]
-#
-#     ## Creates a main master Item that will contain all other elements
-#     ## Items can be standard QGraphicsItem
-#     # masterItem = QGraphicsRectItem(0, 0, width, height)
-#
-#     # Or your custom Items, in which you can re-implement interactive
-#     # functions, etc. Check QGraphicsItem doc for details.
-#     masterItem = InteractiveItem(0, 0, width, height)
-#
-#     # Keep a link within the item to access node info
-#     masterItem.node = node
-#
-#     # I dont want a border around the masterItem
-#     masterItem.setPen(QPen(QtCore.Qt.NoPen))
-#
-#     # Add ellipse around text
-#     ellipse = QGraphicsEllipseItem(masterItem.rect())
-#     ellipse.setParentItem(masterItem)
-#     # Change ellipse color
-#     ellipse.setBrush(QBrush(QColor( random_color())))
-#
-#     # Add node name within the ellipse
-#     text = QGraphicsSimpleTextItem(node.name)
-#     text.setParentItem(ellipse)
-#     text.setPen(QPen(QPen(QColor("white"))))
-#
-#     # Center text according to masterItem size
-#     tw = text.boundingRect().width()
-#     th = text.boundingRect().height()
-#     center = masterItem.boundingRect().center()
-#     text.setPos(center.x()-tw/2, center.y()-th/2)
-#
-#     return masterItem
 def my_layout(node):
     "Adds the internal nodes names"
     if node.is_leaf():
@@ -170,9 +84,8 @@ def colour_tree_by_clades(clades_dict, tree, rename_internal_nodes=True):
         tree.render("Tree_Pictures/return_{}_colored_by_clades.pdf".format(name), dpi=600, units="mm")
 
 
-
-
 if __name__ == "__main__":
+    #TODO
     #t, ts = get_example_tree()
     script_dir = os.path.dirname(os.path.abspath(__file__))
     dataset_number,simulation_folder,root_sequence_name = 1,"BLactamase","BetaLactamase_seq"

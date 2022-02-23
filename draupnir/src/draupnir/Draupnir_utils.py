@@ -11,7 +11,6 @@ from os import listdir
 from os.path import isfile, join
 import subprocess
 import warnings
-import scipy as sp
 import _pickle as cPickle
 import bz2
 os.environ['QT_QPA_PLATFORM']='offscreen' #TODO: remove?
@@ -23,15 +22,9 @@ try:
 except:
     pass
 from scipy.sparse import coo_matrix
-import matplotlib
 import argparse
 import dill
 import ast
-# try:
-#     import jax.numpy as np_jax
-#     import jax.random as random
-# except:
-#     pass
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from matplotlib.colors import LogNorm
@@ -47,7 +40,6 @@ import Draupnir_models_utils as DraupnirModelUtils
 import Bio.PDB as PDB
 from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
 from Bio.Data.SCOPData import protein_letters_3to1
-from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO, SeqRecord
 from Bio.Seq import Seq

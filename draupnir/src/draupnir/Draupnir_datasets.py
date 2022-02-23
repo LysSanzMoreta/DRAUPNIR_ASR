@@ -13,7 +13,7 @@ import pprint
 import os
 import numpy as np
 import torch
-from Bio import AlignIO, SeqIO
+from Bio import SeqIO
 import gdown
 
 def available_datasets(print_dict = False):

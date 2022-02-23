@@ -6,16 +6,9 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 """
 import torch
 from collections import defaultdict,namedtuple
-
-import Draupnir_utils
 from Draupnir_models_utils import *
 import pyro
 import pyro.distributions as dist
-from pyro.util import ignore_jit_warnings
-try:
-    from torch_geometric.data import Data
-except:
-    pass
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 class DRAUPNIRModelClass(nn.Module):
     def __init__(self, ModelLoad):

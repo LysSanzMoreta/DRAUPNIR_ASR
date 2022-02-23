@@ -4,10 +4,8 @@ import numpy as np
 import pandas as pd
 import torch
 from Bio.SeqRecord import SeqRecord
-from Bio.Phylo.TreeConstruction import DistanceCalculator
 from Bio.Seq import Seq
 from Bio import SeqIO
-import re
 sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 import Draupnir_models_utils as DraupnirModelUtils
