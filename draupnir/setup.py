@@ -20,7 +20,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
 setup(name='draupnir',
-      version='0.0.14',
+      version='0.0.15',
       # list folders, not files
       packages=find_packages('src'),
       package_dir={'': 'src'},
@@ -34,7 +34,7 @@ setup(name='draupnir',
             #   3 - Alpha
             #   4 - Beta
             #   5 - Production/Stable
-            'Development Status :: 3 - Beta',
+            'Development Status :: 4 - Beta',
             # Pick your license as you wish
             'License :: OSI Approved :: MIT License',
             # Specify the Python versions you support here. In particular, ensure

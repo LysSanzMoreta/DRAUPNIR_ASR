@@ -3,6 +3,7 @@ Draupnir_OrdinaryVAE
 Draupnir_OrdinaryVAEmodels
 Draupnir_ablation
 Draupnir_datasets
+Draupnir_draw_tree
 Draupnir_guides
 Draupnir_load_utils
 Draupnir_main
@@ -11,8 +12,6 @@ Draupnir_models_utils
 Draupnir_plots
 Draupnir_train
 Draupnir_utils
-Drawing_tree
-Drawing_tree_stripped
 __init__
 draupnir
 mutual_information

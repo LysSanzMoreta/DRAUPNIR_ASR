@@ -34,7 +34,7 @@ import statistics
 import seaborn as sns
 from collections import defaultdict,namedtuple
 import pickle
-sys.path.append("./draupnir/draupnir")
+#sys.path.append("./draupnir/draupnir")
 import Draupnir_models_utils as DraupnirModelUtils
 #Biopython
 import Bio.PDB as PDB
@@ -1817,7 +1817,8 @@ def gradients_plot(gradient_norms,epochs,directory):
 #
 #     return dataset, internal_nodes
 def renaming(tree):
-        "Rename the internal nodes, unless the given newick file already has the names on it"
+        """Rename the internal nodes, unless the given newick file already has the names on it
+        :param tree: ete3 format 1 tree"""
         #Rename the internal nodes
         leafs_names = tree.get_leaf_names()
         edge = len(leafs_names)

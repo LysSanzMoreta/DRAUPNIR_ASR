@@ -5,7 +5,7 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
 import sys
-sys.path.append("./draupnir/src/draupnir")
+#sys.path.append("./draupnir/src/draupnir")
 import Draupnir_utils as DraupnirUtils
 import warnings
 from collections import namedtuple

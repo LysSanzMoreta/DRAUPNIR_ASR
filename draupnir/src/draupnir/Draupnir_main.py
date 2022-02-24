@@ -25,7 +25,7 @@ import pyro
 from pyro.infer import SVI
 from pyro.infer.autoguide import  AutoDiagonalNormal,AutoDelta,AutoNormal
 from pyro.infer import Trace_ELBO
-sys.path.append("./draupnir/src/draupnir")
+#sys.path.append("./draupnir/src/draupnir")
 import draupnir
 draupnir_path = draupnir.__file__
 import Draupnir_utils as DraupnirUtils

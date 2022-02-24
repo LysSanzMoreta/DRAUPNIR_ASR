@@ -6,7 +6,7 @@ import torch
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio import SeqIO
-sys.path.append("./draupnir/draupnir")
+#sys.path.append("./draupnir/draupnir")
 import Draupnir_utils as DraupnirUtils
 import Draupnir_models_utils as DraupnirModelUtils
 import Draupnir_datasets as DraupnirDatasets
