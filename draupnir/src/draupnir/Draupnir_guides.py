@@ -1,12 +1,12 @@
 import torch
 import sys
-sys.path.append("./draupnir/draupnir")
+#sys.path.append("./draupnir/draupnir")
 from pyro.contrib.easyguide import EasyGuide
 import pyro
 import pyro.distributions as dist
 from Draupnir_models_utils import *
 from Draupnir_models import *
-
+from pyro.nn import PyroParam
 class DRAUPNIRGUIDES(EasyGuide):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         super(DRAUPNIRGUIDES, self).__init__(draupnir_model)

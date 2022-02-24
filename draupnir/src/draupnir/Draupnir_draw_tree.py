@@ -4,7 +4,8 @@ import matplotlib
 import pickle, os
 
 def renaming(tree):
-    "Rename the internal nodes, unless the given newick file already has the names on it"
+    """Rename the internal nodes, unless the given newick file already has the names on it
+    :param ete3-tree tree: ete3 tree in format 1"""
     # Rename the internal nodes
     leafs_names = tree.get_leaf_names()
     edge = len(leafs_names)
@@ -17,7 +18,8 @@ def renaming(tree):
 
 
 def renaming_simulations(tree,with_indexes=False):
-    "Rename the internal nodes to I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array"
+    """Rename the internal nodes to I + number, in simulations the leaves have the prefix A. With indexes shows the names used when transferring to an array
+    :param ete3-tree tree: ete3 format 1"""
     print("Renaming tree from simulations")
     leafs_names = tree.get_leaf_names()
     edge = len(leafs_names)
@@ -41,7 +43,8 @@ def renaming_simulations(tree,with_indexes=False):
                 edge += 1
 
 def my_layout_complex(node):
-    "Adds the internal nodes names"
+    """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
+    :param ete3-node node: node from an ete3 tree"""
     if node.is_leaf():
         # If terminal node, draws its name
         name_face = AttrFace("name",fsize=8,fgcolor="StateGrey")
@@ -52,7 +55,8 @@ def my_layout_complex(node):
     faces.add_face_to_node(name_face, node, column=0, position="branch-right")
 
 def my_layout_simple(node):
-    "Adds the internal nodes names"
+    """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
+     :param ete3-node node: node from an ete3 tree"""
     if node.is_leaf():
         # If terminal node, draws its name
         name_face = AttrFace("name",fsize=8,fgcolor="black")
@@ -62,7 +66,7 @@ def my_layout_simple(node):
     # Adds the name face to the image at the preferred position
     faces.add_face_to_node(name_face, node, column=0, position="branch-right")
 def colour_tree_by_clades_simple(name,clades_dict_all, tree, data_folder,rename_internal_nodes=True):
-    """Returns the image of the tree coloured by clades, as shown in the article ICLR 2022
+    """Returns the image of the tree with the nodes coloured by clades, as shown in the article ICLR 2022
     'Ancestral sequence reconstruction using a tree-structured Ornstein-Ulenbeck process'
     :param str name: name of the dataset
     :param defaultdict clades_dict_all: nested dictionary containing all the nodes of the tree divided by clades , i.e {"clade_0":{"internal":[],"leaves":[]}}
@@ -112,6 +116,12 @@ def colour_tree_by_clades_simple(name,clades_dict_all, tree, data_folder,rename_
         tree.render("{}/return_{}_colored_by_clades_stripped.png".format(data_folder,name), w=1000, units="mm")
 
 def colour_tree_by_clades_complex(name,clades_dict_all, tree, data_folder,rename_internal_nodes=True):
+    """Returns the image of the tree coloured by clades, coloured rectangles and with nodes names
+    :param str name: name of the dataset
+    :param defaultdict clades_dict_all: nested dictionary containing all the nodes of the tree divided by clades , i.e {"clade_0":{"internal":[],"leaves":[]}}
+    :param ete3-tree: Ete3 formatted tree
+    :param str data_folder: folder where the files will be stores, such as the sequences fasta file or the alignment file
+    :param bool rename_internal_nodes: If true, the internal nodes are assigned a letter in front of the number (the number is given by the tree file)"""
     color_map21 = matplotlib.colors.ListedColormap(
         ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
          "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",

@@ -7,7 +7,7 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 import sys
 import pyro
 import torch
-sys.path.append("./draupnir/src")
+#sys.path.append("./draupnir/src")
 import draupnir
 import argparse
 import os

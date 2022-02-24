@@ -5,15 +5,15 @@ Draupnir : GP prior VAE for Ancestral Sequence Resurrection
 =======================
 """
 import sys
-sys.path.append("./draupnir/draupnir")
-sys.path.append("./draupnir/draupnir/infer_angles")
+#sys.path.append("./draupnir/draupnir")
+#sys.path.append("./draupnir/draupnir/infer_angles")
 import draupnir
 import os.path
 from Bio.PDB import MMCIFParser, PDBIO
 from Bio import PDB
 from collections import namedtuple
 import pymol2
-from draupnir.infer_angles.superposition import *
+from draupnir.infer_angles.superposition import * #TODO: fix
 import draupnir.infer_angles.calculate_coords as nerf
 import draupnir.infer_angles.pnerf as pnerf
 import numpy as np
