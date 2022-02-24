@@ -71,7 +71,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                             and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
         """
     BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
-    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name"])
+    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name","tree_file"])
     #script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
         warnings.warn("You have selected a pre-defined dataset, if not present, it will be downloaded. Otherwise set use_custom to True")
@@ -112,11 +112,12 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
         if name.startswith("simulations"):
             # DraupnirUtils.Remove_Stop_Codons("Datasets_Simulations/{}/Dataset{}/{}.txt".format(simulation_folder,dataset_number,root_sequence_name))
             alignment_file = "{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name)
+            tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder,name,root_sequence_name)
             build_config = BuildConfig(alignment_file=alignment_file, use_ancestral=True, n_test=0, build_graph=True,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
                 DraupnirUtils.create_dataset(name,
                                one_hot_encoding=False,
-                               tree_file="{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder,name,root_sequence_name),
+                               tree_file= tree_file,
                                alignment_file="{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name),
                                aa_probs=21,
                                rename_internal_nodes=True,
@@ -124,12 +125,14 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
 
         elif name == "benchmark_randall_original_naming":
             alignment_file = "{}/{}/benchmark_randall_original_naming.mafft".format(storage_folder,name)
+            tree_file = "{}/RandallBenchmarkTree_OriginalNaming.tree".format(storage_folder)
             build_config = BuildConfig(alignment_file=alignment_file, use_ancestral=True, n_test=0, build_graph=True,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
                 benchmark_randalls_dataset_train(name, storage_folder ,aa_prob=21)
 
         elif name == "SH3_pf00018_larger_than_30aa":# Highlight: SRC Kinases, SH3 domain with PDB structures
             alignment_file = "{}/SH3_pf00018_larger_than_30aa/SH3_pf00018_larger_than_30aa.mafft".format(storage_folder) #I hope it's the correct one
+            tree_file = "{}/SH3_pf00018_larger_than_30aa/SH3_pf00018_larger_than_30aa.mafft.treefile".format(storage_folder)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
                                        n_test=0, #i.e n_test = 20 --> 20% sequences for testing---> use with leaves testing True
@@ -144,19 +147,20 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
             else: assert build_config.n_test == 0; "Please do not test leaves, set n_test = 0"
             if build:
                 family_name = "PF00018;" #protein family name, src-sh3 domain
-                pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,first_match=True,update_pfam=False)
+                pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,storage_folder,first_match=True,update_pfam=False)
                 DraupnirUtils.download_PDB(pdb_list, "{}/PDB_files_Draupnir_{}_{}".format(storage_folder,family_name.strip(";"),len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
                                              method="iqtree",
                                              PDB_folder="{}/PDB_files_Draupnir_{}_{}".format(storage_folder,family_name.strip(";"),len(pdb_list)),
                                              alignment_file=alignment_file,
-                                             tree_file="{}/SH3_pf00018_larger_than_30aa/SH3_pf00018_larger_than_30aa.mafft.treefile".format(storage_folder),
+                                             tree_file=tree_file,
                                              pfam_dict=pfam_dict,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         elif name == "PF00096":#PKKinases
             alignment_file = "{}/PF00096/PF00096.fasta".format(storage_folder)
+            tree_file = "{}/PF00096/PF00096.fasta.treefile".format(storage_folder)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
                                        n_test=0, #Indicates the percentage of the leaves sequences for testing
@@ -171,12 +175,13 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                              one_hot_encoding=False,
                                              method="iqtree",
                                              alignment_file=alignment_file,
-                                             tree_file="{}/PF00096/PF00096.fasta.treefile".format(storage_folder),
+                                             tree_file=tree_file,
                                              rename_internal_nodes=True,
                                              min_len=0,
                                              storage_folder=storage_folder)
         elif name == "aminopeptidase":#
             alignment_file = "{}/aminopeptidase/2MAT_BLAST90.fasta".format(storage_folder)
+            tree_file = "{}/aminopeptidase/2MAT_BLAST90.fasta.treefile".format(storage_folder)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
                                        n_test=0, #Indicates the percentage of the leaves sequences for testing
@@ -191,11 +196,12 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                              one_hot_encoding=False,
                                              method="iqtree",
                                              alignment_file=alignment_file,
-                                             tree_file="{}/aminopeptidase/2MAT_BLAST90.fasta.treefile".format(storage_folder),
+                                             tree_file=tree_file,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         elif name == "PF00400":
             alignment_file = "{}/PF00400/PF00400.mafft".format(storage_folder)
+            tree_file = "{}/PF00400/PF00400.mafft.treefile".format(storage_folder)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
                                        n_test=0,  # Indicates the percentage of the leaves sequences for testing
@@ -207,7 +213,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                        no_testing=True)
             if build:
                 family_name = "PF00400;"  # protein family name
-                pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name, first_match=True, update_pfam=False)
+                pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,storage_folder,first_match=True, update_pfam=False)
                 #DraupnirUtils.download_PDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(family_name.strip(";"), len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
@@ -216,24 +222,26 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                                                                              family_name.strip(";"),
                                                                                              len(pdb_list)),
                                              alignment_file=alignment_file,
-                                             tree_file="{}/PF00400/PF00400.mafft.treefile".format(storage_folder),
+                                             tree_file=tree_file,
                                              pfam_dict=pfam_dict,
                                              rename_internal_nodes=True,
                                              min_len=30,
                                              storage_folder=storage_folder)
         elif name == "Coral_Faviina":
             alignment_file = "{}/{}/Coral_Faviina_Aligned_Protein.fasta".format(storage_folder,name)
+            tree_file = "{}/{}/c90.PP.tree".format(storage_folder,name)
             build_config = BuildConfig(alignment_file=alignment_file,use_ancestral=False,n_test=0,build_graph=False,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
                 DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
-                                             tree_file="{}/{}/c90.PP.tree".format(storage_folder,name),
+                                             tree_file=tree_file,
                                              alignment_file=alignment_file,
                                              aa_probs=21,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         elif name == "Coral_all":
             alignment_file = "{}/{}/Coral_all_Aligned_Protein.fasta".format(storage_folder,name)
+            tree_file = "{}/{}/c90.PP.tree".format(storage_folder,name)
             build_config = BuildConfig(alignment_file=alignment_file,
                                        use_ancestral=False,
                                        n_test=0,
@@ -256,7 +264,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
              raise NameError("Name {} not in the available default datasets".format(name))
 
     else:
-        warnings.warn("You have selected to use a custom dataset")
+        warnings.warn("You have selected to use a custom dataset, make sure to have at least a fasta file ready")
         root_sequence_name = None
         full_name = name
         assert any(v is not None for v in [fasta_file,alignment_file,tree_file]) != False,"Provide at least 1 file path: fasta_file or alignment_file or alignment_file + tree_file"
@@ -277,7 +285,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                 assert alignment_file is not None, "Provide at least 1 file path: alignment_file or alignment_file + tree_file"
                 storage_folder = os.path.dirname(alignment_file)
 
-            DraupnirUtils.create_dataset(name_file=name,
+            tree_file = DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=False,
                                              tree_file=tree_file,
                                              alignment_file=alignment_file,
@@ -286,17 +294,17 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         else:
-            assert tree_file is not None, "Please provide a tree file inside datasets/custom/name or first build the tree"
-            assert alignment_file is not None, "Please provide a alignment file inside datasets/custom/name or first build the alignment"
-
+            assert tree_file is not None, "Please provide a tree file in the same folder as the alignment or fasta sequences file, or first build the tree"
+            assert alignment_file is not None, "Please provide a alignment file inside the same folder as the alignment or fasta sequences file or first build the alignment"
+            storage_folder = os.path.dirname(alignment_file)
     settings_config = SettingsConfig(one_hot_encoding=False,
                              model_design="GP_VAE",
                              aligned_seq=True,
                              data_folder=["{}".format(storage_folder) if use_custom else "{}/{}".format(storage_folder,name)][0],
-                             full_name=full_name)
-
-
+                             full_name=full_name,
+                             tree_file=tree_file)
     return build_config,settings_config, root_sequence_name
+
 def benchmark_randalls_dataset_train(name,storage_folder,aa_prob):
     """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name
