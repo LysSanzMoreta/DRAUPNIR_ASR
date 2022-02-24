@@ -7,5 +7,5 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 from .Draupnir_main import *
 from .Draupnir_datasets import *
 from .Draupnir_utils import *
-
+from .Draupnir_draw_tree import *
 

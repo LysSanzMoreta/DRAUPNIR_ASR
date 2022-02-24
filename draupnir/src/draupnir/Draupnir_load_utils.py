@@ -437,7 +437,7 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
         cladistic_matrix_full = cladistic_matrix
 
     return dataset_train,dataset_test,evolutionary_matrix_train,evolutionary_matrix_test,patristic_matrix_train,patristic_matrix_test,patristic_matrix_full, cladistic_matrix_train,cladistic_matrix_test,cladistic_matrix_full,position_test,leaves_names_test
-def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build_config):
+def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build_config,settings_config):
     """ALigns the order of the nodes in the dataset and the patristic and cladistic matrices. Calculates the amino acid frequencies.
     :param tensor dataset_train
     :param tensor patristic_matrix_full
@@ -447,7 +447,7 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
     aa_frequencies = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
     aa_frequencies = torch.from_numpy(aa_frequencies)
-    aa_properties = DraupnirUtils.aa_properties(build_config.aa_probs,build_config.script_dir)
+    aa_properties = DraupnirUtils.aa_properties(build_config.aa_probs,settings_config.data_folder)
 
     def matrix_sort(matrix,trim=False):
         """Sorts the input matrix by the nodes indexes in ascending order"""
@@ -753,7 +753,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     patristic_matrix_train,\
     cladistic_matrix_full,\
     cladistic_matrix_train,\
-    aa_frequencies = pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config)
+    aa_frequencies = pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
 
 
     test_load = TestLoad(dataset_test=dataset_test,

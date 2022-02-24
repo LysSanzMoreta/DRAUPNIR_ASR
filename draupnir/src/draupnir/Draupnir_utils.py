@@ -54,14 +54,15 @@ from Bio import Phylo
 import numpy as np
 import numpy.random as npr
 import pandas as pd
-def aa_properties(aa_probs,scriptdir):
+def aa_properties(aa_probs,data_folder):
     """ Creates a dictionary with amino acid properties, extracted from
     https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html
     :param str aa_probs: amino acid probabilities used to extract the types of amino acids present in the dataset
-    :param str scriptdir: path"""
+    :param str data_folder: path to where draupnir is been executed from"""
 
     aa_types = list(aminoacid_names_dict(aa_probs).keys())
-    aa_properties = pd.read_csv("{}/datasets/AA_properties.txt".format(scriptdir),sep="\s+")
+    storage_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
+    aa_properties = pd.read_csv("{}/AA_properties.txt".format(storage_folder),sep="\s+")
     aa_info = defaultdict()
     for indx,aa in aa_properties.iterrows():
         if aa["Abbr."] in aa_types:
@@ -277,7 +278,7 @@ def calculate_descendants(name,tree,storage_folder):
             closest_descendants_dict[node.name]["internal"] = descendant_internal
             closest_descendants_dict[node.name]["leaves"] = descendant_leaves
     dill.dump(closest_descendants_dict, open('{}/{}_Descendants_dict.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
-def Pfam_parser(family_name,first_match=False,update_pfam=False):
+def Pfam_parser(family_name,data_folder,first_match=False,update_pfam=False):
     """Creates a dictionary containing the PDB files and the sequence information (chain, residues...)
     :param str family_name: pfam family name
     :param bool first_match: True -> Picks only the first found protein and not it's duplicates, False -> Takes every available structure, including duplicates
@@ -293,7 +294,8 @@ def Pfam_parser(family_name,first_match=False,update_pfam=False):
         subprocess.call("mv pdbmap PfamPdbMap.txt", shell=True)
 
     print("Reading and creating pfam dictionary....")
-    df = pd.read_csv("data/PfamPdbMap.txt", sep="\t", error_bad_lines=False, engine='python', index_col=False,
+    storage_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "data"))
+    df = pd.read_csv("{}/PfamPdbMap.txt".format(storage_folder), sep="\t", error_bad_lines=False, engine='python', index_col=False,
                      names=["PDB_1", "Chain", "Empty", "Function", "Family", "Uniprot", "Residues"]) #TODO: move to data
     family = df[df['Family'].str.contains(family_name)]
     if first_match: #115 #only takes the first pdb file found for each sequence
@@ -909,6 +911,8 @@ def create_dataset(name_file,
         if one_hot_encoding:
             Dataset_not_aligned[i, (int(Combined_dict[key][0][0]) + 3):] = np.array([1]+[0]*29)
     np.save("{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset_not_aligned)
+
+    return tree_file
 
 def symmetrize_and_clean(matrix,ancestral=True):
     """Remove, if necessary the ancestral nodes from the train matrix

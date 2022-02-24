@@ -25,8 +25,9 @@ def main():
                                                            fasta_file=args.fasta_file,
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
+    #draupnir.draw_tree_simple(args.dataset_name,settings_config)
 
-    if args.parameter_search:
+    if args.parameter_search: #TODO: do not use
         draupnir.manual_random_search()
     else:
         #params_config = draupnir.config_build(args)
@@ -37,25 +38,26 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="PF00400",
+                        default="aminopeptidase",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
-                        help='Use a custom dataset (found at datasets/custom) or a default dataset (those shown in the paper) (found at datasets/default)')
+                        help='Use a custom dataset (is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
+                             'or a default dataset (those shown in the paper) (downloaded at draupnir/src/draupnir/data)')
     parser.add_argument('--alignment-file', type=str, nargs='?',
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF0096.fasta",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         help='Path to alignment in fasta format (use with custom dataset)')
     parser.add_argument('--tree-file', type=str, nargs='?',
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF0096.fasta.treefile",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
                         help='Path to newick tree (format 1 from ete3) (use with custom dataset)')
     parser.add_argument('--fasta-file', type=str, nargs='?',
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/datasets/custom/PF0096/PF00096.fasta",
+                        default=None,
                         help='Path to fasta file (use with custom dataset)')
     parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
-                             ' False: use stored data files under datasets/custom or datasets/default. '
-                             'Further customization under Draupnir_Datasets.py')
+                             'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
+                             'Further customization can be found under draupnir/src/draupnir/data/Draupnir_Datasets.py')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
                                                                 'If set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
                                                                 'If set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
