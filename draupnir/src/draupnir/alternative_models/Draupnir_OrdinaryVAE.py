@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 import time
@@ -20,14 +20,13 @@ import pyro
 from pyro.infer import SVI, config_enumerate,infer_discrete
 from pyro.infer.autoguide import AutoMultivariateNormal, AutoDiagonalNormal,AutoDelta,AutoNormal
 from pyro.infer import Trace_ELBO, JitTrace_ELBO,TraceMeanField_ELBO,JitTraceMeanField_ELBO,TraceEnum_ELBO
-sys.path.append("./draupnir/src/draupnir")
-import Draupnir_utils as DraupnirUtils
+#sys.path.append("./draupnir/src/draupnir")
+import draupnir.utils as DraupnirUtils
 import Draupnir_OrdinaryVAEmodels as DraupnirModels
-import Draupnir_plots as DraupnirPlots
-import Draupnir_train as DraupnirTrain
-import Draupnir_datasets as DraupnirDatasets
-import Draupnir_models_utils as DraupnirModelsUtils
-import Draupnir_load_utils as DraupnirLoadUtils
+import draupnir.plots as DraupnirPlots
+import draupnir.train as DraupnirTrain
+import draupnir.models_utils as DraupnirModelsUtils
+import draupnir.load_utils as DraupnirLoadUtils
 import datetime
 import pickle
 import json

@@ -1,11 +1,17 @@
+"""
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
+=======================
+"""
 import torch
 import sys
 #sys.path.append("./draupnir/draupnir")
 from pyro.contrib.easyguide import EasyGuide
 import pyro
 import pyro.distributions as dist
-from Draupnir_models_utils import *
-from Draupnir_models import *
+from draupnir.models_utils import *
+from draupnir.models import *
 from pyro.nn import PyroParam
 class DRAUPNIRGUIDES(EasyGuide):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):

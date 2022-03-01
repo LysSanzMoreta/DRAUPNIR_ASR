@@ -1,10 +1,16 @@
+"""
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
+=======================
+"""
 import os, itertools,sys
 from collections import defaultdict
 import torch
 import numpy as np
-sys.path.append("./draupnir/draupnir")
-import Draupnir_utils as DraupnirUtils
-import Draupnir_models_utils as DraupnirModelUtils
+#sys.path.append("./draupnir/draupnir")
+import draupnir.utils as DraupnirUtils
+import draupnir.models_utils as DraupnirModelUtils
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
@@ -18,6 +24,8 @@ from sklearn.manifold import TSNE
 import statistics
 import umap
 from scipy import stats
+
+
 def plot_ELBO(train_elbo,results_dict):
     """Plots the model's error loss
     :param list train_elbo: list of accumulated error losses

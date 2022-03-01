@@ -1,12 +1,12 @@
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 import sys
 #sys.path.append("./draupnir/src/draupnir")
-import Draupnir_utils as DraupnirUtils
+import draupnir.utils as DraupnirUtils
 import warnings
 from collections import namedtuple
 import pprint
@@ -78,12 +78,8 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
         root_sequence_name = available_datasets()[0][name]
         full_name = available_datasets()[1][name]
         storage_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "data")) #changed from "datasets/default"
-        if not os.listdir('{}/{}'.format(storage_folder,name)):
-            print("Default data is missing. Downloading, this might take a while. If you see an error like \n"
-                  " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
-                  "just wait, too many requests have been made to the google drive folder \n"
-                  "Otherwise just download the data sets manually from the google drive urls")
-            dict_urls = {
+        dir_name = '{}/{}'.format(storage_folder,name)
+        dict_urls = {
                 "aminopeptidase":"https://drive.google.com/drive/folders/1fLsOJbD1hczX15NW0clCgL6Yf4mnx_yl?usp=sharing",
                 "benchmark_randall_original_naming":"https://drive.google.com/drive/folders/1oE5-22lqcobZMIguatOU_Ki3N2Fl9b4e?usp=sharing",
                 "Coral_all":"https://drive.google.com/drive/folders/1IbfiM2ww5PDcDSpTjrWklRnugP8RdUTu?usp=sharing",
@@ -103,7 +99,26 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                 "simulations_src_sh3_3":"https://drive.google.com/drive/folders/13xLOqW2ldRNm8OeU-bnp9DPEqU1d31Wy?usp=sharing"
 
             }
+        if os.path.isdir(dir_name):
+            if not os.listdir(dir_name):
+                print("Directory is empty")
+                os.remove(dir_name)
+                print("Data directory is missing. Downloading, this might take a while. If you see an error like \n"
+                      " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
+                      "just wait, too many requests have been made to the google drive folder \n"
+                      "Otherwise just download the data sets manually from the google drive urls : \n {}".format(
+                    dict_urls[name]))
+                gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder, name), quiet=True,
+                                      use_cookies=False, remaining_ok=True)
 
+
+            else:
+                print("Dataset is ready in the folder!")
+        else:
+            print("Data directory is missing. Downloading, this might take a while. If you see an error like \n"
+                  " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
+                  "just wait, too many requests have been made to the google drive folder \n"
+                  "Otherwise just download the data sets manually from the google drive urls : \n {}".format(dict_urls[name]))
             gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder,name),quiet=True, use_cookies=False,remaining_ok=True)
 
 
@@ -357,45 +372,6 @@ def benchmark_randalls_dataset_test(settings_config,aa_probs=21):
         dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
 
     return dataset, internal_nodes
-# def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
-#     """Load and format the ancestral sequences from the EvolveAGene4 simulations
-#     :param ancestral_file
-#     :param tree_level_order_names
-#     :param aligned
-#     :param align_max_len
-#     :param aa_probs
-#     """
-#     # Select the sequences of only the observed nodes
-#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-#     aminoacid_names = DraupnirUtils.aminoacid_names_dict(aa_probs)
-#     internal_fasta_dict = {}
-#     tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
-#
-#     for seq in ancestral_fasta:
-#             seq_numbers =[]
-#             #Highlight: replace all stop codons with a gap and also the sequence coming after it
-#             sequence_no_stop_codons = str(seq.seq).split("*", 1)[0]
-#             len_diff = len(str(seq.seq)) - len(sequence_no_stop_codons)
-#             sequence_no_stop_codons = sequence_no_stop_codons + "-"*len_diff
-#             #for aa_name in seq.seq :
-#             for aa_name in sequence_no_stop_codons:
-#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0])
-#                 aa_number = aminoacid_names[aa_name]
-#                 seq_numbers.append(aa_number)
-#             seq_id = np.where(np.array(tree_level_order_names) == seq.id.strip("Node"))[0][0]
-#             #internal_fasta_dict[int(seq_id)] = [seq.seq,seq_numbers]
-#             internal_fasta_dict[int(seq_id)] = [sequence_no_stop_codons, seq_numbers]
-#
-#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-#     print("Creating aligned TEST simulation dataset...")
-#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
-#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
-#         aligned_seq = list(internal_fasta_dict[key][0])
-#         Dataset[i, 0, 1] = key  # name in the tree
-#         Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
-#         Dataset[i, 2:,0] = internal_fasta_dict[key][1]
-#
-#     return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
 def load_randalls_benchmark_ancestral_sequences(settings_config):
     dataset_test,internal_names_test = benchmark_randalls_dataset_test(settings_config)
     dataset_test = np.array(dataset_test, dtype="float64")
@@ -411,11 +387,6 @@ def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree
     :param aa_probs
     :param script_dir
     """
-    # dataset_test, leaves_names_test,max_len_test = simulations_dataset_test(ancestral_file="{}/{}/{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(script_dir,settings_config.data_folder,name,root_sequence_name),
-    #                                                                        tree_level_order_names=tree_levelorder_names,
-    #                                                                        aligned=settings_config.aligned_seq,
-    #                                                                        align_max_len=align_seq_len,
-    #                                                                        aa_probs=aa_probs)
     ancestral_file = "{}/{}_pep_Internal_Nodes_True_alignment.FASTA".format(settings_config.data_folder,root_sequence_name)
 
     # Select the sequences of only the observed nodes

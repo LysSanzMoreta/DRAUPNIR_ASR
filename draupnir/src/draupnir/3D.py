@@ -1,7 +1,7 @@
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 import sys
@@ -18,7 +18,7 @@ import draupnir.infer_angles.calculate_coords as nerf
 import draupnir.infer_angles.pnerf as pnerf
 import numpy as np
 import torch
-import Draupnir_utils as DraupnirUtils
+import utils as DraupnirUtils
 import datetime
 
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])

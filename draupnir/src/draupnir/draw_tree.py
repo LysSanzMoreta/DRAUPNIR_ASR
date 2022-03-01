@@ -1,4 +1,15 @@
-from ete3 import Tree, faces, AttrFace, TreeStyle, NodeStyle, Tree, TextFace
+"""
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
+=======================
+"""
+#from ete3 import Tree, faces, AttrFace, TreeStyle, NodeStyle, Tree, TextFace
+try:
+    from ete3 import Tree, faces, AttrFace, TreeStyle,NodeStyle,TextFace
+except:
+    pass
+
 import matplotlib.pyplot as plt
 import matplotlib
 import pickle, os

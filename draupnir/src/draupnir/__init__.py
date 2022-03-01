@@ -4,8 +4,11 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
-from .Draupnir_main import *
-from .Draupnir_datasets import *
-from .Draupnir_utils import *
-from .Draupnir_draw_tree import *
-
+from .main import *
+from .datasets import *
+from .utils import *
+from .draw_tree import *
+#from .models_utils import *
+#from .guides import *
+#from .models import *
+#from .train import *
