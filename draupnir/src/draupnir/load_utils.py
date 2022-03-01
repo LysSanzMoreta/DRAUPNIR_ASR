@@ -1,3 +1,9 @@
+"""
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
+=======================
+"""
 from collections import defaultdict
 import os,sys
 import numpy as np
@@ -7,9 +13,9 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio import SeqIO
 #sys.path.append("./draupnir/draupnir")
-import Draupnir_utils as DraupnirUtils
-import Draupnir_models_utils as DraupnirModelUtils
-import Draupnir_datasets as DraupnirDatasets
+import draupnir.utils as DraupnirUtils
+import draupnir.models_utils as DraupnirModelUtils
+import draupnir.datasets as DraupnirDatasets
 from collections import namedtuple
 from torch.utils.data import Dataset, DataLoader
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
@@ -475,26 +481,6 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
 
     return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
-# def pretreatment_Bayes(training_Dataset, patristic_matrix,aa_prob):
-#     "Works when the nodes have their name from their order in the traversal tree order (otherwise the names could be repeated and the sorting will not work)"
-#     #Highlight: AA freqs
-#     aa_frequencies = DraupnirUtils.calculate_aa_frequencies(training_Dataset[:,2:,0],freq_bins=aa_prob)
-#     # Highlight: Sort by descent the patristic distances by node id
-#     patristic_matrix_sorted = patristic_matrix[patristic_matrix[:,0].argsort()] #sort rows
-#     patristic_matrix_sorted = patristic_matrix_sorted[:,patristic_matrix[0,:].argsort(axis=0)] #sort columns
-#     # Highlight: Find only the observed node indexes on the patristic matrix
-#     obs_indx = (patristic_matrix_sorted[:, 0][..., None] == training_Dataset[:, 0, 1]).any(-1)
-#     obs_indx[0] = True  # To re-add the node names
-#     patristic_matrix_sorted = patristic_matrix_sorted[obs_indx]
-#     patristic_matrix_sorted = patristic_matrix_sorted[:, obs_indx]
-#     # Highlight: Sort by descent the family data by node id, so that the order of the patristic distances and the sequences are matching
-#     #training_Dataset_sorted, training_Dataset_sorted_idx = torch.sort(training_Dataset[:, 0, 1])
-#     training_Dataset = training_Dataset[training_Dataset[:, 0, 1].argsort()]
-#     aminoacid_sequences = training_Dataset[:, 2:, 0]
-#     # aminoacid_sequences = aminoacid_sequences.unsqueeze(2)  # to add a 3rd dimension to allow for the gru to do time series
-#     angles = training_Dataset[:, 2:, 1:3]
-#
-#     return training_Dataset, aminoacid_sequences, angles, patristic_matrix_sorted,aa_frequencies
 def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,cladistic_matrix,test_nodes_observed,device,inferred=True,original_naming=True):
     if inferred:
         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,25]  # numbers in the benchmark dataset paper/original names
@@ -566,51 +552,6 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
-# def pretreatment_Benchmark_Bayes(Dataset_test,training_Dataset,patristic_matrix,test_nodes_observed,inferred=False,original_naming=True):
-#
-#     if inferred:
-#         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,
-#                                               25]  # numbers in the benchmark dataset paper/original names
-#         test_nodes_inferred_list = [19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33, 34,
-#                                     35]  # iqtree correspondence
-#     else:
-#         if original_naming:
-#             test_nodes_observed_correspondence = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
-#             test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
-#         else:
-#             test_nodes_observed_correspondence = [37, 22, 30, 23, 28, 31, 32, 24, 27, 29, 33, 34, 25, 26, 35,
-#                                                   36]  # original names
-#             test_nodes_inferred_list = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-#                                         36]  # new names for ancestral nodes (it's the observed tree but ete3 changes the names of the ancestral)
-#     correspondence_dict = dict(zip(test_nodes_observed_correspondence, test_nodes_inferred_list))
-#     test_nodes_inferred_list_correspondence = [correspondence_dict[val] for val in test_nodes_observed]
-#
-#     # Highlight: Keep only the ancestral nodes, because , some of the ancestral nodes have the same number as the leaves
-#     n_obs = training_Dataset.shape[0]
-#     patristic_matrix_test = patristic_matrix[:n_obs - 1]
-#     patristic_matrix_test = patristic_matrix_test[:, :n_obs - 1]
-#     test_nodes = np.array(test_nodes_inferred_list_correspondence)
-#     #Highlight: replace also in the original dataset with the correspondent node names
-#     Dataset_test[:,0,1] = test_nodes
-#     Dataset_test = Dataset_test[Dataset_test[:,0,1].argsort()] #sort rows (in case they are not sorted)
-#     test_indx_patristic = (patristic_matrix_test[:, 0][..., None] == test_nodes).any(-1)
-#     test_indx_patristic[0] = True  # To re-add the node names
-#     patristic_matrix_test = patristic_matrix_test[test_indx_patristic]
-#     patristic_matrix_test = patristic_matrix_test[:, test_indx_patristic]
-#     #Highlight:  Sort by descent the patristic distances by node id ( for the train sequences is done in Draupnir.preprocessing)
-#     patristic_matrix_test = patristic_matrix_test[patristic_matrix_test[:, 0].argsort()]  # sort rows
-#     patristic_matrix_test = patristic_matrix_test[:, patristic_matrix_test[0, :].argsort(axis=0)]  # sort columns
-#     #Highlight : Training matrix
-#     obs_node_names = patristic_matrix[n_obs - 1:, 0]
-#     train_indx_patristic = (patristic_matrix[:, 0][..., None] == obs_node_names).any(-1)
-#     train_indx_patristic[0] = True
-#     # Highlight: Skip ancestral number 19 (repeated!!!)
-#     train_indx_patristic[1] = False
-#     patristic_matrix = patristic_matrix[train_indx_patristic]
-#     patristic_matrix = patristic_matrix[:, train_indx_patristic]
-#     #Highlight: Need to invert the dict mapping for later
-#     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
-#     return patristic_matrix,patristic_matrix_test,Dataset_test,correspondence_dict
 def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir):
     """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
     :param str name: dataset_name

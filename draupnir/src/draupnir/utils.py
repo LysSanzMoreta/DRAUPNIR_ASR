@@ -1,7 +1,7 @@
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 
@@ -35,7 +35,7 @@ import seaborn as sns
 from collections import defaultdict,namedtuple
 import pickle
 #sys.path.append("./draupnir/draupnir")
-import Draupnir_models_utils as DraupnirModelUtils
+import draupnir.models_utils as DraupnirModelUtils
 #Biopython
 import Bio.PDB as PDB
 from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
@@ -57,7 +57,7 @@ import pandas as pd
 def aa_properties(aa_probs,data_folder):
     """ Creates a dictionary with amino acid properties, extracted from
     https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html
-    :param str aa_probs: amino acid probabilities used to extract the types of amino acids present in the dataset
+    :param int aa_probs: amino acid probabilities used to extract the types of amino acids present in the dataset
     :param str data_folder: path to where draupnir is been executed from"""
 
     aa_types = list(aminoacid_names_dict(aa_probs).keys())
@@ -1711,111 +1711,7 @@ def gradients_plot(gradient_norms,epochs,directory):
     plt.savefig("{}/Gradients_{}_epochs.png".format(directory,epochs))
     plt.clf()
     plt.close()
-# def benchmark_dataset(name,aa_prob):
-#     """Processing of the dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
-#     :param str name: project dataset name
-#     :param int aa_probs: amino acid probabilities"""
-#     observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
-#     sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
-#     #Select the sequences of only the observed nodes
-#     full_fasta = SeqIO.parse(sequences_file, "fasta")
-#     with open("datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta", "w") as output_handle:
-#         observed_fasta = []
-#         for seq in full_fasta:
-#             if int(seq.id) in observed_nodes:
-#                 observed_fasta.append(seq)
-#         SeqIO.write(observed_fasta, output_handle, "fasta")
-#     create_dataset(name,
-#                    one_hot_encoding=False,
-#                    fasta_file="datasets/default/benchmark_randall_original_naming/original_data/Randall_Benchmark_Observed.fasta",
-#                    alignment_file="datasets/default/benchmark_randall_original_naming/benchmark_randall_original.mafft",
-#                    tree_file="benchmark_randall_original_naming/RandallBenchmarkTree_OriginalNaming.tree",
-#                    aa_probss=aa_probs,
-#                    rename_internal_nodes=False)
 
-# def SimulationsDataset(name,data_dir,fasta_file,tree_file,n_taxa):
-#     """Processes the leaves from the EvolveAGene4 simulations into a dataset
-#     :param str name: simulation dataset root name
-#     :data_dir"""
-#     observed_nodes = ["A{}".format(i) for i in range(1,n_taxa)] #Highlight: In the simulations the leaves have the A before
-#     #Select the sequences of only the observed nodes
-#     full_fasta = SeqIO.parse(fasta_file, "fasta")
-#     with open("{}/{}_Observed.fasta".format(name,data_dir), "w") as output_handle:
-#         observed_fasta = []
-#         for seq in full_fasta:
-#             if int(seq.id) in observed_nodes:
-#                 observed_fasta.append(seq)
-#         SeqIO.write(observed_fasta, output_handle, "fasta")
-#
-#     create_dataset(name,
-#                    one_hot_encoding=False,
-#                    fasta_file="{}/{}_Observed.fasta".format(name,data_dir),#Alignment file
-#                    tree_file=tree_file)
-# def simulations_dataset_test(ancestral_file,tree_level_order_names,aligned,align_max_len,aa_probs):
-#     """Load and format the ancestral sequences from the simulations
-#     :param ancestral_file
-#     """
-#     # Select the sequences of only the observed nodes
-#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-#     aminoacid_names = aminoacid_names_dict(aa_probs)
-#     internal_fasta_dict = {}
-#     tree_level_order_names = np.char.strip(tree_level_order_names, 'I') #removing the letter added while processing the full tree
-#
-#     for seq in ancestral_fasta:
-#             seq_numbers =[]
-#             #Highlight: replace all stop codons with a gap and also the sequence coming after it
-#             sequence_no_stop_codons = str(seq.seq).split("*", 1)[0]
-#             len_diff = len(str(seq.seq)) - len(sequence_no_stop_codons)
-#             sequence_no_stop_codons = sequence_no_stop_codons + "-"*len_diff
-#             #for aa_name in seq.seq :
-#             for aa_name in sequence_no_stop_codons:
-#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0])
-#                 aa_number = aminoacid_names[aa_name]
-#                 seq_numbers.append(aa_number)
-#             seq_id = np.where(np.array(tree_level_order_names) == seq.id.strip("Node"))[0][0]
-#             #internal_fasta_dict[int(seq_id)] = [seq.seq,seq_numbers]
-#             internal_fasta_dict[int(seq_id)] = [sequence_no_stop_codons, seq_numbers]
-#
-#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-#     print("Creating aligned TEST simulation dataset...")
-#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2 , 30),dtype=object)
-#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
-#         aligned_seq = list(internal_fasta_dict[key][0])
-#         Dataset[i, 0, 1] = key  # name in the tree
-#         Dataset[i, 0, 0] =  len(str(internal_fasta_dict[key][0]).replace("-","")) # Fill in the sequence lenght
-#         Dataset[i, 2:,0] = internal_fasta_dict[key][1]
-#
-#     return Dataset,internal_fasta_dict.keys(),max_lenght_internal_aligned
-#
-# def randalls_dataset(scriptdir,aa_probs=21):
-#     "Pick from the ancestral sequences those of interest/available in the Iqtree"
-#     internal_nodes = [21,30,37,32,31,34,35,36,33,28,29,22,23,27,24,26,25]
-#     sequences_file = "{}/datasets/default/benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta".format(scriptdir)
-#     # Select the sequences of only the observed nodes
-#     full_fasta = SeqIO.parse(sequences_file, "fasta")
-#     aminoacid_names= aminoacid_names_dict(aa_probs)
-#     internal_fasta_dict = {}
-#     for seq in full_fasta:
-#         if int(seq.id) in internal_nodes:
-#             seq_numbers =[]
-#             for aa_name in seq.seq:
-#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
-#                 aa_number = aminoacid_names[aa_name]
-#                 seq_numbers.append(aa_number)
-#             internal_fasta_dict[int(seq.id)] = [seq.seq,seq_numbers]
-#     max_length = max([int(len(sequence[0])) for idx,sequence in internal_fasta_dict.items()]) #225
-#
-#     dataset = np.zeros((len(internal_fasta_dict), max_length + 1 + 1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +2 (to include git, seqlen)
-#     for i, (key,val) in enumerate(internal_fasta_dict.items()):
-#         # aligned_seq = list(alignment[i].seq.strip(",")) # I don't think this made sense, cause files could be in wrong order?
-#         aligned_seq = list(internal_fasta_dict[key][0].strip(","))
-#         no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 2  # plus 2 in order to make the indexes fit in the final dataframe
-#         dataset[i, 0,0] = len(internal_fasta_dict[key][1]) #Insert seq len and git vector
-#         dataset[i,0,1] = key #position in the tree
-#         dataset[i, 0, 2] =  0 #fake distance to the root
-#         dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
-#
-#     return dataset, internal_nodes
 def renaming(tree):
         """Rename the internal nodes, unless the given newick file already has the names on it
         :param tree: ete3 format 1 tree"""
@@ -1828,82 +1724,6 @@ def renaming(tree):
                 node.name = "A%d" % edge
                 internal_nodes_names.append(node.name)
                 edge += 1
-# def SRCKinasesDatasetTest(name,ancestral_file,script_dir,tree_level_order_names,aa_probs=21):
-#     print("Creating aligned TEST SRC Kinases dataset...")
-#     if name == "Douglas_SRC": raise ValueError("Not implemented due to ambiguous tree")
-#     # Select the sequences of only the observed nodes
-#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-#     tree_file = "{}/Douglas_SRC_Dataset/{}/{}_ALIGNED.mafft.treefile".format(script_dir,name,name.replace("_subtree",""))
-#
-#     aminoacid_names = aminoacid_names_dict(aa_probs)
-#     root_name = name.replace("_subtree","").replace("_","-")
-#     tree = TreeEte3(tree_file,format=1)#,quoted_node_names=True)
-#     renaming(tree)
-#     root_number = [node.name for node in tree.traverse() if node.is_root()]
-#
-#     nodes_equivalence = {root_name:root_number}
-#     internal_fasta_dict = {}
-#     for seq in ancestral_fasta:
-#         if seq.id == root_name:
-#             seq_numbers = []
-#             for aa_name in str(seq.seq).replace("-",""):
-#                 aa_number = aminoacid_names[aa_name]
-#                 seq_numbers.append(aa_number)
-#             seq_id = np.where(np.array(tree_level_order_names) == nodes_equivalence[seq.id])[0][0]
-#             internal_fasta_dict[int(seq_id)] = [str(seq.seq).replace("-",""), seq_numbers]
-#
-#     max_lenght_internal_aligned = max([int(len(sequence[0])) for idx, sequence in
-#                                        internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=int)
-#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
-#         aligned_seq = list(internal_fasta_dict[key][0])
-#         Dataset[i, 0, 1] = int(key)  # name in the tree
-#         Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][0]).replace("-", ""))  # Fill in the sequence lenght
-#         Dataset[i, 2:, 0] = internal_fasta_dict[key][1]
-#
-#    return torch.from_numpy(Dataset), list(internal_fasta_dict.keys()), max_lenght_internal_aligned, nodes_equivalence
-
-# def CFPTest(name,ancestral_file,tree_level_order_names,aa_probs):
-#     "Select the root sequence of the Faviina clade as the test sequence"
-#     ancestral_fasta = SeqIO.parse(ancestral_file, "fasta")
-#     if name == "Coral_Faviina":
-#         root = "A35" #TODO: root detection system?
-#         nodes_dict = {"all-fav0":root,"all-fav1":root,"all-fav2":root,"all-fav3":root,"all-fav4":root}
-#     elif name == "Coral_all":
-#         root = "A71"
-#         nodes_dict = {"allcor0": root, "allcor1": root, "allcor2": root, "allcor3": root, "allcor4": root}
-#     elif name == "Cnidaria":
-#         print("Fix CFPTest for Cnidaria. The tree does not match the original, cannot be used")
-#         exit()
-#         ancestor_coral = ""
-#         ancestor_faviina = ""
-#         nodes_dict = {"allcor0": ancestor_coral, "allcor1": ancestor_coral, "allcor2": ancestor_coral, "allcor3": ancestor_coral, "allcor4": ancestor_coral,
-#                       "all-fav0":ancestor_faviina,"all-fav1":ancestor_faviina,"all-fav2":ancestor_faviina,"all-fav3":ancestor_faviina,"all-fav4":ancestor_faviina}
-#
-#     aminoacid_names = aminoacid_names_dict(aa_probs)
-#     test_nodes_names = []
-#     internal_fasta_dict ={}
-#     for seq in ancestral_fasta:
-#         if seq.id in nodes_dict.keys():
-#             seq_numbers = []
-#             for aa_name in seq.seq:
-#                 #aa_number = int(np.where(np.array(aminoacid_names) == aa_name)[0][0]) + add_on
-#                 aa_number = aminoacid_names[aa_name]
-#                 seq_numbers.append(aa_number)
-#             id = nodes_dict[seq.id]
-#             seq_id = np.where(np.array(tree_level_order_names) == id)[0][0]
-#             test_nodes_names.append(seq_id)
-#             internal_fasta_dict[seq.id] = [seq_id,seq.seq, seq_numbers]
-#
-#     max_lenght_internal_aligned = max([int(len(sequence[1])) for idx, sequence in internal_fasta_dict.items()])  # Find the largest sequence without being aligned
-#     print("Creating aligned Coral Faviina dataset...")
-#     Dataset = np.zeros((len(internal_fasta_dict), max_lenght_internal_aligned + 2, 30), dtype=object)
-#     for i, (key, val) in enumerate(internal_fasta_dict.items()):
-#         Dataset[i, 0, 1] = int(val[0])  # name in the tree
-#         Dataset[i, 0, 0] = len(str(internal_fasta_dict[key][1]).replace("-", ""))  # Fill in the sequence lenght
-#         Dataset[i, 2:, 0] = internal_fasta_dict[key][2]
-#
-#     return Dataset.astype(float), test_nodes_names, max_lenght_internal_aligned,nodes_dict
 
 def calculate_aa_frequencies(dataset,freq_bins):
     """Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x. This is done for numpy arrays
@@ -1952,17 +1772,6 @@ def remove_stop_codons(sequence_file):
     seq_file.write("".join(codons))
     seq_file.truncate()  # remove contents
 
-# class LoadFromFile (argparse.Action):
-#     def __call__(self, parser, namespace, values, option_string=None):
-#         with values as f:
-#             contents = f.read()
-#
-#         # parse arguments in the file and store them in a blank namespace
-#         data = parser.parse_args(contents.split(), namespace=None)
-#         for k, v in vars(data).items():
-#             # set arguments in the target namespace if they haven’t been set yet
-#             if getattr(namespace, k, None) is not None:
-#                 setattr(namespace, k, v)
 def convert_to_integers(dataset,aa_probs,axis):
     """Transforms one hot encoded amino acids into 0-indexed integers i.e [1,0,0,0] --> 0  [0,1,0,0] -> 1
     :param numpy dataset
@@ -2010,17 +1819,6 @@ def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_probs,dataset_trai
 
 
     return aa_train_blosum
-
-# def translate_sequence(seq_file):
-#     """
-#     CCDS (Consensus conserved region): https://www.ncbi.nlm.nih.gov/CCDS/CcdsBrowse.cgi?REQUEST=CCDS&DATA=CCDS13294.1
-#     https://www.rcsb.org/structure/2SRC
-#     GenBank: BC011566.1
-#     https://www.ncbi.nlm.nih.gov/nuccore/BC011566.1?report=fasta"""
-#     sequences = SeqIO.parse(seq_file, "fasta")
-#     f = open("Datasets_Simulations/SRC_simulations/SRC_GenBank_BC011566.1_PROTEIN_full.fasta", "w+")
-#     for seq in sequences:
-#         f.write("{}\n".format(seq.translate().seq))
 
 def str2bool(v):
     """Converts a string into a boolean, useful for boolean arguments

@@ -1,4 +1,9 @@
-
+"""
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
+=======================
+"""
 def index_generator(indexes):
     """Call method to subsample in order.
     model (args, iter_num = index_generator())
@@ -50,7 +55,7 @@ def train(svi,patristic_matrix,cladistic_matrix,train_loader,args):
             seq_lens += dataset[:,0,0].tolist()
             train_loss += svi.step(dataset,patristic_matrix,cladistic_matrix,None) #None is the clade blosum, it's None because here we do not do clade batching
     # Normalize loss
-    normalizer_train = sum(seq_lens)
+    #normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss #/ normalizer_train
     return total_epoch_loss_train
 def train_plating(svi,patristic_matrix,cladistic_matrix,train_loader,args):
@@ -68,7 +73,7 @@ def train_plating(svi,patristic_matrix,cladistic_matrix,train_loader,args):
             seq_lens += dataset[:,0,0].tolist()
             train_loss += svi.step(dataset,patristic_matrix,cladistic_matrix,index_generator(dataset[:,0,1].tolist())) #None is the clade blosum, it's None because here we do not do clade batching
     # Normalize loss
-    normalizer_train = sum(seq_lens)
+    #normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss #/ normalizer_train
     return total_epoch_loss_train
 def train_batch_clade(svi,patristic_matrix,cladistic_matrix,train_loader,args):

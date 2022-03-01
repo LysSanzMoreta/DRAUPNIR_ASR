@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+=======================
 2022: Lys Sanz Moreta
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
@@ -12,7 +13,6 @@ import draupnir
 import argparse
 import os
 from draupnir import str2bool,str2None
-
 
 
 def main():

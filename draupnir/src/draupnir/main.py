@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 import os
 import time
-#import easydict
 import warnings
 from collections import namedtuple
 import matplotlib.pyplot as plt
@@ -28,14 +27,13 @@ from pyro.infer import Trace_ELBO
 #sys.path.append("./draupnir/src/draupnir")
 import draupnir
 draupnir_path = draupnir.__file__
-import Draupnir_utils as DraupnirUtils
-import Draupnir_models as DraupnirModels
-import Draupnir_guides as DraupnirGuides
-import Draupnir_plots as DraupnirPlots
-import Draupnir_train as DraupnirTrain
-import Draupnir_models_utils as DraupnirModelsUtils
-import Draupnir_load_utils as DraupnirLoadUtils
-import Draupnir_datasets as DraupnirDatasets
+import draupnir.utils as DraupnirUtils
+import draupnir.models as DraupnirModels
+import draupnir.guides as DraupnirGuides
+import draupnir.plots as DraupnirPlots
+import draupnir.train as DraupnirTrain
+import draupnir.models_utils as DraupnirModelsUtils
+import draupnir.load_utils as DraupnirLoadUtils
 import datetime
 import pickle
 import json
@@ -227,7 +225,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
             internal_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', str(node)))
             leaves_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', node))
 
-
+    #TODO: dill and pickle module dependencies: https://oegedijk.github.io/blog/pickle/dill/python/2020/11/10/serializing-dill-references.html
     #Highlight: Load The clades and reassigning their names to the ones in tree levelorder
     clades_dict_leaves = pickle.load(open('{}/{}_Clades_dict_leaves.p'.format(settings_config.data_folder,name), "rb"))
     clades_dict_leaves = DraupnirLoadUtils.convert_clades_dict(name, clades_dict_leaves, leaves_nodes_dict, internal_nodes_dict,only_leaves=True)
@@ -360,7 +358,7 @@ def save_samples(dataset,patristic,samples_out,entropies,correspondence_dict,res
     """Saves a dictionary of tensors
     :param tensor dataset: [N_seqs, align_len, 30]
     :param tensor patristic: [N_seqs+1,N_seqs+1]
-    :param namedttuple samples_out
+    :param namedtuple samples_out
     :param tensor entropies: entropies per sequence
     :param dict correspondence_dict: dictionary that contains the correspondence upon the node indexes (integers) and the tree nodes names (ordered in tree level order)
     :param str results_dir
@@ -438,10 +436,10 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     #TODO: Warnings/Raise errors for not allowed combinations
     #todo: HOW TO MAKE THIS SIMPLER
 
-    if args.batch_by_clade:# clade batching #TODO: remove?
+    if args.batch_by_clade:# clade batching #TODO: remove---> might be useful still
         Draupnir = DraupnirModels.DRAUPNIRModel_cladebatching(model_load)
         patristic_matrix_model =patristic_matrix_train
-    elif args.plating :#plating with splitted blosum matrix
+    elif args.plating :#plating without splitted weighted average of blosum scores
         assert args.batch_size == 1, "We are plating, no batching, please set batch_size == 1"
         Draupnir = DraupnirModels.DRAUPNIRModel_classic_plating(model_load) #plating in tree level order, no blosum splitting
         patristic_matrix_model = patristic_matrix_train
@@ -462,8 +460,8 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         else:
             Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
-    else: #batching #TODO: Remove?
-        raise ValueError("Model combination not valid")
+    else: #batching #TODO: Remove---> nope, restore for large trees
+        raise ValueError("Model combination not valid for now")
         # Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
         # patristic_matrix_model = patristic_matrix_train
 
@@ -475,7 +473,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     #Highlight: Saving the model function to a separate file
     model_file = open("{}/ModelFunction.py".format(results_dir), "a+")
 
-    draupnir_models_file = open("{}/Draupnir_models.py".format(os.path.dirname(draupnir_path)), "r+")
+    draupnir_models_file = open("{}/models.py".format(os.path.dirname(draupnir_path)), "r+")
     model_text = draupnir_models_file.readlines()
     line_start = model_text.index("class {}(DRAUPNIRModelClass):\n".format(Draupnir.get_class()))
     #line_stop= [index if "class" in line else len(model_text[line_start+1:]) for index,line in enumerate(model_text[line_start+1:])][0]
@@ -486,7 +484,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     # Highlight: Saving the guide function to a separate file
     if args.select_guide.startswith("variational"):
         guide_file = open("{}/GuideFunction.py".format(results_dir), "a+")
-        draupnir_guides_file = open("{}/Draupnir_guides.py".format(os.path.dirname(draupnir_path)), "r+")
+        draupnir_guides_file = open("{}/guides.py".format(os.path.dirname(draupnir_path)), "r+")
         guide_text = draupnir_guides_file.readlines()
         guide_file.write("".join(guide_text))
     return Draupnir, patristic_matrix_model
@@ -1570,129 +1568,8 @@ def draupnir_train(train_load,
         save_samples(dataset_test, patristic_matrix_test, sample_out_test_argmax2, test_entropies2,correspondence_dict,"{}/test2_argmax_info_dict.torch".format(results_dir + "/Test2_argmax_Plots"))
         save_samples(dataset_train, patristic_matrix_train, sample_out_train, train_entropies, correspondence_dict,"{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
         save_samples(dataset_train, patristic_matrix_train, sample_out_train_argmax, train_entropies,correspondence_dict,"{}/train_argmax_info_dict.torch".format(results_dir + "/Train_argmax_Plots"))
-    # else: #no training, dummy data #TODO: Remove
-    #     print("WARNING No training (you have set the number of epochs to 0)!!!!!!! Then, I am creating a meaningless dummy result to avoid code errors. I hope you remembered to load previously trained results from a folder to override it....")
-    #     time.sleep(2)
-    #     #TODO: Check that this works with one hot encoding
-    #     sample_out_train =  sample_out_train_argmax = SamplingOutput(aa_sequences=torch.zeros(dataset_train[:,0,1].shape),
-    #                                   latent_space=torch.ones((dataset_train.shape[0],model_load.z_dim)),
-    #                                   logits=torch.rand((dataset_train.shape[0],model_load.align_seq_len,build_config.aa_probs)),
-    #                                   phis=None,
-    #                                   psis=None,
-    #                                   mean_phi=None,
-    #                                   mean_psi=None,
-    #                                   kappa_phi=None,
-    #                                   kappa_psi=None)
-    #     sample_out_test =  sample_out_test2  = SamplingOutput(aa_sequences=torch.zeros((n_samples,patristic_matrix_test.shape[0]-1,model_load.align_seq_len)),
-    #                                   latent_space=torch.ones((patristic_matrix_test.shape[0]-1,model_load.z_dim)),
-    #                                   logits=torch.rand((patristic_matrix_test.shape[0]-1,model_load.align_seq_len,build_config.aa_probs)),
-    #                                   phis=None,
-    #                                   psis=None,
-    #                                   mean_phi=None,
-    #                                   mean_psi=None,
-    #                                   kappa_phi=None,
-    #                                   kappa_psi=None)
-    #     sample_out_test_argmax =  sample_out_test_argmax2  = SamplingOutput(aa_sequences=torch.zeros((1,patristic_matrix_test.shape[0]-1,model_load.align_seq_len)),
-    #                                   latent_space=torch.ones((patristic_matrix_test.shape[0]-1,model_load.z_dim)),
-    #                                   logits=torch.rand((patristic_matrix_test.shape[0]-1,model_load.align_seq_len,build_config.aa_probs)),
-    #                                   phis=None,
-    #                                   psis=None,
-    #                                   mean_phi=None,
-    #                                   mean_psi=None,
-    #                                   kappa_phi=None,
-    #                                   kappa_psi=None)
-    # if args.load_trained_predictions: #TODO: remove, keep only sampling
-    #     print("¡¡¡Loading previously trained results!!!")
-    #     load_folder = args.load_trained_predictions_path
-    #     text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
-    #     text_file.write("Load predictions from TUNED params Model: {}\n".format(load_folder))
-    #     text_file.close()
-    #     Draupnir_state_dict = torch.load("{}/Draupnir_Checkpoints/Model_state_dict.p".format(load_folder))
-    #     Draupnir_optimizer_state = torch.load("{}/Draupnir_Checkpoints/Optimizer_state.p".format(load_folder))
-    #     save_checkpoint_preloaded(Draupnir_state_dict, results_dir, Draupnir_optimizer_state)
-    #     test_dict = torch.load("{}/Test_Plots/test_info_dict.torch".format(load_folder))
-    #     test_argmax_dict = torch.load("{}/Test_argmax_Plots/test_argmax_info_dict.torch".format(load_folder))
-    #     train_dict = torch.load("{}/Train_Plots/train_info_dict.torch".format(load_folder))
-    #     def check_if_exists(a,b,key):
-    #         "Deals with datasets that were trained before the current configuration of namedtuples"
-    #         try:
-    #             out = b[key]
-    #         except:
-    #             out = getattr(a, key)
-    #         return out
-    #     def one_or_another(a):
-    #         try:
-    #             out= a["predictions"]
-    #         except:
-    #             out = a["aa_predictions"]
-    #         return out
-    #     def tryexcept(a,key):
-    #         try:
-    #             out = a[key]
-    #         except:
-    #             out = None
-    #         return out
-    #     def load_dict_to_namedtuple(load_dict,sample_out):
-    #         if args.num_epochs > 0:
-    #             sample_out = SamplingOutput(aa_sequences=one_or_another(load_dict),# TODO: the old results have the name as predictions instead of aa_sequences
-    #                                               latent_space=load_dict["latent_space"],
-    #                                               logits=load_dict["logits"],
-    #                                               phis=check_if_exists(sample_out, load_dict, key="phis"),
-    #                                               psis=check_if_exists(sample_out, load_dict, key="psis"),
-    #                                               mean_phi=check_if_exists(sample_out, load_dict, key="mean_phi"),
-    #                                               mean_psi=check_if_exists(sample_out, load_dict, key="mean_psi"),
-    #                                               kappa_phi=check_if_exists(sample_out, load_dict, key="kappa_phi"),
-    #                                               kappa_psi=check_if_exists(sample_out, load_dict, key="kappa_psi"))
-    #         else:
-    #             sample_out = SamplingOutput(aa_sequences=one_or_another(load_dict),# TODO: the old results have the name as predictions instead of aa_sequences
-    #                                               latent_space=load_dict["latent_space"],
-    #                                               logits=load_dict["logits"],
-    #                                               phis=tryexcept(load_dict,"phis"), #TODO: try , excep None
-    #                                               psis=tryexcept(load_dict,"psis"),
-    #                                               mean_phi=tryexcept(load_dict,"mean_phi"),
-    #                                               mean_psi=tryexcept(load_dict,"mean_psi"),
-    #                                               kappa_phi=tryexcept(load_dict,"kappa_phi"),
-    #                                               kappa_psi=tryexcept(load_dict,"kappa_psi"))
-    #
-    #         return sample_out
-    #
-    #     sample_out_train = load_dict_to_namedtuple(train_dict,sample_out_train)
-    #     sample_out_test = load_dict_to_namedtuple(test_dict,sample_out_test)
-    #     sample_out_test_argmax = load_dict_to_namedtuple(test_argmax_dict,sample_out_test_argmax)
-    #     try:#some old predictions do not have train_argmax folder
-    #         train_argmax_dict = torch.load("{}/Train_argmax_Plots/train_argmax_info_dict.torch".format(load_folder))
-    #         sample_out_train_argmax = load_dict_to_namedtuple(train_argmax_dict,sample_out_train_argmax)
-    #     except:
-    #         print("Could not load train_argmax folders")
-    #         pass
-    #     train_entropies = train_dict["entropies"]
-    #     test_entropies = test_dict["entropies"]
-    #     try:  # some old predictions do not have test2 folders
-    #         test_argmax_dict2 = torch.load("{}/Test2_argmax_Plots/test2_argmax_info_dict.torch".format(load_folder))
-    #         test_dict2 = torch.load("{}/Test2_Plots/test_info_dict2.torch".format(load_folder))
-    #         sample_out_test_argmax2 = load_dict_to_namedtuple(test_argmax_dict2, sample_out_test_argmax2)
-    #         sample_out_test2 = load_dict_to_namedtuple(test_dict2,sample_out_test2)
-    #         test_entropies2 = test_dict2["entropies"]
-    #     except:
-    #         print("Could not load test2 folders!!!---> the results are not from a trained run")
-    #         test_entropies2 = test_entropies
-    #         pass
-    #
-    #
-    #     #Highlight: Saving the pre-trained predictions! It overwrites the trained ones
-    #     save_samples(dataset_test, patristic_matrix_test,sample_out_test, test_entropies,correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
-    #     save_samples(dataset_test,patristic_matrix_test, sample_out_test_argmax,test_entropies, correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
-    #     save_samples(dataset_test, patristic_matrix_test,sample_out_test2, test_entropies2,correspondence_dict,"{}/test_info_dict2.torch".format(results_dir + "/Test2_Plots"))
-    #     save_samples(dataset_test,patristic_matrix_test,sample_out_test_argmax2,test_entropies2, correspondence_dict,"{}/test2_argmax_info_dict.torch".format(results_dir + "/Test2_argmax_Plots"))
-    #     save_samples(dataset_train, patristic_matrix_train,sample_out_train, train_entropies,correspondence_dict,"{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
-    #     save_samples(dataset_train, patristic_matrix_train,sample_out_train_argmax, train_entropies,correspondence_dict,"{}/train_argmax_info_dict.torch".format(results_dir + "/Train_argmax_Plots"))
-    # else:
-    #     if args.num_epochs == 0: raise ValueError("You forgot to load previously trained predictions !")
-    #     else: pass
-
 
     #Highlight: Concatenate leaves and internal latent space for plotting
-    #latent_space_train,latent_space_test,patristic_matrix_train,patristic_matrix_test,additional_load,build_config,args,results_dir
     visualize_latent_space(sample_out_train_argmax.latent_space,
                            sample_out_test_argmax.latent_space,
                            patristic_matrix_train,
@@ -2018,7 +1895,7 @@ def manual_random_search(): #TODO: This probably does not work
         proc= subprocess.Popen(args=[sys.executable,"Draupnir_example.py","--parameter-search","True","--config-dict",str(config).replace("'", '"')],stdout=open('Random_Search_results.txt', 'a')) #stdout=open(os.devnull, 'wb'),stderr=open(os.devnull, 'wb')
         proc.communicate()
 def run(name,root_sequence_name,args,device,settings_config,build_config,script_dir):
-    """Loads and pre-treats the data, executes Draupnir model for training
+    """Loads and pre-treats the data for inference, executes Draupnir model for training or for sampling.
     :param str name
     :param str root_sequence_name
     :param namedtuple args
@@ -2050,10 +1927,10 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
         clades_dict=None
     else:
         clades_dict = additional_load.clades_dict_leaves
-    graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise is in additional_info
+    graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
     #graph_coo = additional_info.graph_coo
     if args.generate_samples:
-        print("Generating samples not training!")
+        print("Generating samples, not training!")
         assert name in args.load_pretrained_path, "Please use a pretrained model with the same dataset, fine tuning is not available"
         draupnir_sample(train_load,
                             test_load,

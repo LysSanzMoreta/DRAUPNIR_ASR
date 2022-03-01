@@ -1,15 +1,16 @@
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 import torch
+from torch import nn
 import sys
 from collections import namedtuple
-sys.path.append("./draupnir/src/draupnir")
-import Draupnir_utils as DraupnirUtils
-from Draupnir_models_utils import *
+#sys.path.append("./draupnir/src/draupnir")
+import draupnir.utils as DraupnirUtils
+from draupnir.models_utils import *
 import pyro
 import pyro.distributions as dist
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
@@ -62,13 +63,7 @@ class DRAUPNIRModelClass(nn.Module):
             self.n_internal = len(self.internal_nodes)
             self.n_all = self.n_leaves + self.n_internal
         self.num_layers = 1 #TODO: Remove
-        #self.h_0_GUIDE = nn.Parameter(torch.rand(self.gru_hidden_dim), requires_grad=True).to(self.device)
-        # if self.pretrained_params is not None:
-        #     self.h_0_MODEL = nn.Parameter(self.pretrained_params["h_0_MODEL"], requires_grad=False).to(self.device)
-        # else:
         self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len,self.aa_probs,self.gru_hidden_dim, self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        #self.decoder = RNNDecoder_FCL(self.align_seq_len, self.aa_probs,self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.batch_first)
         if ModelLoad.args.use_cuda:
             self.cuda()
     @abstractmethod
@@ -91,10 +86,10 @@ class DRAUPNIRModelClass(nn.Module):
         """Computes a Ornstein Ulenbeck process prior over the latent space, representing the evolutionary process.
         The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"""
         # Highlight; OU kernel parameters
-        alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
-        sigma_n = pyro.sample("sigma_n", dist.HalfNormal(alpha[1]).expand_by([self.z_dim, ]).to_event(1))  # Gaussian noise
-        lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.z_dim, ]).to_event(1))  # characteristic length-scale
+        alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1)) + 1e-6 #TODO: Change to another distribution less centered around 0
+        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+        sigma_n = pyro.sample("sigma_n", dist.HalfNormal(alpha[1]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # Gaussian noise
+        lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # characteristic length-scale
         # Highlight: Sample the latent space from MultivariateNormal with GP prior on covariance
         patristic_matrix = patristic_matrix_sorted[1:, 1:]
         OU_covariance = OUKernel_Fast(sigma_f, sigma_n, lambd).forward(patristic_matrix)

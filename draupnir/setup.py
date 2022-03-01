@@ -20,13 +20,13 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
 setup(name='draupnir',
-      version='0.0.15',
+      version='0.0.18',
       # list folders, not files
       packages=find_packages('src'),
       package_dir={'': 'src'},
       py_modules=[splitext(basename(path))[0] for path in glob('src/draupnir/*.py')],
       #scripts=['bin/script1.py'],
-      package_data={'draupnir': ['data/data.txt']},
+      package_data={'draupnir': ['data/*']},
       description= 'Ancestral sequence reconstruction using a tree structured Ornstein Uhlenbeck variational autoencoder',
       long_description=long_description,
       classifiers=[  # Optional

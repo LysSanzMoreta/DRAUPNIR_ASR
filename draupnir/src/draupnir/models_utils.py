@@ -1,7 +1,7 @@
 """
-2021: aleatoryscience
-Lys Sanz Moreta
-Draupnir : GP prior VAE for Ancestral Sequence Resurrection
+=======================
+2022: Lys Sanz Moreta
+Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
 # TORCH
@@ -105,40 +105,15 @@ class RNNDecoder_Tiling(nn.Module):
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-            #self.fc1.train(False)
-            self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.linear_probs.weight = nn.Parameter(pretrained_params["decoder.linear_probs.weight"],requires_grad=False)
-            self.linear_probs.bias = nn.Parameter(pretrained_params["decoder.linear_probs.bias"],requires_grad=False)
-            #self.linear_probs.train(False)
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-            #self.rnn.__setstate__(pretrained_params) #Is this working?
-            self.rnn.weight_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0"],requires_grad=False)
-            self.rnn.weight_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0"],requires_grad=False)
-            self.rnn.bias_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0"],requires_grad=False)
-            self.rnn.bias_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0"],requires_grad=False)
-            self.rnn.weight_ih_l0_reverse =nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0_reverse"],requires_grad=False)
-            self.rnn.weight_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0_reverse"],requires_grad=False)
-            self.rnn.bias_ih_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0_reverse"],requires_grad=False)
-            self.rnn.bias_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0_reverse"],requires_grad=False)
 
-        else:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
+        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
+        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
             #rnn.state_dict()
 
 
@@ -164,52 +139,17 @@ class RNNDecoder_Tiling_Angles(nn.Module):
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         self.softplus = nn.Softplus()
-        if pretrained_params is not None:
-            #common linear layer
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-            #linear layer logits/probs
-            self.fc2_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc2_probs.weight = nn.Parameter(pretrained_params["decoder.fc2_probs.weight"],requires_grad=False)
-            self.fc2_probs.bias = nn.Parameter(pretrained_params["decoder.fc2_probs.bias"],requires_grad=False)
-            #linear layer angles means
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_means.weight = nn.Parameter(pretrained_params["decoder.fc2_means.weight"],requires_grad=False)
-            self.fc2_means.bias = nn.Parameter(pretrained_params["decoder.fc2_means.bias"], requires_grad=False)
-            #linear layer angles kappas
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas.weight = nn.Parameter(pretrained_params["decoder.fc2_kappas.weight"],requires_grad=False)
-            self.fc2_kappas.bias = nn.Parameter(pretrained_params["decoder.fc2_kappas.bias"], requires_grad=False)
-            #RNN
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-            #self.rnn.__setstate__(pretrained_params) #Is this working?
-            self.rnn.weight_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0"],requires_grad=False)
-            self.rnn.weight_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0"],requires_grad=False)
-            self.rnn.bias_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0"],requires_grad=False)
-            self.rnn.bias_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0"],requires_grad=False)
-            self.rnn.weight_ih_l0_reverse =nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0_reverse"],requires_grad=False)
-            self.rnn.weight_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0_reverse"],requires_grad=False)
-            self.rnn.bias_ih_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0_reverse"],requires_grad=False)
-            self.rnn.bias_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0_reverse"],requires_grad=False)
-            #self.rnn.train(False)
 
-        else:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-            self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
-            self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
+        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        self.fc2_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
+        self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
+        self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
+        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
 
     def forward(self, input, hidden):
 
@@ -237,67 +177,20 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         self.softplus = nn.Softplus()
-        if pretrained_params is not None:
-            #common linear layer
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["decoder.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["decoder.fc1.bias"], requires_grad=False)
-            # logits linear layer
-            self.fc1_probs = nn.Linear(self.gru_hidden_dim,int((self.gru_hidden_dim)//2))
-            self.fc1_probs.weight = nn.Parameter(pretrained_params["decoder.fc1_probs.weight"], requires_grad=False)
-            self.fc1_probs.bias = nn.Parameter(pretrained_params["decoder.fc1_probs.bias"], requires_grad=False)
-            #means linear layer
-            self.fc1_means = nn.Linear(self.gru_hidden_dim,int((self.gru_hidden_dim)//2))
-            self.fc1_means.weight = nn.Parameter(pretrained_params["decoder.fc1_means.weight"], requires_grad=False)
-            self.fc1_means.bias = nn.Parameter(pretrained_params["decoder.fc1_means.bias"], requires_grad=False)
-            #kappas linear layer
-            self.fc1_kappas = nn.Linear(self.gru_hidden_dim,int((self.gru_hidden_dim)//2))
-            self.fc1_kappas.weight = nn.Parameter(pretrained_params["decoder.fc1_kappas.weight"], requires_grad=False)
-            self.fc1_kappas.bias = nn.Parameter(pretrained_params["decoder.fc1_kappas.bias"], requires_grad=False)
-            #linear layer logits/probs
-            self.fc2_probs = nn.Linear(int((self.gru_hidden_dim)//2), self.aa_prob)
-            self.fc2_probs.weight = nn.Parameter(pretrained_params["decoder.fc2_probs.weight"],requires_grad=False)
-            self.fc2_probs.bias = nn.Parameter(pretrained_params["decoder.fc2_probs.bias"],requires_grad=False)
-            #linear layer angles means
-            self.fc2_means = nn.Linear(int((self.gru_hidden_dim)//2), 2)
-            self.fc2_means.weight = nn.Parameter(pretrained_params["decoder.fc2_means.weight"],requires_grad=False)
-            self.fc2_means.bias = nn.Parameter(pretrained_params["decoder.fc2_means.bias"], requires_grad=False)
-            #linear layer angles kappas
-            self.fc2_kappas = nn.Linear(int((self.gru_hidden_dim)//2), 2)
-            self.fc2_kappas.weight = nn.Parameter(pretrained_params["decoder.fc2_kappas.weight"],requires_grad=False)
-            self.fc2_kappas.bias = nn.Parameter(pretrained_params["decoder.fc2_kappas.bias"], requires_grad=False)
-            #RNN
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
-            #self.rnn.__setstate__(pretrained_params) #Is this working?
-            self.rnn.weight_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0"],requires_grad=False)
-            self.rnn.weight_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0"],requires_grad=False)
-            self.rnn.bias_ih_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0"],requires_grad=False)
-            self.rnn.bias_hh_l0 = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0"],requires_grad=False)
-            self.rnn.weight_ih_l0_reverse =nn.Parameter(pretrained_params["decoder.rnn.weight_ih_l0_reverse"],requires_grad=False)
-            self.rnn.weight_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.weight_hh_l0_reverse"],requires_grad=False)
-            self.rnn.bias_ih_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_ih_l0_reverse"],requires_grad=False)
-            self.rnn.bias_hh_l0_reverse = nn.Parameter(pretrained_params["decoder.rnn.bias_hh_l0_reverse"],requires_grad=False)
-            #self.rnn.train(False)
 
-        else:
-            self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc1_probs = nn.Linear(self.gru_hidden_dim,int((self.gru_hidden_dim)//2))
-            self.fc1_means = nn.Linear(self.gru_hidden_dim, int((self.gru_hidden_dim) // 2))
-            self.fc1_kappas = nn.Linear(self.gru_hidden_dim, int((self.gru_hidden_dim) // 2))
-            self.fc2_probs = nn.Linear(int((self.gru_hidden_dim) // 2), self.aa_prob)
-            self.fc2_means = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
-            self.fc2_kappas = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
-            self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                              hidden_size=self.gru_hidden_dim,
-                              batch_first=True,
-                              bidirectional=True,
-                              num_layers=self.num_layers,
-                              dropout=0.0)
+        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        self.fc1_probs = nn.Linear(self.gru_hidden_dim,int((self.gru_hidden_dim)//2))
+        self.fc1_means = nn.Linear(self.gru_hidden_dim, int((self.gru_hidden_dim) // 2))
+        self.fc1_kappas = nn.Linear(self.gru_hidden_dim, int((self.gru_hidden_dim) // 2))
+        self.fc2_probs = nn.Linear(int((self.gru_hidden_dim) // 2), self.aa_prob)
+        self.fc2_means = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
+        self.fc2_kappas = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
+        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
 
     def forward(self, input, hidden):
 
@@ -316,21 +209,8 @@ class Embed(nn.Module):
         super(Embed, self).__init__()
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(self.aa_probs, self.aa_probs)
-            self.fc1.weight = nn.Parameter(pretrained_params["embed.fc1.weight"],requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["embed.fc1.bias"],requires_grad=False)
-        else:
-            self.fc1 = nn.Linear(self.aa_probs,self.aa_probs)
+        self.fc1 = nn.Linear(self.aa_probs,self.aa_probs)
         self.logsoftmax = nn.Softmax(dim=-1)
-        # self.embedding = nn.Embedding(num_embeddings=1,
-        #                               embedding_dim=1,
-        #                               padding_idx=None,
-        #                               max_norm=None,
-        #                               norm_type=2.0,
-        #                               scale_grad_by_freq=False,
-        #                               sparse=False,
-        #                               _weight=None) #TODO: Not working with current cudann
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         return output
@@ -340,39 +220,21 @@ class EmbedComplex(nn.Module):
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
         self.logsoftmax = nn.Softmax(dim=-1)
-
-        if pretrained_params is not None:
-            self.fc1 = nn.Linear(self.aa_probs, self.embedding_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["embed.fc1.weight"], requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["embed.fc1.bias"], requires_grad=False)
-            self.fc2 = nn.Linear(self.embedding_dim, self.aa_probs)
-            self.fc2.weight = nn.Parameter(pretrained_params["embed.fc2.weight"], requires_grad=False)
-            self.fc2.bias = nn.Parameter(pretrained_params["embed.fc2.bias"], requires_grad=False)
-        else:
-            self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
-            self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
-
+        self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.logsoftmax(self.fc2(output))
         return output
+
 class EmbedComplexEncoder(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(EmbedComplexEncoder, self).__init__()
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
         self.logsoftmax = nn.Softmax(dim=-1)
-
-        if pretrained_params is not None: #TODO: Fix
-            self.fc1 = nn.Linear(self.aa_probs, self.embedding_dim)
-            self.fc1.weight = nn.Parameter(pretrained_params["embeddingencoder.fc1.weight"], requires_grad=False)
-            self.fc1.bias = nn.Parameter(pretrained_params["embeddingencoder.fc1.bias"], requires_grad=False)
-            self.fc2 = nn.Linear(self.embedding_dim, self.aa_probs)
-            self.fc2.weight = nn.Parameter(pretrained_params["embeddingencoder.fc2.weight"], requires_grad=False)
-            self.fc2.bias = nn.Parameter(pretrained_params["embeddingencoder.fc2.bias"], requires_grad=False)
-        else:
-            self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
-            self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
+        self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
 
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
