@@ -229,17 +229,17 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     #Highlight: Load The clades and reassigning their names to the ones in tree levelorder
     clades_dict_leaves = pickle.load(open('{}/{}_Clades_dict_leaves.p'.format(settings_config.data_folder,name), "rb"))
     clades_dict_leaves = DraupnirLoadUtils.convert_clades_dict(name, clades_dict_leaves, leaves_nodes_dict, internal_nodes_dict,only_leaves=True)
-    clades_dict_all = pickle.load(open('{}/{}_Clades_dict_all.p'.format(settings_config.data_folder,name), "rb"))
+    clades_dict_all = DraupnirLoadUtils.load_serialized(open('{}/{}_Clades_dict_all.p'.format(settings_config.data_folder,name), "rb"))
     clades_dict_all = DraupnirLoadUtils.convert_clades_dict(name, clades_dict_all, leaves_nodes_dict, internal_nodes_dict,only_leaves=False)
     # Highlight: Load the dictionary containing the closests leaves to the INTERNAL nodes, transform the names to their tree level order
-    closest_leaves_dict = pickle.load(open('{}/{}_Closest_leaves_dict.p'.format(settings_config.data_folder,name), "rb"))
+    closest_leaves_dict = DraupnirLoadUtils.load_serialized(open('{}/{}_Closest_leaves_dict.p'.format(settings_config.data_folder,name), "rb"))
     closest_leaves_dict = DraupnirLoadUtils.convert_closest_leaves_dict(name, closest_leaves_dict, internal_nodes_dict, leaves_nodes_dict)
     #Highlight: Load the dictionary containing all the internal and leaves that descend from the each ancestor node
-    descendants_dict = pickle.load(open('{}/{}_Descendants_dict.p'.format(settings_config.data_folder,name), "rb"))
+    descendants_dict = DraupnirLoadUtils.load_serialized(open('{}/{}_Descendants_dict.p'.format(settings_config.data_folder,name), "rb"))
     descendants_dict = DraupnirLoadUtils.convert_descendants(name,descendants_dict,internal_nodes_dict,leaves_nodes_dict)
     #Highlight: Load dictionary with the directly linked children nodes--> i only have it for one dataset
     try:
-        linked_nodes_dict = pickle.load(open('{}/{}_Closest_children_dict.p'.format(settings_config.data_folder,name),"rb"))
+        linked_nodes_dict = DraupnirLoadUtils.load_serialized(open('{}/{}_Closest_children_dict.p'.format(settings_config.data_folder,name),"rb"))
         linked_nodes_dict = DraupnirLoadUtils.convert_only_linked_children(name, linked_nodes_dict, internal_nodes_dict, leaves_nodes_dict)
     except:
         linked_nodes_dict = None

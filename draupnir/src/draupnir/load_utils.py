@@ -18,6 +18,7 @@ import draupnir.models_utils as DraupnirModelUtils
 import draupnir.datasets as DraupnirDatasets
 from collections import namedtuple
 from torch.utils.data import Dataset, DataLoader
+from dill import Unpickler
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 TrainLoad = namedtuple('TrainLoad', ['dataset_train', 'evolutionary_matrix_train', 'patristic_matrix_train','cladistic_matrix_train'])
 TestLoad = namedtuple('TestLoad',
@@ -890,4 +891,21 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
     print(' Train_loader size: ', len(train_loader), 'batches')
 
     return train_loader
+class UnpicklerDraupnir(Unpickler):
+    """ Overwriting dill's unpickler to deal with re-naming of modules that interferes with the process of serialization of the pickled dictionaries
+    python's Unpickler extended to interpreter sessions and more types"""
+    _session = False
+    def find_class(self, module, name):
+        from pickle import Pickler as StockPickler, Unpickler as StockUnpickler
+        if (module, name) == ('__builtin__', '__main__'):
+            return self._main.__dict__ #XXX: above set w/save_module_dict
+        elif (module, name) == ('__builtin__', 'NoneType'):
+            return type(None) #XXX: special case: NoneType missing
+        if module == 'dill.dill': module = 'dill._dill'
+        if module == 'Draupnir_utils':module='draupnir.utils'
+        return StockUnpickler.find_class(self, module, name)
+def load_serialized(file, ignore=None, **kwds):
+    """unpickle an object from a file"""
+    return UnpicklerDraupnir(file, ignore=ignore, **kwds).load()
+
 
