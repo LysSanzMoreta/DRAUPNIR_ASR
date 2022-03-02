@@ -20,7 +20,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
 setup(name='draupnir',
-      version='0.0.191',
+      version='0.0.193',
       # list folders, not files
       packages=find_packages('src'),
       package_dir={'': 'src'},
@@ -48,5 +48,37 @@ setup(name='draupnir',
             'Changelog': 'https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/master/CHANGELOG.rst',
             'Issue Tracker': 'https://github.com/LysSanzMoreta/DRAUPNIR_ASR/issues',
       },
+      install_requires=[
+            'pyro-ppl==1.6.0',
+            'biopython>=1.78',
+            'pandas==1.0.1',
+            'matplotlib>=3.3.4',
+            'ete3==3.1.1',
+            'dgl-cu111==0.6.1',
+            'dill==0.3.3',
+            'seaborn==0.11.2',
+            'pytorch-ignite==0.4.4',
+            'scipy==1.5.4',
+            'scikit-learn==0.24.1',
+            'umap-learn==0.5.2',
+            'gdown==4.3.1'
+      ],
+      setup_requires=[
+            'pyro-ppl==1.6.0',
+            'biopython>=1.78',
+            'pandas==1.0.1',
+            'matplotlib>=3.3.4',
+            'ete3==3.1.1',
+            'dgl-cu111==0.6.1',
+            'dill==0.3.3',
+            'seaborn==0.11.2',
+            'pytorch-ignite==0.4.4',
+            'scipy==1.5.4',
+            'scikit-learn==0.24.1',
+            'umap-learn==0.5.2',
+            'gdown==4.3.1'
+      ],
+      include_package_data=True,
+      zip_safe=False
 
       )
