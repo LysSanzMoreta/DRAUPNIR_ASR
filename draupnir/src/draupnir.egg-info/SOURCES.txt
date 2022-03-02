@@ -22,6 +22,8 @@ src/draupnir/utils.py
 src/draupnir.egg-info/PKG-INFO
 src/draupnir.egg-info/SOURCES.txt
 src/draupnir.egg-info/dependency_links.txt
+src/draupnir.egg-info/not-zip-safe
+src/draupnir.egg-info/requires.txt
 src/draupnir.egg-info/top_level.txt
 src/draupnir/data/AA_properties.txt
 src/draupnir/data/PfamPdbMap.txt
