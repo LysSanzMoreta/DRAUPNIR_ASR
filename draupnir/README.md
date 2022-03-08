@@ -1,3 +1,4 @@
+
 DRAUPNIR: "Beta library version for performing ASR using a tree-structured Variational Autoencoder"
 
 ##Extra requirements for tree inference:
@@ -75,6 +76,13 @@ pip install draupnir
    - Calculate mutual information: 
      - First: Run Draupnir with the MAP & Marginal version and Variational version, or just the Variational 
      - Second: Use the draupnir.calculate_mutual_information() with the paths to the folders with the trained runs. 
+
+
+
+
+
+
+
 
 
 
