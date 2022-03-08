@@ -4,6 +4,10 @@ DRAUPNIR: "Beta library version for performing ASR using a tree-structured Varia
 
 ![alt text](https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/draupnir_logo.png)
 
+<p align="center">
+  <img src="https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/draupnir_logo.png" alt="Draupnir Logo"/>
+</p>
+
 
 ##Extra requirements for tree inference:
 
@@ -76,6 +80,7 @@ pip install draupnir
    - Observe the latent space: 
       1) t_SNE, UMAP and PCA plots: Is it organized by clades? Although, not every data set will present tight clustering of the tree clades though but there should be some organization
       ![alt text](https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/LatentBlactamase.png)
+      <img src="https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/LatentBlactamase.png" alt="Latent space" width="100" />
       2) Distances_GP_VAE_z_vs_branch_lengths_Pairwise_distance_INTERNAL_and_LEAVES plot: Is there a positive correlation? If there is not a good correlation but the train percent identity is high, it will still be a valid run 
    - Observe the sampled training (leaves) sequences and test (internal) sequences: Navigate to the Train_argmax and Test_argmax folders and look for the .fasta files
    - Calculate mutual information: 
