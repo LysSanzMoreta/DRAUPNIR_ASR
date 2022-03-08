@@ -34,7 +34,7 @@ install.packages(c("ape","TreeDist"))
 pip install draupnir
 ```
 
-#Example
+#Example: See Draupnir_example.py
 ```
     import pyro
     import torch
