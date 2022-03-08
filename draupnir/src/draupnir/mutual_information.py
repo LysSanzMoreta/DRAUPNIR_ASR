@@ -51,6 +51,47 @@ def create_root_samples_file(name,out_file,folder):
 
     SeqIO.write(root_sequences,out_file,"fasta")
 
+def plot_MI_matrices_variational(name,leaves_mi,draupnir_variational_mi,results_dir):
+    """Plots the Mutual Information matrix using the DI criterion
+    :param str name: dataset project name
+    :param numpy-matrix leaves_mi: mutual information calculated among the leaf sequences with prody
+    :param numpy-matrix draupnir_MAP_mi: mutual information calculated among the sampled root sequences (obtainde with draupnir MAP) with prody
+    :param numpy-matrix draupnir_marginal_mi: mutual information calculated among the sampled root sequences (obtainde with draupnir marginal)  with prody
+    :param numpy-matrix draupnir_variational_mi: mutual information calculated among the sampled root sequences (obtainde with draupnir variational)  with prody"""
+    # 2 subplots in 1 row and 2 columns
+    print("Plotting.............")
+    fig, [ax1, ax2] = plt.subplots(2, figsize=(15, 7.5),constrained_layout=True)
+    leaves_variational = correlation_coefficient(leaves_mi,draupnir_variational_mi)
+    print("Correlation coefficient Leaves vs Variational: {}".format(leaves_variational))
+    mean_variational = draupnir_variational_mi.mean()
+    print("Mean Variational : {}".format(mean_variational) )
+    std_variational = draupnir_variational_mi.std()
+    print("Std Variational: {}".format(std_variational))
+
+    # Title for subplots
+    vmin = None
+    l1 = ax1.imshow(leaves_mi,cmap = "hot",vmin=vmin) #hot_r
+    l2 = ax2.imshow(draupnir_variational_mi,cmap = "hot",vmin=vmin)
+    ticks_array = np.arange(0, len(leaves_mi) + 1, 40)
+    ax1.set_title('Leaves',fontdict = {'fontsize':22})
+    ax2.set_title('Variational',fontdict = {'fontsize':22})
+    ax1.set_xticks(ticks_array)
+    ax2.set_xticks(ticks_array)
+
+    ax1.set_yticks(ticks_array)
+    ax2.set_yticks(ticks_array)
+
+
+    # pos1 = ax5.get_position()  # get the original position
+    # pos2 = [pos1.x0 + 10, pos1.y0 , pos1.width / 2.0, pos1.height / 2.0]
+    # ax5.set_position(pos2)
+    cb_ax = fig.add_axes([0.75, 0.25, 0.02, 0.5])
+    cbar = fig.colorbar(l2, cax=cb_ax)
+    # #plt.tight_layout()
+    plt.subplots_adjust(wspace=-0.5, hspace=0.5)
+    plt.savefig("{}/Mutual_Information_{}_{}_PROTEIN_matrices_MAP_Marginal_Variational_{}.png".format(results_dir, name,"root",now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms")),dpi=600)
+    plt.clf()
+
 def plot_MI_matrices(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_mi,draupnir_variational_mi,benchmark_folder):
     """Plots the Mutual Information matrix using the DI criterion
     :param str name: dataset project name
@@ -148,18 +189,47 @@ def MI_root(name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_
     draupnir_variational_mi = cal_coupling(draupnir_fasta_variational)
     plot_MI_matrices(name,leaves_mi, draupnir_MAP_mi, draupnir_marginal_mi, draupnir_variational_mi,benchmark_folder)
 
-
-
-def calculate_mutual_information(args,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_variational, benchmark_folder,only_root=True):
-    """Calculates Direct Information criterion or Multual information and plots the MI matrices.
-    :param namedtuple args
+def MI_root_variational(name, draupnir_folder_variational, results_dir):
+    """Reads or creates the root files necessary for MI calculation.
+    :param str name: dataset project name
     :param str draupnir_folder_MAP: path to result of draupnir on a dataset using guide=delta_map, the results in <Test2> folders are used
     :param str draupnir_folder_marginal: path to result of draupnir on a dataset using guide=delta_map, the results in <Test> folders are used
     :param str draupnir_folder_variational: path to result of draupnir on a dataset using guide=variational
     :param str benchmark_folder
-    :param only_root: If True it calculates MI only among the samples from the root, otherwise among all nodes """
+    :param only_root: If True it calculates MI only among the samples from the root, otherwise among all nodes"""
+
+    leaves_fasta = "{}/{}_training_aligned.fasta".format(draupnir_folder_variational,name)
+
+    draupnir_fasta_variational = "{}/Test_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_variational,name)
+
+    if not os.path.exists(draupnir_fasta_variational):
+        create_root_samples_file(name,draupnir_fasta_variational,"{}/Test_Plots".format(draupnir_folder_variational))
+
+    print("leaves")
+    leaves_mi = cal_coupling(leaves_fasta)
+    print("Variational")
+    draupnir_variational_mi = cal_coupling(draupnir_fasta_variational)
+    plot_MI_matrices_variational(name,leaves_mi, draupnir_variational_mi,results_dir)
+
+
+
+def calculate_mutual_information(args,results_dir,draupnir_folder_variational,draupnir_folder_MAP=None, draupnir_folder_marginal=None, only_root=True, only_variational=False):
+    """Calculates Direct Information criterion or Multual information and plots the MI matrices.
+    :param namedtuple args
+    :param str draupnir_folder_variational: path to result of draupnir on a dataset using guide=variational
+    :param str draupnir_folder_MAP: path to result of draupnir on a dataset using guide=delta_map, the results in <Test2> folders are used
+    :param str draupnir_folder_marginal: path to result of draupnir on a dataset using guide=delta_map, the results in <Test> folders are used
+    :param str benchmark_folder
+    :param only_root: If True it calculates MI only among the samples from the root, otherwise among all nodes
+    :param only_variational: If True it will calculate DCA with a run only from teh variational model, otherwise it compares MAP, marginal and variational"""
+    #TODO: Check this works
+    print("I have not been tested completely")
     if only_root:
-        MI_root(args.dataset_name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_variational, benchmark_folder)
+        if only_variational:
+            MI_root_variational(args.name,draupnir_folder_variational,results_dir)
+        else:
+            MI_root(args.dataset_name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_variational, results_dir)
+
 
 
 

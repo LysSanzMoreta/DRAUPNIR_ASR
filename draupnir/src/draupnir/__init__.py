@@ -8,7 +8,9 @@ from .main import *
 from .datasets import *
 from .utils import *
 from .draw_tree import *
+from .mutual_information import *
 #from .models_utils import *
 #from .guides import *
 #from .models import *
 #from .train import *
+

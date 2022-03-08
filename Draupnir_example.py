@@ -5,10 +5,8 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
-import sys
 import pyro
 import torch
-#sys.path.append("./draupnir/src")
 import draupnir
 import argparse
 import os
@@ -27,12 +25,10 @@ def main():
                                                            alignment_file=args.alignment_file)
     #draupnir.draw_tree_simple(args.dataset_name,settings_config)
 
-    if args.parameter_search: #TODO: do not use
-        draupnir.manual_random_search()
-    else:
-        #params_config = draupnir.config_build(args)
-        #draupnir.draupnir_main(args.dataset_name,args,device,settings_config,build_config,script_dir)
-        draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
+    # if args.parameter_search: #TODO: do not use
+    #     draupnir.manual_random_search()
+    # else:
+    draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
 
 if __name__ == "__main__":
 

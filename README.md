@@ -13,3 +13,12 @@ python3 pip install --upgrade twine
 cd folder with setup.py 
 python -m build
 python -m twine upload --repository pypi dist/* -u ... -p ... # for new version of package python -m twine upload --skip-existing --repository pypi dist/* -u ... -p ... #to re-upload same version
+
+
+
+
+
+#Running example
+
+
+
