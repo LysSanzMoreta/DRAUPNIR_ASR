@@ -67,11 +67,11 @@ class DRAUPNIRModelClass(nn.Module):
         if ModelLoad.args.use_cuda:
             self.cuda()
     @abstractmethod
-    def guide(self,family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
+    def guide(self,family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum):
         raise NotImplementedError
 
     @abstractmethod
-    def model(self, family_data,patristic_matrix,cladistic_matrix,clade_blosum):
+    def model(self, family_data,patristic_matrix,cladistic_matrix,batch_blosum):
         raise NotImplementedError
 
     @abstractmethod
@@ -218,7 +218,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         self.num_layers = 1
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
         #batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -292,7 +292,7 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         # Highlight: Register GRU module
@@ -364,7 +364,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
             self.model = self.model_unordered
         else:
             self.model = self.model_ordered
-    def model_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
+    def model_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -389,7 +389,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                     hidden=decoder_hidden[:,indx])
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
-    def model_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum = None):
+    def model_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum = None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -545,7 +545,6 @@ class DRAUPNIRModel_plating(DRAUPNIRModelClass):
 
         return sampling_out
 
-
 class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
     """Implements the clade batched version of Draupnir with full latent space inference.
      a) It receives as an input a clade of the leaves dataset
@@ -557,7 +556,7 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -569,10 +568,8 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         latent_space = self.gp_prior(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        #if clade_blosum is not None: #Highlight: For clade training we only use the blosum information of that part of the alignment that includes the sequences in the clade TODO: Move outside training
-        blosum = clade_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21]
-        #else: #blosum embedding is based on the entire alignment
-        #blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21]
+        #blosum = batch_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21]
+        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #use the blosum weighted average from entire dataset
         blosum = self.embed(blosum)
         latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
         batch_latent_space = latent_space[batch_indexes] #In order to reduce the load on the GRU memory we split the latent space of the leaves by clades/batch
@@ -633,7 +630,7 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
         #angles = family_data[:, 2:, 1:3]
         train_nodes = family_data[:, 0, 1]
@@ -715,7 +712,7 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
         self.rnn_input_size = self.z_dim + self.aa_probs
         self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,clade_blosum):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,batch_blosum):
         aminoacid_sequences = family_data[:, 2:, 0]
         angles = family_data[:, 2:, 1:3]
         angles_mask = torch.where(angles == 0., angles, 1.).type(angles.dtype) #keep as 0 the gaps and set to 1 where there is an observation

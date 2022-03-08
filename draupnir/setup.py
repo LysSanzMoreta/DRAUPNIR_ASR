@@ -43,7 +43,7 @@ setup(name='draupnir',
             'Programming Language :: Python :: 3.7',
             'Programming Language :: Python :: 3 :: Only',
       ],
-      python_requires='>=3.6, <4',
+      python_requires='>=3.7, <4',
       project_urls={
             'Changelog': 'https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/master/CHANGELOG.rst',
             'Issue Tracker': 'https://github.com/LysSanzMoreta/DRAUPNIR_ASR/issues',
@@ -61,7 +61,8 @@ setup(name='draupnir',
             'scipy==1.5.4',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
-            'gdown==4.3.1'
+            'gdown==4.3.1',
+            'ProDy==1.10.8'
       ],
       setup_requires=[
             'pyro-ppl==1.6.0',
@@ -76,7 +77,8 @@ setup(name='draupnir',
             'scipy==1.5.4',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
-            'gdown==4.3.1'
+            'gdown==4.3.1',
+            'ProDy==1.10.8'
       ],
       include_package_data=True,
       zip_safe=False

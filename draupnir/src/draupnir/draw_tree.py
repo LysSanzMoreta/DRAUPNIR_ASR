@@ -169,7 +169,7 @@ def colour_tree_by_clades_complex(name,clades_dict_all, tree, data_folder,rename
 
 
 def draw_tree_simple(name,settings_config):
-    """Draws a tree where each of the nodes is coloured by clade membership. The names of the nodes are not shown.
+    """Draws a tree where each of the nodes is coloured by clade membership. The names of the nodes are not shown. Trees as shown in the article.
     :param str name
     :param namedtuple settings_config """
 
