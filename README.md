@@ -1,6 +1,9 @@
 
 DRAUPNIR: "Beta library version for performing ASR using a tree-structured Variational Autoencoder"
 
+
+![alt text](https://github.com/LysSanzMoreta/DRAUPNIR_ASR/tree/main/draupnir/src/draupnir/images/draupnir_logo.png)
+
 ##Extra requirements for tree inference:
 
 IQ-Tree: http://www.iqtree.org/doc/Quickstart
