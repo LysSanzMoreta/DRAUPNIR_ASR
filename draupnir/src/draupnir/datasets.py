@@ -126,7 +126,15 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             # DraupnirUtils.Remove_Stop_Codons("Datasets_Simulations/{}/Dataset{}/{}.txt".format(simulation_folder,dataset_number,root_sequence_name))
             alignment_file = "{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name)
             tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder,name,root_sequence_name)
-            build_config = BuildConfig(alignment_file=alignment_file, use_ancestral=True, n_test=0, build_graph=True,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
+            build_config = BuildConfig(alignment_file=alignment_file,
+                                       use_ancestral=True,
+                                       n_test=0,
+                                       build_graph=True,
+                                       aa_prob=21,
+                                       triTSNE=False,
+                                       leaves_testing=False,
+                                       script_dir=script_dir,
+                                       no_testing=False)
             if build:
                 DraupnirUtils.create_dataset(name,
                                one_hot_encoding=False,

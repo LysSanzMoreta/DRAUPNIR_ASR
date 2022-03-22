@@ -62,7 +62,7 @@ setup(name='draupnir',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
             'gdown==4.3.1',
-            'ProDy==1.10.8'
+            'ProDy>=2.0.2'
       ],
       setup_requires=[
             'pyro-ppl==1.6.0',
@@ -78,7 +78,7 @@ setup(name='draupnir',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
             'gdown==4.3.1',
-            'ProDy==1.10.8'
+            'ProDy>=2.0.2'
       ],
       include_package_data=True,
       zip_safe=False

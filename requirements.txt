@@ -11,4 +11,4 @@ scipy==1.5.4
 scikit-learn==0.24.1
 umap-learn==0.5.2
 gdown==4.3.1
-ProDy==1.10.8
+ProDy>=1.10.8
