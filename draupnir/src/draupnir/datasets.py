@@ -116,7 +116,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             print("Data directory is missing. Downloading, this might take a while. If you see an error like \n"
                   " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
                   "just wait, too many requests have been made to the google drive folder \n"
-                  "Otherwise just download the data sets manually from the google drive urls : \n {}".format(dict_urls[name]))
+                  "Otherwise just download the data sets MANUALLY from the google drive urls : \n {}".format(dict_urls[name]))
             gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder,name),quiet=True, use_cookies=False,remaining_ok=True)
 
 

@@ -20,7 +20,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
 setup(name='draupnir',
-      version='0.0.2',
+      version='0.0.21',
       # list folders, not files
       packages=find_packages('src'),
       package_dir={'': 'src'},
@@ -62,7 +62,7 @@ setup(name='draupnir',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
             'gdown==4.3.1',
-            'ProDy>=2.0.2'
+            'ProDy>=2.0.0'
       ],
       setup_requires=[
             'pyro-ppl==1.6.0',
@@ -78,7 +78,7 @@ setup(name='draupnir',
             'scikit-learn==0.24.1',
             'umap-learn==0.5.2',
             'gdown==4.3.1',
-            'ProDy>=2.0.2'
+            'ProDy>=2.0.0'
       ],
       include_package_data=True,
       zip_safe=False
