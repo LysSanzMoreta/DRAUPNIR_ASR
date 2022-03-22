@@ -31,7 +31,7 @@ def main():
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
 
-    #Highlight: Creates image of the estimated tree colured by clade
+    #Highlight: Creates image of the estimated tree colured by clades
     draw_tree = False
     if draw_tree :
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
@@ -40,7 +40,7 @@ def main():
 
     #Highlight: Runs draupnir
     draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
-    #Highlight: Calculate mutual information---> AFTER at least the model has been run once
+    #Highlight: Calculate mutual information---> AFTER at least the model has been run at least once with the variational guide
     draupnir.calculate_mutual_information(args,
                                           results_dir = "Mutual_info_dir",
                                           draupnir_folder_variational = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h23min14s337405ms_5epochs_variational",
@@ -92,8 +92,8 @@ if __name__ == "__main__":
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
-    parser.add_argument('-generate-samples','--generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
-    parser.add_argument('--load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_19h35min24s763495ms_2epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
+    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_19h35min24s763495ms_2epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-position-embedding-dim', default=30, type=int, help='Tree position embedding dim')
     parser.add_argument('-max-indel-size', default=5, type=int, help='maximum insertion deletion size (not used)')
