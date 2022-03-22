@@ -31,7 +31,6 @@ together with ape 5.5 and TreeDist 2.3 libraries
 install.packages(c("ape","TreeDist"))
 ```
 
-
 #Draupnir Install
 
 ```
@@ -39,35 +38,18 @@ pip install draupnir
 ```
 
 #Example
-```
-    import pyro
-    import torch
-    import draupnir
-    import argparse
-    import os
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    pyro.enable_validation(False)
-    use_cuda=True
-    if use_cuda:
-        torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        torch.set_default_tensor_type(torch.DoubleTensor)
-        device = "cpu"
-    draupnir.available_datasets(print_dict=True)
-    build_config,settings_config, root_sequence_name = draupnir.create_draupnir_dataset("simulations_blactamase_1", #default dataset
-                                                           use_custom=False, #default dataset
-                                                           script_dir=script_dir,
-                                                           build=False, # True: construct the dataset, False: use the stored dataset
-                                                           fasta_file=None, # in this case, it will be read from /draupnir/src/data
-                                                           tree_file=None, #in this case, it will be read from /draupnir/src/data
-                                                           alignment_file=None) #in this case, #it will be read from /draupnir/src/data
-    #draupnir.draw_tree_simple(args.dataset_name,settings_config) # to draw a tree, only after the dataset has been built
-    draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
-```
+
+See Draupnir_example.py
+
+#Which guide to use?
+
+By experience, use delta_map, the marginal results (Test folder) are the most stable.
+It is recommended to run the model both with the variational and the delta_map guides and compare outputs using the mutual information.
+If necessary run the variational guide longer than the delta_map, since it has more parameters to infere and takes longer.
 
 #How long should I run my model?
-
+0) Before training: 
+   - It is recommended to train for at least 10000 epochs in datasets <800 leaves. See article for inspiration, the runtimes where extended to achieve maximum benchmarking accuracy, but it should not be necessary.
 1) While it is training:
    - Check for the Percent_ID.png plot, if the training accuracy has peaked to almost 100%, run for at least ~1000 epochs more to guarantee full learning
    - Check for stabilization of the error loss: ELBO_error.png

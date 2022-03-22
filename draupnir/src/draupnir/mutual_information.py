@@ -12,7 +12,7 @@ now = datetime.datetime.now()
 matplotlib.use('TkAgg')
 
 def cal_coupling(fasta):
-    """Calculates the DIC information criterio over a pylab alignment file
+    """Calculates the DIC information criterion over a pylab alignment file
     :param fasta: fasta file"""
     print("calculating DIC coupling analysis")
     msa = parseMSA(fasta)

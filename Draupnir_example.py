@@ -39,8 +39,7 @@ def main():
 
 
     #Highlight: Runs draupnir
-    #draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
-
+    draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
     #Highlight: Calculate mutual information---> AFTER at least the model has been run once
     draupnir.calculate_mutual_information(args,
                                           results_dir = "Mutual_info_dir",

@@ -4,8 +4,6 @@ README.md
 pyproject.toml
 setup.cfg
 setup.py
-./LatentBlactamase.png
-./MI.png
 src/draupnir/3D.py
 src/draupnir/__init__.py
 src/draupnir/datasets.py
