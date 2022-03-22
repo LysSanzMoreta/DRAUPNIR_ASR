@@ -2,7 +2,7 @@
 DRAUPNIR: "Beta library version for performing ASR using a tree-structured Variational Autoencoder"
 
 <p align="center">
-href="url"><img src="https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/draupnir_logo.png" height="auto" width="200" style="border-radius:50%">
+<img src="https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/draupnir_logo.png" height="auto" width="200" style="border-radius:50%">
 </p>
 
 ##Extra requirements for tree inference:

@@ -34,7 +34,6 @@ import statistics
 import seaborn as sns
 from collections import defaultdict,namedtuple
 import pickle
-#sys.path.append("./draupnir/draupnir")
 import draupnir.models_utils as DraupnirModelUtils
 #Biopython
 import Bio.PDB as PDB

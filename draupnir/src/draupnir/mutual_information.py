@@ -37,7 +37,7 @@ def create_root_samples_file(name,out_file,folder):
     :param str out_file: file name where to output the sequences
     :param str folder: path to folder where the sampled sequences are found"""
     print("File does not exist, creating it")
-    all_samples_file = "{}/{}_sampled_ancestors_seq.fasta".format(folder,name)
+    all_samples_file = "{}/{}_sampled_nodes_seq.fasta".format(folder,name)
     all_samples = SeqIO.parse(all_samples_file,"fasta")
     root_sequences = []
     root_node = None
@@ -164,18 +164,16 @@ def MI_root(name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_
     :param only_root: If True it calculates MI only among the samples from the root, otherwise among all nodes"""
 
     leaves_fasta = "{}/{}_training_aligned.fasta".format(draupnir_folder_MAP,name)
-    draupnir_fasta_MAP = "{}/Test2_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_MAP,name)
 
+    draupnir_fasta_MAP = "{}/Test2_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_MAP,name)
     if not os.path.exists(draupnir_fasta_MAP):
         create_root_samples_file(name,draupnir_fasta_MAP,"{}/Test2_Plots".format(draupnir_folder_MAP))
 
-    draupnir_fasta_marginal = "{}/Test_Plots/{}_root_node_sampled.fasta".format(name,draupnir_folder_marginal,name)
-
+    draupnir_fasta_marginal = "{}/Test_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_marginal,name)
     if not os.path.exists(draupnir_fasta_marginal):
-        create_root_samples_file(name,draupnir_fasta_marginal,"{}/Test_Plots".format(draupnir_folder_MAP))
+        create_root_samples_file(name,draupnir_fasta_marginal,"{}/Test_Plots".format(draupnir_folder_marginal))
 
     draupnir_fasta_variational = "{}/Test_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_variational,name)
-
     if not os.path.exists(draupnir_fasta_variational):
         create_root_samples_file(name,draupnir_fasta_variational,"{}/Test_Plots".format(draupnir_folder_variational))
 
@@ -213,7 +211,7 @@ def MI_root_variational(name, draupnir_folder_variational, results_dir):
 
 
 
-def calculate_mutual_information(args,results_dir,draupnir_folder_variational,draupnir_folder_MAP=None, draupnir_folder_marginal=None, only_root=True, only_variational=False):
+def calculate_mutual_information(args,results_dir,draupnir_folder_variational,draupnir_folder_MAP=None, draupnir_folder_marginal=None, only_root=True, only_variational=True):
     """Calculates Direct Information criterion or Multual information and plots the MI matrices.
     :param namedtuple args
     :param str draupnir_folder_variational: path to result of draupnir on a dataset using guide=variational
@@ -221,9 +219,7 @@ def calculate_mutual_information(args,results_dir,draupnir_folder_variational,dr
     :param str draupnir_folder_marginal: path to result of draupnir on a dataset using guide=delta_map, the results in <Test> folders are used
     :param str benchmark_folder
     :param only_root: If True it calculates MI only among the samples from the root, otherwise among all nodes
-    :param only_variational: If True it will calculate DCA with a run only from teh variational model, otherwise it compares MAP, marginal and variational"""
-    #TODO: Check this works
-    print("I have not been tested completely")
+    :param only_variational: If True it will calculate DCA with a run only from the variational model, otherwise it requires to compare MAP, marginal and variational"""
     if only_root:
         if only_variational:
             MI_root_variational(args.name,draupnir_folder_variational,results_dir)

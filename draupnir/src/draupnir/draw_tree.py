@@ -122,9 +122,9 @@ def colour_tree_by_clades_simple(name,clades_dict_all, tree, data_folder,rename_
     # ts.show_border = True
     # ts.scale_length = False
     try:
-        tree.render("{}/return_{}_colored_by_clades_simple.png".format(data_folder,name), w=1000, units="mm", tree_style=ts)
+        tree.render("{}/return_{}_colored_by_clades_simple.pdf".format(data_folder,name), w=1000, units="mm", tree_style=ts)
     except:
-        tree.render("{}/return_{}_colored_by_clades_stripped.png".format(data_folder,name), w=1000, units="mm")
+        tree.render("{}/return_{}_colored_by_clades_stripped.pdf".format(data_folder,name), w=1000, units="mm")
 
 def colour_tree_by_clades_complex(name,clades_dict_all, tree, data_folder,rename_internal_nodes=True):
     """Returns the image of the tree coloured by clades, coloured rectangles and with nodes names
@@ -162,9 +162,9 @@ def colour_tree_by_clades_complex(name,clades_dict_all, tree, data_folder,rename
     ts.show_branch_length = True
 
     try:
-        tree.render("{}/return_{}_colored_by_clades.pdf".format(data_folder,name), dpi=600, units="mm", tree_style=ts)
+        tree.render("{}/return_{}_colored_by_clades_facetted.pdf".format(data_folder,name), dpi=600, units="mm", tree_style=ts)
     except:
-        tree.render("{}/return_{}_colored_by_clades.pdf".format(data_folder,name), dpi=600, units="mm")
+        tree.render("{}/return_{}_colored_by_clades_facetted.pdf".format(data_folder,name), dpi=600, units="mm")
 
 
 
@@ -172,7 +172,7 @@ def draw_tree_simple(name,settings_config):
     """Draws a tree where each of the nodes is coloured by clade membership. The names of the nodes are not shown. Trees as shown in the article.
     :param str name
     :param namedtuple settings_config """
-
+    print("Drawing tree at {}".format(settings_config.data_folder))
     clades_dict_all = pickle.load(open('{}/{}_Clades_dict_all.p'.format(settings_config.data_folder, name), "rb"))
     tree_file = settings_config.tree_file
     tree = Tree(tree_file, format=1, quoted_node_names=True)
@@ -182,6 +182,7 @@ def draw_tree_facets(name,settings_config):
     """Draws a tree where each of the clades is coloured by a rectangle. The names of the nodes are shown
     :param str name
     :param namedtuple settings_config"""
+    print("Drawing tree at {}".format(settings_config.data_folder))
     clades_dict_all = pickle.load(open('{}/{}_Clades_dict_all.p'.format(settings_config.data_folder, name), "rb"))
     tree_file = settings_config.tree_file
     tree = Tree(tree_file, format=1, quoted_node_names=True)

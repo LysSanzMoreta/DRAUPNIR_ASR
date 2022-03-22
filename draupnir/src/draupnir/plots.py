@@ -4,11 +4,10 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
-import os, itertools,sys
+import os, itertools
 from collections import defaultdict
 import torch
 import numpy as np
-#sys.path.append("./draupnir/draupnir")
 import draupnir.utils as DraupnirUtils
 import draupnir.models_utils as DraupnirModelUtils
 import pandas as pd
@@ -32,17 +31,19 @@ def plot_ELBO(train_elbo,results_dict):
     :param str results_dict: path to results directory
     """
     train_elbo = np.array(train_elbo)
-    list_epochs = list(range(0,len(train_elbo)))
+    #list_epochs = np.arange(0,len(train_elbo))
     if np.isnan(train_elbo).any():
         print("Error loss contains nan")
         pass
     else:
-        plt.plot(list_epochs,train_elbo,color="dodgerblue")
+        #plt.plot(list_epochs,train_elbo,color="dodgerblue")
+        plt.plot(train_elbo, color="dodgerblue")
         plt.xlabel("List of epochs")
         plt.ylabel("-ELBO")
-        plt.title("Training Error Loss (min -ELBO, min KL)")
+        plt.title("Training Error Loss (max -ELBO, min KL)")
         plt.savefig("{}/ELBO_error.png".format(results_dict))
         plt.close()
+    plt.clf()
 def plot_entropy(train_entropy,results_dict):
     """Plots the model's entropy
     :param list train_entropy: list of accumulated entropies
@@ -58,6 +59,7 @@ def plot_entropy(train_entropy,results_dict):
         plt.title("Shanon Entropy Convergence")
         plt.savefig("{}/Entropy_convergence.png".format(results_dict))
         plt.close()
+    plt.clf()
 def plot_z(latent_space, children_dict, results_dir):
     """Plots the latent space vectors
     :param tensor latent_space
@@ -436,7 +438,7 @@ def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, result
     print("Building T-SNE plot by clades")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
     annotate = False
-    stripped = True
+    stripped = False
     if stripped: #no legend, no axis, nothing
         clades_dict_all = additional_load.clades_dict_all
         #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
@@ -507,7 +509,7 @@ def plot_latent_space_tsne_by_clade_leaves(latent_space, additional_load, epoch,
     print("Building t-SNE plot COLOURED by clades (only leaves)")
     #annotate = [True if latent_space.shape[0] < 100 else False][0]
     annotate = False
-    stripped = True
+    stripped = False
     clades_dict_all = additional_load.clades_dict_all
     #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
     tsne_proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])

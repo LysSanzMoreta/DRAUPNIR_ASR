@@ -7,7 +7,7 @@ MANIFEST.in: description of what non-code files to include README.txt: descripti
 python3 -m pip install --upgrade build
 python3 pip install --upgrade twine
 
-cd folder with setup.py
+cd folder with the file setup.py
 python -m build
 python -m twine upload --repository pypi dist/* -u ... -p ... # for new version of package python -m twine upload --skip-existing --repository pypi dist/* -u ... -p ... #to re-upload same version
 
