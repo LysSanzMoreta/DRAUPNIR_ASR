@@ -4,8 +4,6 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
-import sys
-#sys.path.append("./draupnir/src/draupnir")
 import draupnir.utils as DraupnirUtils
 import warnings
 from collections import namedtuple
@@ -51,7 +49,7 @@ def available_datasets(print_dict = False):
                 "aminopeptidase":"Amino Peptidase",
                 "PF00096":"PF00096 protein kinases"}
     return datasets,datasets_full_names
-def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=None,tree_file=None,alignment_file=None):
+def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_file=None,tree_file=None,alignment_file=None):
     """In:
     :param str name: Dataset name
     :param bool use_custom: True (uses a custom dataset, located in datasets/custom/"folder_name" ) or False (uses a Draupnir default dataset (used in the publication))
@@ -305,7 +303,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,build=False,fasta_file=No
                                              tree_file=tree_file,
                                              alignment_file=alignment_file,
                                              fasta_file=fasta_file,
-                                             aa_probs=21,
+                                             aa_probs=args.aa_probs,
                                              rename_internal_nodes=True,
                                              storage_folder=storage_folder)
         else:

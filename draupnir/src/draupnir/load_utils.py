@@ -12,10 +12,11 @@ import torch
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio import SeqIO
-#sys.path.append("./draupnir/draupnir")
+
 import draupnir.utils as DraupnirUtils
 import draupnir.models_utils as DraupnirModelUtils
 import draupnir.datasets as DraupnirDatasets
+
 from collections import namedtuple
 from torch.utils.data import Dataset, DataLoader
 from dill import Unpickler
@@ -760,35 +761,39 @@ def load_dict_to_namedtuple(load_dict):
 
     return sample_out
 class CladesDataset(Dataset):
-    """Dataloader modifyed class for the clades batching case"""
-    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum):
+    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum):
         self.clades_names = clades_names
         self.clades_data = clades_data
         self.clades_patristic = clades_patristic
-        self.clades_blosum = clades_blosum
+        self.clades_blosum_weighted = clades_blosum_weighted
+        self.clades_data_blosum = clades_data_blosum
 
     def __getitem__(self, index): #sets a[i]
         clade_name = self.clades_names[index]
         clade_data = self.clades_data[index]
         clade_patristic = self.clades_patristic[index]
-        clade_blosum = self.clades_blosum[index]
-        return {'clade_name': clade_name, 'clade_data': clade_data,'clade_patristic': clade_patristic ,'clade_blosum':clade_blosum}
+        clade_blosum_weighted = self.clades_blosum_weighted[index]
+        clade_data_blosum = self.clades_data_blosum[index]
+        return {'clade_name': clade_name, 'clade_data': clade_data,'clade_patristic': clade_patristic ,'clade_blosum_weighted':clade_blosum_weighted,'clade_data_blosum':clade_data_blosum}
     def __len__(self):
         return len(self.clades_names)
+
+
 class SplittedDataset(Dataset):
-    """Dataloader modifyed class for the normal batch case"""
-    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted):
+    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums):
         self.batches_names = batches_names
         self.batches_data = batches_data
         self.batches_patristic = batches_patristic
         self.batches_blosum_weighted = batches_blosum_weighted
+        self.batches_data_blosum = batches_data_blosums
 
     def __getitem__(self, index):  # sets a[i]
         batch_name = self.batches_names[index]
         batch_data = self.batches_data[index]
         batch_patristic = self.batches_patristic[index]
         batch_blosum_weighted = self.batches_blosum_weighted[index]
-        return {'batch_name': batch_name, 'batch_data': batch_data, 'batch_patristic': batch_patristic,'batch_blosum_weighted': batch_blosum_weighted}
+        batch_data_blosum = self.batches_data_blosum[index]
+        return {'batch_name': batch_name, 'batch_data': batch_data, 'batch_patristic': batch_patristic,'batch_blosum_weighted': batch_blosum_weighted,'batch_data_blosum':batch_data_blosum}
 
     def __len__(self):
         return len(self.batches_names)
@@ -816,78 +821,91 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
             if use_cuda:
                 train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
         else: #split the dataset for batching
-            blocks = DraupnirModelUtils.intervals(n_seqs//build_config.batch_size, n_seqs) #TODO: make sure it makes sense
+            blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
             batch_datasets = []
             batch_patristics = []
             batch_aa_freqs = []
             batch_blosums_max = []
             batch_blosums_weighted = []
+            batch_data_blosums = []
             for block_idx in blocks:
                 batch_data = dataset[int(block_idx[0]):int(block_idx[1])]
                 batch_datasets.append(batch_data.cpu())
-                batch_nodes = batch_data[:,0,1]
+                batch_nodes = batch_data[:, 0, 1]
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == batch_nodes.cpu()).any(-1)
                 patristic_indexes[0] = True  # To re-add the node names
                 batch_patristic = patristic_matrix_train[patristic_indexes]
-                batch_patristic = batch_patristic[:,patristic_indexes]
+                batch_patristic = batch_patristic[:, patristic_indexes]
                 batch_patristics.append(batch_patristic)
 
-                batch_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(batch_data[:,2:,0].cpu().numpy(), build_config.aa_prob)
+                batch_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(batch_data[:, 2:, 0].cpu().numpy(),
+                                                                build_config.aa_probs)
                 batch_aa_freqs.append(batch_aa_frequencies)
-                batch_blosum_max, batch_blosum_weighted, batch_variable_score = DraupnirUtils.process_blosum(blosum.cpu(), torch.from_numpy(batch_aa_frequencies), build_config.align_seq_len, build_config.aa_prob)
+                batch_blosum_max, batch_blosum_weighted, batch_variable_score = DraupnirUtils.process_blosum(blosum.cpu(),
+                                                                                               torch.from_numpy(batch_aa_frequencies),
+                                                                                               build_config.align_seq_len,
+                                                                                               build_config.aa_probs)
                 batch_blosums_max.append(batch_blosum_max)
                 batch_blosums_weighted.append(batch_blosum_weighted)
+                batch_data_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, batch_aa_frequencies, build_config.align_seq_len,
+                                                             build_config.aa_probs, batch_data, False)
+                batch_data_blosums.append(batch_data_blosum.cpu())
 
-            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted)
+            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted,
+                                                batch_data_blosums)
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
             for batch_number, dataset in enumerate(train_loader):
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted in zip(
-                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"], dataset["batch_blosum_weighted"]):
+                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
+                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
+                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
                     batch_dataset.to('cuda', non_blocking=True)
                     batch_patristic.to('cuda', non_blocking=True)
                     batch_blosum_weighted.to('cuda', non_blocking=True)
+                    batch_data_blosum.to('cuda', non_blocking=True)
 
-    # elif method == "batch_dim_1": #batching over the length of the alignment #TODO: Remove
-    #     batchsize = 157#DraupnirModelUtils.printDivisors(Dataset[:,2:].shape[1])
-    #     train_loader = DataLoader(Dataset[:,2:].permute(1,0,2).cpu(), batch_size=batchsize, shuffle=False, **kwargs)
-    #     if use_cuda:
-    #         train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
     else:
-        clade_labels = []
+        clades_labels = []
         clades_datasets = []
         clades_patristic = []
-        clades_blosums = []
-        for key,values in clades_dict.items():
-            clade_labels.append(key)
-            if isinstance(values,list) and len(values) > 1:
-                clades_indexes = (dataset[:, 0,1][..., None] == torch.Tensor(values)).any(-1)
+        clades_blosums_weighted = []  # this is were the weighted average goes
+        clades_data_blosums = []  # this is the dataset in blosum-encdoing goes
+        for key, values in clades_dict.items():
+            clades_labels.append(key)
+            if isinstance(values, list) and len(values) > 1:
+                clades_indexes = (dataset[:, 0, 1][..., None] == torch.Tensor(values)).any(-1)
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == torch.Tensor(values).cpu()).any(-1)
             else:
                 clades_indexes = (dataset[:, 0, 1][..., None] == values).any(-1)
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == values).any(-1)
 
-            clade_dataset = Dataset[clades_indexes]
+            clade_dataset = dataset[clades_indexes]
             clades_datasets.append(clade_dataset.cpu())
-            patristic_indexes[0] = True # To re-add the node names
+            patristic_indexes[0] = True  # To re-add the node names
             clade_patristic = patristic_matrix_train[patristic_indexes]
-            clade_patristic = clade_patristic[:,patristic_indexes]
+            clade_patristic = clade_patristic[:, patristic_indexes]
             clades_patristic.append(clade_patristic)
-            clade_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(clade_dataset[:,2:,0].cpu().numpy(),build_config.aa_prob)
+            clade_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(clade_dataset[:, 2:, 0].cpu().numpy(), build_config.aa_probs)
             blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum.cpu(),
                                                                          torch.from_numpy(clade_aa_frequencies),
                                                                          build_config.align_seq_len,
-                                                                         build_config.aa_prob)
-            clades_blosums.append(blosum_weighted)
-        Clades_Datasets = CladesDataset(clade_labels,clades_datasets,clades_patristic,clades_blosums)
+                                                                         build_config.aa_probs)
+            clades_blosums_weighted.append(blosum_weighted)
+            clade_data_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, clade_aa_frequencies, build_config.align_seq_len,
+                                                         build_config.aa_probs, clade_dataset, False)
+            clades_data_blosums.append(clade_data_blosum.cpu())
+        Clades_Datasets = CladesDataset(clades_labels, clades_datasets, clades_patristic, clades_blosums_weighted,
+                                        clades_data_blosums)
         train_loader = DataLoader(Clades_Datasets, **kwargs)
         if use_cuda:
-            #train_loader = [clade_dataset.to('cuda:0', non_blocking=True) for batch_number, dataset in enumerate(train_loader) for clade_name, clade_dataset in zip(dataset["family_name"], dataset["family_data"])]
             for batch_number, dataset in enumerate(train_loader):
-                for clade_name, clade_dataset,clade_patristic,clade_blosum in zip(dataset["clade_name"], dataset["clade_data"],dataset["clade_patristic"],dataset["clade_blosum"]):
-                        clade_dataset.to('cuda:0', non_blocking=True)
-                        clade_patristic.to('cuda:0', non_blocking=True)
-                        clade_blosum.to('cuda:0', non_blocking=True)
+                for clade_name, clade_dataset, clade_patristic, clade_blosum, clade_data_blosum in zip(
+                        dataset["clade_name"], dataset["clade_data"], dataset["clade_patristic"],
+                        dataset["clade_blosum_weighted"], dataset["clade_data_blosum"]):
+                    clade_dataset.to('cuda:0', non_blocking=True)
+                    clade_patristic.to('cuda:0', non_blocking=True)
+                    clade_blosum.to('cuda:0', non_blocking=True)
+                    clade_data_blosum.to('cuda:0', non_blocking=True)
     print(' Train_loader size: ', len(train_loader), 'batches')
 
     return train_loader

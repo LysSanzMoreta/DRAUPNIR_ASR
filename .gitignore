@@ -24,3 +24,5 @@ PLOTS*
 *.png
 *.zip
 draupnir/src/draupnir/images/*
+draupnir/src/draupnir/dist/*
+draupnir_old/*
