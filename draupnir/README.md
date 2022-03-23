@@ -49,6 +49,12 @@ By experience, use delta_map, the marginal results (Test folder) are the most st
 It is recommended to run the model both with the variational and the delta_map guides and compare outputs using the mutual information.
 If necessary run the variational guide longer than the delta_map, since it has more parameters to infere and takes longer.
 
+
+**What folders and files are being produced?**
+
+
+
+
 **How long should I run my model?**
 
 0) Before training: 
@@ -67,13 +73,16 @@ If necessary run the variational guide longer than the delta_map, since it has m
       2) Distances_GP_VAE_z_vs_branch_lengths_Pairwise_distance_INTERNAL_and_LEAVES plot: Is there a positive correlation? If there is not a good correlation but the train percent identity is high, it will still be a valid run 
    - Observe the sampled training (leaves) sequences and test (internal) sequences: Navigate to the Train_argmax and Test_argmax folders and look for the .fasta files
    - Calculate mutual information: 
-     - First: Run Draupnir with the MAP & Marginal version and Variational version, or just the Variational 
+     - First: Run Draupnir with the *delta_map* guide (produces MAP & Marginal results) version and *variational* guide version, or just the Variational 
      - Second: Use the draupnir.calculate_mutual_information() with the paths to the folders with the trained runs. 
      
      ![alt text](https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/MI.png)
 
 
 **Datasets**
+
+#They contain some additional datasets other than the ones in the paper
+
 #They are recommended to use with the pipeline, look into datasets.py for more details
 ```
 dict_urls = {
@@ -97,19 +106,25 @@ dict_urls = {
 
     }
 ```
+
+#Datasets in the paper
+
 |                      Dataset                      | Number of leaves | Alignment lenght | Name                              |
 |:-------------------------------------------------:|:----------------:|:----------------:|-----------------------------------|
-| Randall's Coral fluorescent proteins (CFP)        | 19               | 225              | benchmark_randall_original_naming |
-| Coral fluorescent proteins (CFP) Faviina subclade | 35               | 361              | Coral_Faviina                     |
-| Coral fluorescent proteins (CFP) subclade         | 71               | 272              | Coral_all                         |
-| Simulation $\beta$-Lactamase                      | 32               | 314              | simulations_blactamase_1          |
-| Simulation Calcitonin                             | 50               | 71               | simulations_calcitonin_1          |
-| Simulation SRC-Kinase SH3 domain                  | 100              | 63               | simulations_src_sh3_1             |
-| Simulation Sirtuin                                | 150              | 477              | simulations_sirtuins_1            |
-| Simulation SRC-kinase SH3 domain                  | 200              | 128              | simulations_src_sh3_3             |
-| Simulation PIGBOS                                 | 300              | 77               | simulations_PIGBOS_1              |
-| Simulation Insulin                                | 400              | 558              | simulations_insulin_2             |
-| Simulation SRC-kinase SH3 domain                  | 800              | 99               | simulations_src_sh3_2             |
+|    Randall's Coral fluorescent proteins (CFP)     |        19        |       225        | benchmark_randall_original_naming |
+| Coral fluorescent proteins (CFP) Faviina subclade |        35        |       361        | Coral_Faviina                     |
+|     Coral fluorescent proteins (CFP) subclade     |        71        |       272        | Coral_all                         |
+|:-------------------------------------------------:|:----------------:|:----------------:|-----------------------------------|
+|           Simulation $\beta$-Lactamase            |        32        |       314        | simulations_blactamase_1          |
+|               Simulation Calcitonin               |        50        |        71        | simulations_calcitonin_1          |
+|         Simulation SRC-Kinase SH3 domain          |       100        |        63        | simulations_src_sh3_1             |
+|                Simulation Sirtuin                 |       150        |       477        | simulations_sirtuins_1            |
+|         Simulation SRC-kinase SH3 domain          |       200        |       128        | simulations_src_sh3_3             |
+|                 Simulation PIGBOS                 |       300        |        77        | simulations_PIGBOS_1              |
+|                Simulation Insulin                 |       400        |       558        | simulations_insulin_2             |
+|         Simulation SRC-kinase SH3 domain          |       800        |        99        | simulations_src_sh3_2             |
+|:-------------------------------------------------:|:----------------:|:----------------:|-----------------------------------|
+|                      PF00400                      |       125        |       138        | PF00400                           |
 
 **If this library is useful for your research please cite:**
 

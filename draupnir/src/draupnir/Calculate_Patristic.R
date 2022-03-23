@@ -14,10 +14,7 @@ alpha_part <- gsub("[0-9.-]", "", last_internal_node_name)
 numeric_part <- as.character(strtoi(gsub("[^0-9.-]", "", last_internal_node_name)) - 1)
 root_name <- paste(alpha_part,numeric_part,sep="")
 nodes_list <- lapply(nodes_list, function(x) if(identical(x, character(0))) root_name else x) #seems to work
-#nodes_list <- paste(nodes_list,collapse=' ')
 row.names(dist) <- c(tree$tip.label,nodes_list)
-#row.names(dist) <- c(tree$tip.label, tree$node.label) #old, was skipping the root name
-#colnames(dist) <- c(tree$tip.label, tree$node.label)
 colnames(dist) <- c(tree$tip.label, nodes_list)
 
 write.csv(dist,inputs[2],quote=FALSE)
