@@ -23,7 +23,8 @@ from sklearn.manifold import TSNE
 import statistics
 import umap
 from scipy import stats
-
+import matplotlib
+matplotlib.use('Agg')
 
 def plot_ELBO(train_elbo,results_dict):
     """Plots the model's error loss

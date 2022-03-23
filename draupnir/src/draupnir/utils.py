@@ -53,6 +53,8 @@ from Bio import Phylo
 import numpy as np
 import numpy.random as npr
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 def aa_properties(aa_probs,data_folder):
     """ Creates a dictionary with amino acid properties, extracted from
     https://www.sigmaaldrich.com/life-science/metabolomics/learning-center/amino-acid-reference-chart.html
