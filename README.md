@@ -7,7 +7,7 @@ DRAUPNIR: "Beta library version for performing ASR using a tree-structured Varia
 
 **Extra requirements for tree inference:**
 
-#These are not necessary if you have your own tree file
+#These are not necessary if you have your own tree file or for using the default datasets
 
 IQ-Tree: http://www.iqtree.org/doc/Quickstart
 ```
@@ -72,6 +72,44 @@ If necessary run the variational guide longer than the delta_map, since it has m
      
      ![alt text](https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/MI.png)
 
+
+**Datasets**
+#They are recommended to use with the pipeline, look into datasets.py for more details
+```
+dict_urls = {
+        "aminopeptidase":"https://drive.google.com/drive/folders/1fLsOJbD1hczX15NW0clCgL6Yf4mnx_yl?usp=sharing",
+        "benchmark_randall_original_naming":"https://drive.google.com/drive/folders/1oE5-22lqcobZMIguatOU_Ki3N2Fl9b4e?usp=sharing",
+        "Coral_all":"https://drive.google.com/drive/folders/1IbfiM2ww5PDcDSpTjrWklRnugP8RdUTu?usp=sharing",
+        "Coral_Faviina":"https://drive.google.com/drive/folders/1Ehn5xNNYHRu1iaf7vS66sbAESB-dPJRx?usp=sharing",
+        "PDB_files_Draupnir_PF00018_116":"https://drive.google.com/drive/folders/1YJDS_oHHq-5qh2qszwk-CucaYWa9YDOD?usp=sharing",
+        "PDB_files_Draupnir_PF00400_185": "https://drive.google.com/drive/folders/1LTOt-dhksW1ZsBjb2uzi2NB_333hLeu2?usp=sharing",
+        "PF00096":"https://drive.google.com/drive/folders/103itCfxiH8jIjKYY9Cvy7pRGyDl9cnej?usp=sharing",
+        "PF00400":"https://drive.google.com/drive/folders/1Ql10yTItcdX93Xpz3Oh-sl9Md6pyJSZ3?usp=sharing",
+        "SH3_pf00018_larger_than_30aa":"https://drive.google.com/drive/folders/1Mww3uvF_WonpMXhESBl9Jjes6vAKPj5f?usp=sharing",
+        "simulations_blactamase_1":"https://drive.google.com/drive/folders/1ecHyqnimdnsbeoIh54g2Wi6NdGE8tjP4?usp=sharing",
+        "simulations_calcitonin_1":"https://drive.google.com/drive/folders/1jJ5RCfLnJyAq0ApGIPrXROErcJK3COvK?usp=sharing",
+        "simulations_insulin_2":"https://drive.google.com/drive/folders/1xB03AF_DYv0EBTwzUD3pj03zBcQDDC67?usp=sharing",
+        "simulations_PIGBOS_1":"https://drive.google.com/drive/folders/1KTzfINBVo0MqztlHaiJFoNDt5gGsc0dK?usp=sharing",
+        "simulations_sirtuins_1":"https://drive.google.com/drive/folders/1llT_HvcuJQps0e0RhlfsI1OLq251_s5S?usp=sharing",
+        "simulations_src_sh3_1":"https://drive.google.com/drive/folders/1tZOn7PrCjprPYmyjqREbW9PFTsPb29YZ?usp=sharing",
+        "simulations_src_sh3_2":"https://drive.google.com/drive/folders/1ji4wyUU4aZQTaha-Uha1GBaYruVJWgdh?usp=sharing",
+        "simulations_src_sh3_3":"https://drive.google.com/drive/folders/13xLOqW2ldRNm8OeU-bnp9DPEqU1d31Wy?usp=sharing"
+
+    }
+```
+|                      Dataset                      | Number of leaves | Alignment lenght | Name                              |
+|:-------------------------------------------------:|:----------------:|:----------------:|-----------------------------------|
+| Randall's Coral fluorescent proteins (CFP)        | 19               | 225              | benchmark_randall_original_naming |
+| Coral fluorescent proteins (CFP) Faviina subclade | 35               | 361              | Coral_Faviina                     |
+| Coral fluorescent proteins (CFP) subclade         | 71               | 272              | Coral_all                         |
+| Simulation $\beta$-Lactamase                      | 32               | 314              | simulations_blactamase_1          |
+| Simulation Calcitonin                             | 50               | 71               | simulations_calcitonin_1          |
+| Simulation SRC-Kinase SH3 domain                  | 100              | 63               | simulations_src_sh3_1             |
+| Simulation Sirtuin                                | 150              | 477              | simulations_sirtuins_1            |
+| Simulation SRC-kinase SH3 domain                  | 200              | 128              | simulations_src_sh3_3             |
+| Simulation PIGBOS                                 | 300              | 77               | simulations_PIGBOS_1              |
+| Simulation Insulin                                | 400              | 558              | simulations_insulin_2             |
+| Simulation SRC-kinase SH3 domain                  | 800              | 99               | simulations_src_sh3_2             |
 
 **If this library is useful for your research please cite:**
 
