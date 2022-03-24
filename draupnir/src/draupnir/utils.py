@@ -40,7 +40,6 @@ import Bio.PDB as PDB
 from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
 from Bio.Data.SCOPData import protein_letters_3to1
 from Bio.SeqRecord import SeqRecord
-from Bio import SeqIO, SeqRecord
 from Bio.Seq import Seq
 from Bio import BiopythonWarning
 from Bio import AlignIO, SeqIO
@@ -489,7 +488,7 @@ def calculate_pairwise_distance(name,alignment,storage_folder):
                 distance_df.loc[[t2], [t1]] = distance_matrix_biopython[t1,t2]
         distance_df.to_csv("{}/{}_pairwise_distance_matrix.csv".format(storage_folder,name))
 
-    else: #TODO: faster implementation
+    else: #TODO: faster implementation---> it's done elsewhere
         print("Finish implementing for larger datasets")
         #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
         pass
@@ -700,14 +699,14 @@ def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
                     if aa_name not in aminoacid_names.keys():
                         raise ValueError("Please select aa_probs > 21 , in order to allow using special amino acids")
                     if one_hot_encoding:
-                        aa_name_index = aminoacid_names[aa_name]
+                        aa_name_index = aminoacid_names[aa_name] #0-index
                         one_hot = np.zeros(aa_probs)  # one position, one character
                         one_hot[aa_name_index] = 1.0
                         aa_list_embedded.append(one_hot)
                     else:
                         aa_name_index = aminoacid_names[aa_name]
                         aa_list_embedded.append(aa_name_index)
-                    aa_list.append(protein_letters_3to1[residue.get_resname()])
+                    aa_list.append(aa_name)
         # Replace None values from NT and CT angles by npr.normal(np.pi,0.1)----> actually, perhaps just chop them, too much missinformation
         angles_list_filled = []
         for tpl in angles_list:
@@ -716,18 +715,14 @@ def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
                 tpl[np.where(np.array(tpl) == None)[0][0]] = npr.normal(np.pi, 0.1)
             angles_list_filled.append(tpl)
         seq_len = len(angles_list_filled)
-        aa_info = np.zeros(
-            (seq_len + 2, 30))  # will contain information about all the aminoacids in this current sequence
-        # aa_info[0] = [seq_len, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0]
+        aa_info = np.zeros((seq_len + 2, 30))  # will contain information about all the aminoacids in this current sequence
         aa_info[0] = [seq_len] + [0] * 29
-        for index in range(2,
-                           seq_len + 2):  # First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
+        for index in range(2,seq_len + 2):  # First dimension contains some custom information (i.e name), second is the git vector and the rest should have the aa type and the angles
             if one_hot_encoding:
                 aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 7])
             else:
                 aa_info[index] = np.hstack([aa_list_embedded[index - 2], angles_list_filled[index - 2], [0] * 27])
-        if seq_len > min_len and not all(v == (None, None) for v in
-                                         angles_list):  # skip the proteins that are empty or too small | skip the proteins with all None values in the angles
+        if seq_len > min_len and not all(v == (None, None) for v in angles_list):  # skip the proteins that are empty or too small | skip the proteins with all None values in the angles
             if "".join(aa_list) not in duplicates:
                 prot_info_dict[files_list[i][3:7]] = aa_info
                 prot_aa_dict[files_list[i][3:7]] = aa_list
@@ -744,17 +739,17 @@ def create_dataset(name_file,
                    method="iqtree",
                    aa_probs=21,
                    rename_internal_nodes=False,
-                   storage_folder="datasets/default"):
+                   storage_folder=""):
     """ Complex function to create the dataset and additional files (i.e dictionaries) that Draupnir uses for inference
     in:
         :param str name_file : dataset name
         :param bool one_hot_encoding: {True,False} WARNING: One hot encoding is faulty, needs to be fixed, DO NOT USE
         :param int min_len: minimum length of the sequence, drops out sequences smaller than this
         :param str fasta_file: path to fasta with unaligned sequences
-        :param str PDB_folder: Folder with PDB files from where to extract sequences and angles
-        :param str alignment_file: path to fasta with aligned sequences
-        :param str tree_file: path to newick tree, format 1 (ete3 nomenclature)
-        :param dict pfam_dict: dictionary with PDB files names
+        :param str or None PDB_folder: Folder with PDB files from where to extract sequences and angles
+        :param str or None alignment_file: path to fasta with aligned sequences
+        :param str or None tree_file: path to newick tree, format 1 (ete3 nomenclature)
+        :param dict or None pfam_dict: dictionary with PDB files names
         :param str method: tree inference methodology,
                           "iqtree": for ML tree inference by IQtree (make sure is installed globally),
                           "nj": for neighbour joining unrooted tree inference (biopython),
@@ -773,37 +768,40 @@ def create_dataset(name_file,
 
     warnings.simplefilter('ignore', BiopythonWarning)
     one_hot_label= ["onehot" if one_hot_encoding else "integers"]
-    if one_hot_encoding:
-        raise ValueError("There is some bug in one hot encoding yet to be fixed, do not use yet. Please set one_hot_encoding=False")
+    # if one_hot_encoding:
+    #     raise ValueError("There is some bug in one hot encoding yet to be fixed, do not use yet. Please set one_hot_encoding=False")
+    #
 
     prot_info_dict = {}
     prot_aa_dict = {}
-    if PDB_folder:# and not alignment_file:---> We allow to have sequences that have 3D structure and not
+    if PDB_folder:# and not alignment_file:---> We allow to have sequences that have 3D structure
         print("Creating dataset from PDB files...")
         prot_aa_dict,prot_info_dict = process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len)
-
     #Remove duplicated sequences in both dictionaries
     if prot_aa_dict:
-        print("Writing polypeptides to fasta file")
-        with open("{}/{}.fasta".format(storage_folder,name_file), "w") as output_handle:
+        fasta_file = "{}/{}/{}.fasta".format(storage_folder,name_file,name_file)
+        print("Writing polypeptides to fasta file to {}".format(fasta_file))
+        with open(fasta_file, "w") as output_handle:
+            pdb_records =[]
             for id,sequence in prot_aa_dict.items():
-                record = SeqRecord(Seq(''.join(sequence)),
-                                   id=id,
+                pdb_record = SeqRecord(Seq(''.join(sequence)),
+                                   id=str(id),
                                    description="",
                                    annotations={"molecule_type": "protein"})
-                SeqIO.write(record, output_handle, "fasta")
+                pdb_records.append(pdb_record)
+            SeqIO.write(pdb_records, output_handle, "fasta")
         output_handle.close()
     # Highlight: Align the polypeptides/sequences and write to a fasta angles_list file
-    dict_alignment,alignment = infer_alignment(alignment_file,input_name_file=fasta_file,output_name_file="{}/{}.mafft".format(storage_folder,name_file))
+    dict_alignment,alignment = infer_alignment(alignment_file,input_name_file=fasta_file,output_name_file="{}/{}/{}.mafft".format(storage_folder,name_file,name_file))
     #calculate_pairwise_distance(name_file,alignment)
-    alignment_file = [alignment_file if alignment_file else "{}/{}.mafft".format(storage_folder,name_file)][0]
-    not_aligned_seqs_from_alignment_file ={}
+    alignment_file = [alignment_file if alignment_file else "{}/{}/{}.mafft".format(storage_folder,name_file,name_file)][0]
     #Highlight: checking that the selected number of probabilities is correct
     summary_aa_probs = [validate_sequence_alphabet(value) for key,value in dict_alignment.items()] #finds the alphabets of each of the sequences in the alignment, checks for dna
     aa_probs = max(aa_probs,max(summary_aa_probs)) #if the input aa_probs is different from those found, the aa_probs change. And also the aa substitution  matrix
     aa_names_dict = aminoacid_names_dict(aa_probs)
     #Highlight: If the aa sequences do not come from  PDB files, they come from an alignment file that needs to be processed
-    dict_alignment_2 = dict.fromkeys(dict_alignment.keys())
+    #dict_alignment_2 = dict.fromkeys(dict_alignment.keys())
+    not_aligned_seqs_from_alignment_file ={}
     for key,value in dict_alignment.items():
         aligned_seq = list(dict_alignment[key])
         #no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 2  # plus 2 in order to make the indexes fit in the final dataframe
@@ -811,12 +809,11 @@ def create_dataset(name_file,
         seq_len = len(not_aligned_seq)
         git_vector = np.zeros(30) #fake git vector
         aa_info = np.zeros((seq_len + 2, 30))
-        aa_info[0] = np.hstack([seq_len,[0]*29])
-        aa_info[1] = git_vector
+        aa_info[0] = np.hstack([seq_len,[0]*29]) #first row contains some sequence length information
+        aa_info[1] = git_vector #second row contains a git vector (never used but we could use it for something else)
         if one_hot_encoding:
             for index_a, aa_name in enumerate(not_aligned_seq):
                 one_hot = np.zeros(aa_probs)
-                #index = int(np.where(np.array(list(aa_names_dict.keys())) == aa_name)[0][0])
                 index = aa_names_dict[aa_name]
                 one_hot[index] = 1
                 extra_space = 30-aa_probs
@@ -826,22 +823,24 @@ def create_dataset(name_file,
                 index = aa_names_dict[aa_name]
                 aa_info[index_aa+2] =np.hstack([index, [0]*29])
         not_aligned_seqs_from_alignment_file[key] = aa_info
-        dict_alignment_2[key] = aa_info
+        #dict_alignment_2[key] = aa_info
 
     tree = infer_tree(alignment=alignment,
                       alignment_file_name=alignment_file,
                       name=name_file,
                       method=method,
-                      tree_file_name="{}/{}.tree".format(storage_folder,name_file),
-                      tree_file=tree_file)
+                      tree_file_name="{}/{}/{}.tree".format(storage_folder,name_file,name_file),
+                      tree_file=tree_file,
+                      storage_folder="{}/{}".format(storage_folder,name_file))
     max_lenght = alignment.get_alignment_length()
 
     #Highlight: Combining sequences in the alignment that have a PDB structure and those who don't
     if prot_info_dict: #Otherwise it does not loop over empty dictionaries and does nothing
-        dict_alignment_2.update((k, prot_info_dict[k]) for k, v in dict_alignment_2.items() if k in prot_info_dict.keys())  #update the alignment keys with their homolog with pdb information. Update only those sequences in the alignment. Mafft and the IQ tree program might discard different proteins (for example they drop different identical proteins)
-        Combined_dict = dict_alignment_2
+        not_aligned_seqs_from_alignment_file.update((k, prot_info_dict[k]) for k, v in not_aligned_seqs_from_alignment_file.items() if k in prot_info_dict.keys())  #update the alignment keys with their homolog with pdb information. Update only those sequences in the alignment. Mafft and the IQ tree program might discard different proteins (for example they drop different identical proteins)
+        Combined_dict = not_aligned_seqs_from_alignment_file
     else:
-        Combined_dict = dict_alignment_2
+        Combined_dict = not_aligned_seqs_from_alignment_file
+
 
     if rename_internal_nodes:
         if name_file.startswith("simulations"):
@@ -850,10 +849,10 @@ def create_dataset(name_file,
            tree = rename_tree_internal_nodes(tree)
 
     leafs_names = tree.get_leaf_names()
-    pickle.dump(leafs_names,open('{}/{}_Leafs_names_list.p'.format(storage_folder,name_file), 'wb'))
+    pickle.dump(leafs_names,open('{}/{}/{}_Leafs_names_list.p'.format(storage_folder,name_file,name_file), 'wb'))
     if len(leafs_names) <= 200:
         print("Rendering tree...")
-        render_tree(tree, storage_folder, name_file)
+        render_tree(tree, "{}/{}".format(storage_folder,name_file), name_file)
     internal_nodes_names = [node.name for node in tree.traverse() if not node.is_leaf()]
 
     ancestors_all =[]
@@ -882,21 +881,28 @@ def create_dataset(name_file,
         Dataset[i, 1, 2] =  tree_levelorder_dist[Dataset[i,1,1]] #distance to the root? that's according to the documentation yes, but is different from the patristic distances
         Dataset[i, no_gap_indexes] = Combined_dict[key][2:]  # Assign the aa info (including angles) to those positions where there is not a gap
         if one_hot_encoding:
-            Dataset[i,~no_gap_indexes] = np.array([1]+[0]*29) #if one hot encoding the gaps with be assigned the first position in one hot encoding
+            #Highlight: no_gap indexes is not a boolean, we have to convert it
+            gaps_mask = np.ones(max_lenght+3,np.bool)
+            gaps_mask[no_gap_indexes] = False #do not keep the positions where there is not a gap
+            gaps_mask[0] = False #not the first two rows
+            gaps_mask[1] = False
+            gaps_mask[2] = False
+            Dataset[i,gaps_mask,0] = 1. #if one hot encoding the gaps with be assigned the first position in one hot encoding
+
     #  Reconstruct the tree from the distance matrix
     print("Building patristic and cladistic matrices ...")
     tree_save = pd.DataFrame(ancestors_info)
     #tree_save = pd.DataFrame({"Nodes_Names":tree_levelorder_names.tolist(),"Distance_to_root":tree_levelorder_dist.tolist()})
-    tree_save.to_csv("{}/{}_tree_levelorder_info.csv".format(storage_folder,name_file),sep="\t")
+    tree_save.to_csv("{}/{}/{}_tree_levelorder_info.csv".format(storage_folder,name_file,name_file),sep="\t")
     nodes_and_leafs_names = internal_nodes_names + leafs_names
-    calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,tree,tree_file,storage_folder)
-    calculate_closest_leaves(name_file,tree,storage_folder)
-    calculate_directly_linked_nodes(name_file, tree,storage_folder)
-    calculate_descendants(name_file,tree,storage_folder)
+    calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,tree,tree_file,"{}/{}".format(storage_folder,name_file))
+    calculate_closest_leaves(name_file,tree,"{}/{}".format(storage_folder,name_file))
+    calculate_directly_linked_nodes(name_file, tree,"{}/{}".format(storage_folder,name_file))
+    calculate_descendants(name_file,tree,"{}/{}".format(storage_folder,name_file))
     print("Ready and saved!")
     print("Building clades (warning: collapses the original tree!)")
-    divide_into_monophyletic_clades(tree,storage_folder,name_file)
-    np.save("{}/{}_dataset_numpy_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset)
+    divide_into_monophyletic_clades(tree,"{}/{}".format(storage_folder,name_file),name_file)
+    np.save("{}/{}/{}_dataset_numpy_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset)
     max_lenght_not_aligned = max([int(sequence[0][0]) for idx,sequence in Combined_dict.items()]) #Find the largest sequence without being aligned
     print("Creating not aligned dataset...")
     Dataset_not_aligned = np.zeros((len(Combined_dict), max_lenght_not_aligned +3, 30), dtype=object)  # 30 for future git vectors. Careful with the +3
@@ -910,8 +916,15 @@ def create_dataset(name_file,
         Dataset_not_aligned[i, 1, 2] =  tree_levelorder_dist[Dataset[i,1,1]]
         Dataset_not_aligned[i, 3:int(Combined_dict[key][0][0]) +3] = Combined_dict[key][2:] #Fill in the amino acids "letters"/"numbers" and their angles
         if one_hot_encoding:
-            Dataset_not_aligned[i, (int(Combined_dict[key][0][0]) + 3):] = np.array([1]+[0]*29)
-    np.save("{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,one_hot_label[0]), Dataset_not_aligned)
+            # #Highlight: no_gap indexes is not a boolean, we have to convert it
+            # gaps_mask = np.ones(max_lenght+3,np.bool)
+            # gaps_mask[no_gap_indexes] = False #do not keep the positions where there is not a gap
+            # gaps_mask[0] = False #not the first two rows
+            # gaps_mask[1] = False
+            # gaps_mask[2] = False
+            # Dataset[i,gaps_mask,0] = 1. #if one hot encoding the gaps with be assigned the first position in one hot encoding
+            Dataset_not_aligned[i, (int(Combined_dict[key][0][0]) + 3):,0] = 1.
+    np.save("{}/{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset_not_aligned)
 
     return tree_file
 
@@ -1778,9 +1791,9 @@ def convert_to_integers(dataset,aa_probs,axis):
     :param numpy dataset
     :param aa_probs: amino acid probabilities, dimensions of the one-hot encoding"""
     if axis==3:#use for predictions
-        b = np.argmax(dataset, axis=axis)
+        b = torch.argmax(dataset, dim=axis)
     else:
-        integers = np.argmax(dataset[:,2:,0:aa_probs],axis=axis)
+        integers = torch.argmax(dataset[:,2:,0:aa_probs],dim=axis)
         b = torch.zeros(dataset[:,:,0].shape + (30,)).cpu()
         #b = np.zeros(Dataset[:,:,0].shape + (30,))
         b[:, 2:, 0] = integers
@@ -1810,10 +1823,8 @@ def process_blosum(blosum,aa_freqs,align_seq_len,aa_probs):
 def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_hot_encoding):
     """Transforms the train dataset, which is formed by a tensor of integers that represent the amino acids, into a dataset where each amino acid (integer) is exchanged with its blosum score
     :out tensor aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
-
-    if one_hot_encoding: #TODO: check that this works
+    if one_hot_encoding:
         dataset_train = convert_to_integers(dataset_train,aa_probs,axis=2)
-
     aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_probs,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_probs times]--seems correct
     blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_probs,aa_probs]
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
