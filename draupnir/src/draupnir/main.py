@@ -2496,29 +2496,29 @@ def send_to_plot(n_samples,
     :param namedtuple build_config
     :param str results_dir"""
     start_plots = time.time()
-    aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(n_samples,1,1)
-    aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(n_samples, 1, 1)
-
-    sample_out_train = SamplingOutput(
-        aa_sequences=aa_sequences_predictions_train,
-        latent_space=sample_out_train.latent_space,
-        logits=sample_out_train.logits,
-        phis=None,
-        psis=None,
-        mean_phi=None,
-        mean_psi=None,
-        kappa_phi=None,
-        kappa_psi=None)
-    sample_out_test = SamplingOutput(
-        aa_sequences=aa_sequences_predictions_test,
-        latent_space=sample_out_train.latent_space,
-        logits=sample_out_train.logits,
-        phis=None,
-        psis=None,
-        mean_phi=None,
-        mean_psi=None,
-        kappa_phi=None,
-        kappa_psi=None)
+    # aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(n_samples,1,1)
+    # aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(n_samples, 1, 1)
+    #
+    # sample_out_train = SamplingOutput(
+    #     aa_sequences=aa_sequences_predictions_train,
+    #     latent_space=sample_out_train.latent_space,
+    #     logits=sample_out_train.logits,
+    #     phis=None,
+    #     psis=None,
+    #     mean_phi=None,
+    #     mean_psi=None,
+    #     kappa_phi=None,
+    #     kappa_psi=None)
+    # sample_out_test = SamplingOutput(
+    #     aa_sequences=aa_sequences_predictions_test,
+    #     latent_space=sample_out_train.latent_space,
+    #     logits=sample_out_train.logits,
+    #     phis=None,
+    #     psis=None,
+    #     mean_phi=None,
+    #     mean_psi=None,
+    #     kappa_phi=None,
+    #     kappa_psi=None)
 
     if n_samples != sample_out_test.aa_sequences.shape[0]:
         n_samples = sample_out_test.aa_sequences.shape[0]
