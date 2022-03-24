@@ -229,7 +229,7 @@ def validate_aa_probs(alignment,build_config):
 
     align_array = np.array([record.seq for record in alignment])
     different_elements = "".join(np.unique(align_array).tolist())
-    aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements)
+    aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements.lower())
     return aa_probs_updated
     # alignment_ids = []
     # alignment_seqs = []

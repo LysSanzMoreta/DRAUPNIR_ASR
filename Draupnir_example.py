@@ -32,7 +32,7 @@ def main():
                                                            alignment_file=args.alignment_file)
 
     #Highlight: Creates image of the estimated tree colured by clades
-    draw_tree = False
+    draw_tree = True
     if draw_tree :
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
         draupnir.draw_tree_facets(args.dataset_name,settings_config) #coloured panels and names
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_blactamase_1",
+                        default="simulations_jj_2",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
@@ -71,14 +71,14 @@ if __name__ == "__main__":
     parser.add_argument('--fasta-file', type=str, nargs='?',
                         default=None,
                         help='Path to fasta file (use with custom dataset)')
-    parser.add_argument('-build', '--build-dataset', default=True, type=str2bool,
+    parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
                              'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
     parser.add_argument('--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, so this is not needed for Draupnir inference')
-    parser.add_argument('-n', '--num-epochs', default=5, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=500, type=int, help='number of training epochs')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
                                                                 'Set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
@@ -93,7 +93,7 @@ if __name__ == "__main__":
                                                                     'Else it sets the plate size to a given integer')
     parser.add_argument('-plate-idx-shuffle','--plate-unordered', type=str2bool, nargs='?',const=None, default=False,help='When subsampling/plating, shuffle (True) or not (False) the idx of the sequences which are given in tree level order')
 
-    parser.add_argument('-aa-probs', default=21, type=int, help='21: 20 amino acids,1 gap probabilities; 24: 23 amino acids, 1 gap')
+    parser.add_argument('-aa-probs', default=24, type=int, help='21: 20 amino acids,1 gap probabilities; 24: 23 amino acids, 1 gap')
     parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples')
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')

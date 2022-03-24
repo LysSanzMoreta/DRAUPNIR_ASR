@@ -1772,19 +1772,37 @@ def compare_trees(t1,t2):
     distance = subprocess.check_output(cmd, universal_newlines=True)
     return distance
 
-def remove_stop_codons(sequence_file):
+def remove_stop_codons(sequence_file,is_prot=False):
     """Remove the stop codons(*) from an alignment file"""
-    stop_codons = ["TGA","TAG","TAA"]
-    seq_file = open(sequence_file, 'r+')
-    seq = seq_file.read()
-    seq_file.seek(0)
-    #coding_dna = Seq(seq)
-    #protein = coding_dna.translate()
-    codons = [seq[i:i+3] for i in range(0, len(seq), 3)]
-    codons =[cod for cod in codons if len(cod) ==3 and cod not in stop_codons]
-    #check = any(item in codons for item in stop_codons)
-    seq_file.write("".join(codons))
-    seq_file.truncate()  # remove contents
+    if is_prot:
+        print("Removing stop codons from protein")
+        print(sequence_file)
+        seq_file = open(sequence_file, 'r+')
+        seq = seq_file.read()
+        seq_file.seek(0)
+        no_codons = [i if i!="*" else "-" for i in seq] #replace for a gap
+        #TODO: Truncate the sequence if there is a stop codon in the middle (stop adding gaps when \n is reached)
+        # no_codons= []
+        # for index,i in enumerate(seq):
+        #     if i == "*":
+        #         i= "-"
+        #         next_break_index = seq[index:].index("\n")
+        #         seq[index:next_break_index] = "-"*(next_break_index-index)
+
+        seq_file.write("".join(no_codons))
+        seq_file.truncate()  # remove contents
+    else:
+        stop_codons = ["TGA","TAG","TAA"]
+        seq_file = open(sequence_file, 'r+')
+        seq = seq_file.read()
+        seq_file.seek(0)
+        #coding_dna = Seq(seq)
+        #protein = coding_dna.translate()
+        codons = [seq[i:i+3] for i in range(0, len(seq), 3)]
+        codons =[cod for cod in codons if len(cod) ==3 and cod not in stop_codons]
+        #check = any(item in codons for item in stop_codons)
+        seq_file.write("".join(codons))
+        seq_file.truncate()  # remove contents
 
 def convert_to_integers(dataset,aa_probs,axis):
     """Transforms one hot encoded amino acids into 0-indexed integers i.e [1,0,0,0] --> 0  [0,1,0,0] -> 1
