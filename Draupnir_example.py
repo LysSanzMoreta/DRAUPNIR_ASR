@@ -40,6 +40,7 @@ def main():
 
     #Highlight: Runs draupnir
     draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
+    exit()
     #Highlight: Calculate mutual information---> AFTER at least the model has been run at least once with the variational guide
     draupnir.calculate_mutual_information(args,
                                           results_dir = "Mutual_info_dir",
