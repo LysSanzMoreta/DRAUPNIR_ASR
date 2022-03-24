@@ -312,9 +312,10 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
             records_aligned = []
             for sequence in dataset_train:
                 if one_hot_encoding:
+                    #print(sequence[3:,0:21])
                     sequence_to_translate = np.argmax(sequence[3:,0:21],axis=1)
                 else:
-                    sequence_to_translate = sequence[3:,0]
+                    sequence_to_translate = sequence[3:,0] #TODO: is this correct?
                 train_sequence = DraupnirUtils.convert_to_letters(sequence_to_translate, aa_probs) #TODO: vectorize
                 record = SeqRecord(Seq(''.join(train_sequence).replace("-", "")),
                                    annotations={"molecule_type": "protein"},
@@ -327,7 +328,6 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
                 records_aligned.append(record_aligned)
             SeqIO.write(records, output_handle, "fasta")
             SeqIO.write(records_aligned, output_handle2, "fasta")
-
         # Eliminate the name part in the row, so that not everything needs to be changed
         dataset_train = dataset_train[:, 1:].astype('float64')
         dataset_test = None

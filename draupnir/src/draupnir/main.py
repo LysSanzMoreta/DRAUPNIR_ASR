@@ -80,7 +80,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     """
 
     aligned = ["aligned" if settings_config.aligned_seq else "NOT_aligned"]
-    one_hot = ["OneHotEncoded" if settings_config.one_hot_encoding else "integers"]
+    one_hot = ["onehot" if settings_config.one_hot_encoding else "integers"]
 
     dataset = np.load("{}/{}_dataset_numpy_{}_{}.npy".format(settings_config.data_folder,name,aligned[0], one_hot[0]),allow_pickle=True)
 
@@ -917,7 +917,7 @@ def draupnir_sample(train_load,
                            args,
                            "{}/Test2_Plots".format(results_dir))
 
-    if settings_config.one_hot_encoding:
+    if settings_config.one_hot_encoding: #TODO: has not been checked, simply change the model to have OneHotCategorical
         print("Transforming one-hot back to integers")
         sample_out_train = transform_to_integers(sample_out_train,build_config)
         # sample_out_train_argmax = convert_to_integers(sample_out_train_argmax) #argmax sets directly the aa to the highest logit
@@ -943,160 +943,6 @@ def draupnir_sample(train_load,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
 
-    # start_plots = time.time()
-    # # aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(50,1,1)
-    # # aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(50, 1, 1)
-    # if n_samples != sample_out_test.aa_sequences.shape[0]:
-    #     n_samples = sample_out_test.aa_sequences.shape[0]
-    # if args.infer_angles:
-    #     preparing_plots(sample_out_train,
-    #                     dataset_train,
-    #                     dataset_train,
-    #                     train_entropies,
-    #                     results_dir + "/Train_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     dataset_train[:, 0, 1],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     plot_test=False,
-    #                     plot_angles=True,
-    #                     no_testing=True)
-    #     preparing_plots(sample_out_test,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies,
-    #                     results_dir + "/Test_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #     preparing_plots(sample_out_test2,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies2,
-    #                     results_dir + "/Test2_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #
-    # # Highlight: Plot samples
-    # print("Plotting the train (leaves) dataset")
-    # preparing_plots(sample_out_train,
-    #                 dataset_train,
-    #                 dataset_train,
-    #                 train_entropies,
-    #                 results_dir + "/Train_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 dataset_train[:, 0, 1],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 plot_test=False,
-    #                 no_testing=True,
-    #                 overplapping_hist=False)
-    # print("Plotting the test")
-    # preparing_plots(sample_out_test,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies,
-    #                 results_dir + "/Test_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:, 0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test2")
-    # preparing_plots(sample_out_test2,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies2,
-    #                 results_dir + "/Test2_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:, 0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # if n_samples != sample_out_test_argmax.aa_sequences.shape[0]:  # most likely sequences
-    #     n_samples = sample_out_test_argmax.aa_sequences.shape[0]
-    #
-    # # Highlight: Plot most likely sequence
-    # print("train argmax")
-    # preparing_plots(sample_out_train_argmax,
-    #                 dataset_train,
-    #                 dataset_train,
-    #                 train_entropies,
-    #                 results_dir + "/Train_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 dataset_train[:, 0, 1],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 plot_test=False,
-    #                 no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test argmax")
-    # preparing_plots(sample_out_test_argmax,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies,
-    #                 results_dir + "/Test_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:, 0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test_argmax 2")
-    # preparing_plots(sample_out_test_argmax2,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies2,
-    #                 results_dir + "/Test2_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # stop_plots = time.time()
-    # print('Final plots timing: {}'.format(str(datetime.timedelta(seconds=stop_plots - start_plots))))
-    # print("##########################################################################################################")
 def draupnir_train(train_load,
                    test_load,
                    additional_load,
@@ -1637,162 +1483,7 @@ def draupnir_train(train_load,
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
-    #start_plots = time.time()
-    #aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(50,1,1)
-    #aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(50, 1, 1)
-    # if n_samples != sample_out_test.aa_sequences.shape[0]:
-    #     n_samples = sample_out_test.aa_sequences.shape[0]
-    # #
-    #
-    # if args.infer_angles: #TODO: not correct anymore, gotta fix
-    #     preparing_plots(sample_out_train,
-    #                     dataset_train,
-    #                     dataset_train,
-    #                     train_entropies,
-    #                     results_dir + "/Train_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     dataset_train[:, 0, 1],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     plot_test=False,
-    #                     plot_angles=True,
-    #                     no_testing=True)
-    #     preparing_plots(sample_out_test,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies,
-    #                     results_dir + "/Test_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #     preparing_plots(sample_out_test2,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies2,
-    #                     results_dir + "/Test2_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #
-    # #Highlight: Plot samples
-    # print("train")
-    # preparing_plots(sample_out_train,
-    #                 dataset_train,
-    #                 dataset_train,
-    #                 train_entropies,
-    #                 results_dir + "/Train_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 dataset_train[:,0,1],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 plot_test=False,
-    #                 no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test")
-    # preparing_plots(sample_out_test,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies,
-    #                 results_dir + "/Test_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test2")
-    # preparing_plots(sample_out_test2,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies2,
-    #                 results_dir + "/Test2_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # if n_samples != sample_out_test_argmax.aa_sequences.shape[0]:#most likely sequences ---> most voted sequence now?
-    #     n_samples = sample_out_test_argmax.aa_sequences.shape[0]
-    #
-    # #Highlight: Plot most likely sequence
-    # print("train argmax")
-    # preparing_plots(sample_out_train_argmax,
-    #                 dataset_train,
-    #                 dataset_train,
-    #                 train_entropies,
-    #                 results_dir + "/Train_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 dataset_train[:,0,1],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 plot_test=False,
-    #                 no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test argmax")
-    # preparing_plots(sample_out_test_argmax,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies,
-    #                 results_dir + "/Test_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test_argmax 2")
-    # preparing_plots(sample_out_test_argmax2,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies2,
-    #                 results_dir + "/Test2_argmax_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # stop_plots = time.time()
-    # print('Final plots timing: {}'.format(str(datetime.timedelta(seconds=stop_plots - start_plots))))
-    # print("##########################################################################################################")
+
 def draupnir_train_batching(train_load,
                    test_load,
                    additional_load,
@@ -2280,129 +1971,7 @@ def draupnir_train_batching(train_load,
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
-    # start_plots = time.time()
-    # # aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(50,1,1)
-    # # aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(50, 1, 1)
-    # if n_samples != sample_out_test.aa_sequences.shape[0]:
-    #     n_samples = sample_out_test.aa_sequences.shape[0]
-    # if args.infer_angles:  # TODO: not correct anymore
-    #     preparing_plots(sample_out_train,
-    #                     dataset_train,
-    #                     dataset_train,
-    #                     train_entropies,
-    #                     results_dir + "/Train_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     dataset_train[:, 0, 1],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     plot_test=False,
-    #                     plot_angles=True,
-    #                     no_testing=True)
-    #     preparing_plots(sample_out_test,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies,
-    #                     results_dir + "/Test_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #     preparing_plots(sample_out_test2,
-    #                     dataset_test,
-    #                     dataset_train,
-    #                     test_entropies2,
-    #                     results_dir + "/Test2_Plots",
-    #                     additional_load,
-    #                     additional_info,
-    #                     build_config,
-    #                     n_samples,
-    #                     patristic_matrix_test[1:, 0],
-    #                     args,
-    #                     replacement_plots=False,
-    #                     overplapping_hist=False,
-    #                     plot_angles=True,
-    #                     no_testing=build_config.no_testing)
-    #
-    # #Highlight: Plot samples
-    # print("train")
-    # preparing_plots(sample_out_train,
-    #                 dataset_train,
-    #                 dataset_train,
-    #                 train_entropies,
-    #                 results_dir + "/Train_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 dataset_train[:,0,1],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 plot_test=False,
-    #                 no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test")
-    # preparing_plots(sample_out_test,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies,
-    #                 results_dir + "/Test_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test2")
-    # preparing_plots(sample_out_test2,
-    #                 dataset_test,
-    #                 dataset_train,
-    #                 test_entropies2,
-    #                 results_dir + "/Test2_Plots",
-    #                 additional_load,
-    #                 additional_info,
-    #                 build_config,
-    #                 n_samples,
-    #                 patristic_matrix_test[1:,0],
-    #                 args,
-    #                 replacement_plots=False,
-    #                 overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # if n_samples != sample_out_test_argmax.aa_sequences.shape[0]:  # most likely sequences ---> most voted sequence now?
-    #     n_samples = sample_out_test_argmax.aa_sequences.shape[0]
-    #
-    # # Highlight: Plot most likely sequence
-    # print("train argmax")
-    # preparing_plots(sample_out_train_argmax, dataset_train, dataset_train, train_entropies,
-    #                 results_dir + "/Train_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 dataset_train[:, 0, 1], replacement_plots=False, plot_test=False, no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test argmax")
-    # preparing_plots(sample_out_test_argmax, dataset_test, dataset_train, test_entropies,
-    #                 results_dir + "/Test_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test_argmax 2")
-    # preparing_plots(sample_out_test_argmax2, dataset_test, dataset_train, test_entropies2,
-    #                 results_dir + "/Test2_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # stop_plots = time.time()
-    # print('Final plots timing: {}'.format(str(datetime.timedelta(seconds=stop_plots - start_plots))))
-    # print("##########################################################################################################")
+
 def draupnir_train_batch_by_clade(train_load,
                    test_load,
                    additional_load,
@@ -2895,62 +2464,7 @@ def draupnir_train_batch_by_clade(train_load,
                  sample_out_test, sample_out_test_argmax,
                  sample_out_test2, sample_out_test_argmax2,
                  additional_load, additional_info, build_config, args, results_dir)
-    # start_plots = time.time()
-    # # aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(50,1,1)
-    # # aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(50, 1, 1)
-    # if n_samples != sample_out_test.aa_sequences.shape[0]:
-    #     n_samples = sample_out_test.aa_sequences.shape[0]
-    # if args.infer_angles:  # TODO: not correct anymore
-    #     preparing_plots(sample_out_train, dataset_train, dataset_train, train_entropies,
-    #                     results_dir + "/Train_Plots", additional_load, additional_info, n_samples,
-    #                     dataset_train[:, 0, 1], replacement_plots=False, plot_test=False, plot_angles=True,
-    #                     no_testing=True)
-    #     preparing_plots(sample_out_test, dataset_test, dataset_train, test_entropies,
-    #                     results_dir + "/Test_Plots", additional_load, additional_info, n_samples,
-    #                     patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                     plot_angles=True, no_testing=build_config.no_testing)
-    #     preparing_plots(sample_out_test2, dataset_test, dataset_train, test_entropies2,
-    #                     results_dir + "/Test2_Plots", additional_load, additional_info, n_samples,
-    #                     patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                     plot_angles=True, no_testing=build_config.no_testing)
-    #
-    # # Highlight: Plot samples
-    # print("train")
-    # preparing_plots(sample_out_train, dataset_train, dataset_train, train_entropies, results_dir + "/Train_Plots",
-    #                 additional_load, additional_info, n_samples, dataset_train[:, 0, 1], replacement_plots=False,
-    #                 plot_test=False, no_testing=True, overplapping_hist=False)
-    # print("test")
-    # preparing_plots(sample_out_test, dataset_test, dataset_train, test_entropies, results_dir + "/Test_Plots",
-    #                 additional_load, additional_info, n_samples, patristic_matrix_test[1:, 0], replacement_plots=False,
-    #                 overplapping_hist=False, no_testing=build_config.no_testing)
-    # print("test2")
-    # preparing_plots(sample_out_test2, dataset_test, dataset_train, test_entropies2, results_dir + "/Test2_Plots",
-    #                 additional_load, additional_info, n_samples, patristic_matrix_test[1:, 0], replacement_plots=False,
-    #                 overplapping_hist=False, no_testing=build_config.no_testing)
-    #
-    # if n_samples != sample_out_test_argmax.aa_sequences.shape[0]:  # most likely sequences ---> most voted sequence now?
-    #     n_samples = sample_out_test_argmax.aa_sequences.shape[0]
-    #
-    # # Highlight: Plot most likely sequence
-    # print("train argmax")
-    # preparing_plots(sample_out_train_argmax, dataset_train, dataset_train, train_entropies,
-    #                 results_dir + "/Train_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 dataset_train[:, 0, 1], replacement_plots=False, plot_test=False, no_testing=True,
-    #                 overplapping_hist=False)
-    # print("test argmax")
-    # preparing_plots(sample_out_test_argmax, dataset_test, dataset_train, test_entropies,
-    #                 results_dir + "/Test_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    # print("test_argmax 2")
-    # preparing_plots(sample_out_test_argmax2, dataset_test, dataset_train, test_entropies2,
-    #                 results_dir + "/Test2_argmax_Plots", additional_load, additional_info, n_samples,
-    #                 patristic_matrix_test[1:, 0], replacement_plots=False, overplapping_hist=False,
-    #                 no_testing=build_config.no_testing)
-    #
-    # stop_plots = time.time()
-    # print('Final plots timing: {}'.format(str(datetime.timedelta(seconds=stop_plots - start_plots))))
-    # print("##########################################################################################################")
+
 def send_to_plot(n_samples,
                  dataset_train,
                  dataset_test,
@@ -2982,8 +2496,30 @@ def send_to_plot(n_samples,
     :param namedtuple build_config
     :param str results_dir"""
     start_plots = time.time()
-    # aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(50,1,1)
-    # aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(50, 1, 1)
+    aa_sequences_predictions_test = dataset_test[:,2:,0].repeat(n_samples,1,1)
+    aa_sequences_predictions_train = dataset_train[:, 2:, 0].repeat(n_samples, 1, 1)
+
+    sample_out_train = SamplingOutput(
+        aa_sequences=aa_sequences_predictions_train,
+        latent_space=sample_out_train.latent_space,
+        logits=sample_out_train.logits,
+        phis=None,
+        psis=None,
+        mean_phi=None,
+        mean_psi=None,
+        kappa_phi=None,
+        kappa_psi=None)
+    sample_out_test = SamplingOutput(
+        aa_sequences=aa_sequences_predictions_test,
+        latent_space=sample_out_train.latent_space,
+        logits=sample_out_train.logits,
+        phis=None,
+        psis=None,
+        mean_phi=None,
+        mean_psi=None,
+        kappa_phi=None,
+        kappa_psi=None)
+
     if n_samples != sample_out_test.aa_sequences.shape[0]:
         n_samples = sample_out_test.aa_sequences.shape[0]
 
