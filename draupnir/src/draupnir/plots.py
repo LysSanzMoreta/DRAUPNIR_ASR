@@ -788,9 +788,11 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     patristic_matrix_full = additional_load.patristic_matrix_full
     patristic_matrix_full_no_indexes = patristic_matrix_full[1:,1:]
     latent_space_no_indexes = latent_space[:,1:]
+    from scipy import spatial
     use_cosine_similarity = False
-    def cosine_similarity(a,b):
-        return  np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
+    def cosine_similarity(a,b):#why it does not work?
+        #return  np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
+        return 1-spatial.distance.cosine(a, b)
     def pairwise_dist(a,b):
         return np.linalg.norm(a-b)
     if use_cosine_similarity:
@@ -831,7 +833,6 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     # correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
     # with open("{}/correlation_coeff.txt".format(results_dir),"a") as the_file:
     #     the_file.write('Correlation coefficient between branch lengths and latent space: {}\n'.format(correlation_coefficient[0,1]))
-
 def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs, results_dir,patristic_matrix_train):
     """Plots the distance between the latent space vectors of 2 leaf nodes in the tree and the branch length between them
     :param tensor latent_space [n_leaves, 1 + z_dim]

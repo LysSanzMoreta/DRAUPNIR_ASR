@@ -185,7 +185,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         text_file.write("Batch size (=1 means entire dataset): {} \n".format(batch_size))
         text_file.write("Plating (subsampling) : {} \n".format(args.plating))
         text_file.write("Plating size : {} \n".format(build_config.plate_subsample_size))
-        text_file.write("Plating unorderd (not preserving the tree level order of the nodes) : {} \n".format(args.plate_unordered))
+        text_file.write("Plating unordered (not preserving the tree level order of the nodes) : {} \n".format(args.plate_unordered))
         text_file.write("Inferring angles : {} \n".format(args.infer_angles))
         text_file.write("Guide : {} \n".format(args.select_guide))
         text_file.write("Use learning rate scheduler : {} \n".format(args.use_scheduler))

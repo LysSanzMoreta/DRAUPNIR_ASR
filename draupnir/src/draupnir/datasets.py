@@ -24,6 +24,8 @@ def available_datasets(print_dict = False):
                 "simulations_PIGBOS_1": "PIGBOS_seq",# EvolveAGene4 PIGBOS simulation #300 leaves
                 "simulations_insulin_2": "Insulin_seq",# EvolveAGene4 Insulin simulation #400 leaves
                 "simulations_src_sh3_2":"SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 2 #800 leaves
+                "simulations_jj_1": "jj1",
+                "simulations_jj_2": "jj2",
                 "benchmark_randall_original_naming": None,# uses the original tree and it's original node naming
                 "SH3_pf00018_larger_than_30aa":  None,# SRC kinases domain SH3 ---> Leaves and angles testing
                 "Coral_Faviina":  None,  # Faviina clade from coral sequences # 35 leaves
@@ -44,10 +46,12 @@ def available_datasets(print_dict = False):
                 "simulations_insulin_2": "400 leaves Simulation Insulin Growth Factor",
                 "simulations_calcitonin_1": "50 leaves Simulation Calcitonin peptide",
                 "simulations_PIGBOS_1": "300 leaves parser.add_argument('-use-cuda', type=str2bool, nargs='?',const=True, default=True, help='Use GPU')simulation PIGB Opposite Strand regulator",
+                "simulations_jj_1": "jj1",
+                "simulations_jj_2": "jj2",
                 "Coral_Faviina":"Coral fluorescent proteins (CFP) Faviina clade",  # Faviina clade from coral sequences
                 "Coral_all":"Coral fluorescent proteins (CFP) clade",  # All Coral sequences (includes Faviina clade and additional sequences)
                 "PF00400":"WD40 125 sequences",
-                "PF00400_beta": "WD40 125 sequences",
+                "PF00400_beta": "WD40 125 sequences", #TODO:Remove
                 "aminopeptidase":"Amino Peptidase",
                 "PF00096":"PF00096 protein kinases"}
     return datasets,datasets_full_names
@@ -133,7 +137,12 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
 
         # Highlight: Simulation datasets, Simulations might produce stop codons---Use probabilities == 21
         if name.startswith("simulations"):
-            # DraupnirUtils.Remove_Stop_Codons("Datasets_Simulations/{}/Dataset{}/{}.txt".format(simulation_folder,dataset_number,root_sequence_name))
+            # leaves_prot = "{}/{}/jj1_True_Pep_alignment.FASTA".format(storage_folder,name)
+            # internal_prot = "{}/{}/jj1_pep_Internal_Nodes_True_alignment.FASTA".format(storage_folder,name)
+            # DraupnirUtils.remove_stop_codons(leaves_prot,is_prot=True)
+            # DraupnirUtils.remove_stop_codons(internal_prot,is_prot=True)
+            #
+            # exit()
             alignment_file = "{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name)
             tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder,name,root_sequence_name)
             build_config = BuildConfig(alignment_file=alignment_file,
