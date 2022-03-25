@@ -32,11 +32,10 @@ def main():
                                                            alignment_file=args.alignment_file)
 
     #Highlight: Creates image of the estimated tree colured by clades
-    draw_tree = True
+    draw_tree = False
     if draw_tree :
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
         draupnir.draw_tree_facets(args.dataset_name,settings_config) #coloured panels and names
-
 
     #Highlight: Runs draupnir
     draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
@@ -54,7 +53,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_jj_2",
+                        default="simulations_jj_1",
                         help='Dataset project name')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
@@ -75,16 +74,18 @@ if __name__ == "__main__":
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
                              'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
+    parser.add_argument('-pdb_folder', default=None, type=str,
+                        help='Path to folder of PDB structures. The engine can read them and parse them into a dataset that the model can use.')
     parser.add_argument('--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, so this is not needed for Draupnir inference')
-    parser.add_argument('-n', '--num-epochs', default=500, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=5, type=int, help='number of training epochs')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
                                                                 'Set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
                                                                 'Else set the batchsize to the given number')
-    parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available "delta_map" , "diagonal_normal" or "variational"')
+    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available "delta_map" , "diagonal_normal" or "variational"')
     parser.add_argument('-bbc','--batch-by-clade', type=str2bool, nargs='?', default=False, help='Use the leaves divided by their corresponding clades into batches. Do not use with leaf-testing')
     parser.add_argument('-angles','--infer-angles', type=str2bool, nargs='?', default=False,help='Additional Inference of angles. Use only with sequences associated PDB structures and their angles.')
     parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY, not the latent space). Remember to set plating size, otherwise it is done automatically')
@@ -99,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from /home/lys/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
     parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
-    parser.add_argument('-load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_19h35min24s763495ms_2epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
+    parser.add_argument('-load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_jj_1_2022_03_25_18h42min36s777683ms_10000epochs_delta_map",help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-position-embedding-dim', default=30, type=int, help='Tree position embedding dim')
     parser.add_argument('-max-indel-size', default=5, type=int, help='maximum insertion deletion size (not used)')

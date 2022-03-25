@@ -22,7 +22,7 @@ from Bio.SeqUtils import seq3
 from sklearn.manifold import TSNE
 import statistics
 import umap
-from scipy import stats
+from scipy import stats,spatial
 import matplotlib
 matplotlib.use('Agg')
 
@@ -283,52 +283,8 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
     distance_info = dataset_test[:, 0, 2].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
     node_names = ["{}//{}".format(correspondence_dict[index], index) for index in dataset_test[:, 0, 1].tolist()]
     aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
-    # def Percent_ID_SAMPLED_OBSERVED():
-    #     "Fast version to calculate %ID among predictions and observed data"
-    #     align_lenght = dataset_test[:,2:,0].shape[1]
-    #     #node_names = ["{}//{}".format(correspondence_dict[index], index) for index in Dataset_test[:, 0, 1].tolist()]
-    #     samples_names =  ["sample_{}".format(index) for index in range(n_samples)]
-    #     equal_aminoacids = (aa_sequences_predictions[:,:,3:]== dataset_test[:, 2:, 0]).float() #is correct #[n_samples,n_nodes,L]
-    #     #Highlight: Incorrectly predicted sites
-    #     incorrectly_predicted_sites = (~equal_aminoacids.bool()).float().sum(-1)
-    #     incorrectly_predicted_sites_per_sample = np.concatenate([node_info.cpu().detach().numpy(),incorrectly_predicted_sites.cpu().detach().numpy()[:,:,np.newaxis]],axis=-1)
-    #     np.save("{}/Incorrectly_Predicted_Sites_Fast".format(results_directory), incorrectly_predicted_sites_per_sample)
-    #     incorrectly_predicted_sites_df = pd.DataFrame(incorrectly_predicted_sites.T.cpu().detach().numpy(),index=node_names)
-    #     incorrectly_predicted_sites_df.columns = samples_names
-    #     incorrectly_predicted_sites_df["Average"] =incorrectly_predicted_sites_df.mean(1).values.tolist()
-    #     incorrectly_predicted_sites_df["Std"] = incorrectly_predicted_sites_df.std(1).values.tolist()
-    #     incorrectly_predicted_sites_df.to_csv("{}/Incorrectly_predicted_sites_df.csv".format(results_directory), sep="\t")
-    #     #Highlight: PERCENT ID
-    #     equal_aminoacids = equal_aminoacids.sum(-1)/align_lenght#equal_aminoacids.sum(-1)
-    #     percent_id_df = pd.DataFrame(equal_aminoacids.T.cpu().detach().numpy()*100, index=node_names ) #[n_nodes, n_samples]
-    #     percent_id_df.columns = samples_names
-    #     percent_id_df["Average"] = percent_id_df.mean(1).values.tolist()
-    #     percent_id_df["Std"] = percent_id_df.std(1).values.tolist()
-    #     percent_id_df.to_csv("{}/PercentID_df.csv".format(results_directory),sep="\t")
-    #     return percent_id_df, incorrectly_predicted_sites_df, align_lenght
 
     percent_id_df,incorrectly_predicted_sites_df, alignment_length =percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory)
-
-
-    # def save_predictions_to_fasta(aa_sequences_predictions):
-    #     aa_dict = DraupnirUtils.aminoacid_names_dict(aa_probs)
-    #     aa_dict  = {float(v): k for k, v in aa_dict.items()}
-    #
-    #     aa_sequences = aa_sequences_predictions[:,:,3:].permute(1,0,2) #[n_nodes,n_samples,L] #TODO: Review this is correct, the order, seems correct
-    #     aa_sequences = np.vectorize(aa_dict.get)(aa_sequences.cpu().numpy())
-    #     n_samples = aa_sequences.shape[1]
-    #     file_name = "{}/{}_sampled_nodes_seq.fasta".format(results_directory,name)
-    #     with open(file_name, "a+") as f:
-    #         for node_samples,node_name in zip(aa_sequences,node_names):
-    #             for idx, sample in enumerate(node_samples):
-    #                 f.write(">Node_{}_sample_{}\n".format(node_name, idx))
-    #                 full_seq = "".join(sample)
-    #                 n=50
-    #                 #splitted_seq = list(map(''.join, zip(*[iter(full_seq)]*50))) #if the seq is smaller it leaves it out
-    #                 splitted_seq = [full_seq[i:i+n] for i in range(0, len(full_seq), n)]
-    #                 for segment in splitted_seq:
-    #                     f.write("{}\n".format(segment))
-
     save_predictions_to_fasta(aa_sequences_predictions, aa_probs, name, node_names, results_directory)
 
     aa_sequences_predictions = aa_sequences_predictions.cpu().numpy()
@@ -788,18 +744,18 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     patristic_matrix_full = additional_load.patristic_matrix_full
     patristic_matrix_full_no_indexes = patristic_matrix_full[1:,1:]
     latent_space_no_indexes = latent_space[:,1:]
-    from scipy import spatial
-    use_cosine_similarity = False
-    def cosine_similarity(a,b):#why it does not work?
-        #return  np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
-        return 1-spatial.distance.cosine(a, b)
+    use_cosine_similarity = True
+    def cosine_similarity(a,b):
+        return spatial.distance.cosine(a, b)
     def pairwise_dist(a,b):
         return np.linalg.norm(a-b)
     if use_cosine_similarity:
         distance_type = "Cosine_similarity"
+        y_label = "Cosine similarity"
         distance_fn = cosine_similarity
     else:
         distance_type = "Pairwise_distance"
+        y_label = "Euclidean distance"
         distance_fn = pairwise_dist
     fig, ax = plt.subplots(figsize=(22, 15), dpi=200)
     distances_list = []
@@ -816,23 +772,19 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
                 pair_branch_lengths = pair_branch_lengths[:,pair_indexes_branch_lengths][0,1].detach().cpu().numpy()
                 pair_indexes_latent_space = (latent_space[:,0][..., None] == nodes_pairs).any(-1)
                 vector_pair_latent_space = latent_space_no_indexes[pair_indexes_latent_space].detach().cpu().numpy()
-                #latent_space_pairwise_distance = np.linalg.norm(vector_pair_latent_space[0] - vector_pair_latent_space[1])
                 latent_space_distance = distance_fn(vector_pair_latent_space[0], vector_pair_latent_space[1])
-
                 distances_list.append(np.array([pair_branch_lengths,latent_space_distance]).T)
                 ax.scatter(pair_branch_lengths,latent_space_distance,color = color_clade, s=200)
     distances_array = np.vstack(distances_list)
-    correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
-    #plt.ylabel("Z vector distance between contiguous nodes",fontsize=20)
-    plt.ylabel("Euclidean distance", fontsize=20)
+    pearson_correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
+    print("Correlation coefficient: {}".format(pearson_correlation_coefficient))
+    spearman_correlation_coefficient = stats.spearmanr(distances_array[:,0],distances_array[:,1])[0]
+    print("Spearman correlation coefficient {}".format(spearman_correlation_coefficient))
+    plt.ylabel("{}".format(y_label), fontsize=20)
     plt.xlabel("Branch length between contiguous nodes",fontsize=20)
-    plt.title("GP-VAE: Z {} vs Branch lengths for linked nodes (ancestors and leaves) \n Correlation Coefficient: {}".format(distance_type,correlation_coefficient[0,1]),fontsize=20)
+    plt.title("GP-VAE: Z {} vs Branch lengths for linked nodes (ancestors and leaves) \n Pearson correlation: {} \n Spearman correlation Coefficient: {}".format(distance_type,pearson_correlation_coefficient,spearman_correlation_coefficient),fontsize=20)
     plt.savefig("{}/Distances_GP_VAE_z_vs_branch_lengths_{}_INTERNAL_and_LEAVES.png".format(results_dir,distance_type))
 
-    # distances_array = np.vstack(distances_list)
-    # correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
-    # with open("{}/correlation_coeff.txt".format(results_dir),"a") as the_file:
-    #     the_file.write('Correlation coefficient between branch lengths and latent space: {}\n'.format(correlation_coefficient[0,1]))
 def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs, results_dir,patristic_matrix_train):
     """Plots the distance between the latent space vectors of 2 leaf nodes in the tree and the branch length between them
     :param tensor latent_space [n_leaves, 1 + z_dim]
@@ -862,7 +814,8 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     distances_list = []
     use_cosine_similarity = False
     def cosine_similarity(a,b):
-        return  np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
+        return spatial.distance.cosine(a, b)
+
     def pairwise_dist(a,b):
         return np.linalg.norm(a-b)
 

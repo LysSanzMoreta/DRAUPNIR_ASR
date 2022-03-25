@@ -106,7 +106,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 "simulations_src_sh3_3":"https://drive.google.com/drive/folders/13xLOqW2ldRNm8OeU-bnp9DPEqU1d31Wy?usp=sharing"
 
             }
-        download=False
+        download=False #TODO: Remove
         if os.path.isdir(dir_name):
             if not os.listdir(dir_name):
                 print("Directory is empty")
@@ -141,7 +141,6 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             # internal_prot = "{}/{}/jj1_pep_Internal_Nodes_True_alignment.FASTA".format(storage_folder,name)
             # DraupnirUtils.remove_stop_codons(leaves_prot,is_prot=True)
             # DraupnirUtils.remove_stop_codons(internal_prot,is_prot=True)
-            #
             # exit()
             alignment_file = "{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name)
             tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder,name,root_sequence_name)
@@ -357,6 +356,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
 
             tree_file = DraupnirUtils.create_dataset(name_file=name,
                                              one_hot_encoding=args.one_hot_encoded,
+                                             PDB_folder=args.pdb_folder,
                                              tree_file=tree_file,
                                              alignment_file=alignment_file,
                                              fasta_file=fasta_file,
