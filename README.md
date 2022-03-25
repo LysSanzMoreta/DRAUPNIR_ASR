@@ -111,6 +111,25 @@ dict_urls = {
 | Simulation Insulin                                | 400              | 558              | simulations_insulin_2             |
 | Simulation SRC-kinase SH3 domain                  | 800              | 99               | simulations_src_sh3_2             |
 
+
+**What do the folders mean?**
+
+1) If you selected **delta_map** guide:
+   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are samples obtained by using the MAP estimates of the logits.
+   2) Train_argmax_Plots: Single sequence per leaf obtained by the using the most likely amino acids indicated by the logits ("argmax the logits")
+   3) Test_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the marginal probability approach (equation 5 in the paper)
+   4) Test_argmax_Plots: Contains the most voted sequence from the samples in Test_Plots.
+   5) Test2_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the MAP estimated of the logits. 
+   6) Test2_argmax_Plots:  Samples for the test sequences (ancestors). In this case they contain the most likely amino acids indicated by the logits ("argmax the logits") (equation 4 in the paper)
+2) If you selected **variational** guide:
+   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are samples obtained by using the MAP estimates of the logits.
+   2) Train_argmax_Plots: Single sequence per leaf obtained by the using the most likely amino acids indicated by the logits ("argmax the logits")
+   3) Test_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the full variational probability approach (equation 6 in the paper)
+   4) Test_argmax_Plots: Contains the most voted sequence from the samples in Test_Plots.
+   5) Test2_Plots == Test_Plots 
+   6) Test2_argmax_Plots == Test_argmax_Plots
+
+    
 **If this library is useful for your research please cite:**
 
 ```
