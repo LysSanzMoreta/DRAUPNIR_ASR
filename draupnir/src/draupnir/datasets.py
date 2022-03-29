@@ -61,9 +61,9 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
     :param bool use_custom: True (uses a custom dataset, located in datasets/custom/"folder_name" ) or False (uses a Draupnir default dataset (used in the publication))
     :param str script_dir: Working directory of Draupnir #TODO: remove
     :param bool build: Activates the construction of the dataset, might take a while if it requires to build tree, so it's recommended to use the pre-saved files
-    :param str fasta_file: Path to NOT aligned sequences
-    :param str tree_file: Path to Newick tree, format 1 in ete3
-    :param str alignment_file: Path to pre-aligned sequences
+    :param str or None fasta_file: Path to NOT aligned sequences
+    :param str or None tree_file: Path to Newick tree, format 1 in ete3
+    :param str or None alignment_file: Path to pre-aligned sequences
     :returns namedtuple build_config:
         :str alignment-file:
         :bool use_ancestral: True (patristic_matrix_train = patristic_matrix_full (leaves + ancestors)), False (patristic_matrix_train = patristic_matrix) otherwise we remove the ancestral nodes from patristic_matrix_train. Necessary for some datasets
@@ -74,10 +74,11 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
         :bool leaves_testing: True (uses all the leaf's evolutionary distances for training, it only observes (n-n_test) leafsequences. USE WITH n_test), False (uses all the leaf's evolutionary distances for training
                             and observes all the leaf sequences. Use with datasets without ancestors for testing, only generate sequences).
         """
-    BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"])
-    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name","tree_file"])
+    BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_prob","triTSNE","leaves_testing","script_dir","no_testing"],module="build_config") #__name__ + ".namespace"
+    SettingsConfig = namedtuple("SettingsConfig", ["one_hot_encoding", "model_design", "aligned_seq","data_folder","full_name","tree_file"],module="settings_config")
     if args.one_hot_encoded:
-        warnings.warn("Draupnir was constructed to be used with integers for Categorical likelihood ,not OneHotCategorical. And blosum-encoding for the guide")
+        warnings.warn("Draupnir was constructed to be used with integers for Categorical likelihood,not OneHotCategorical. And blosum-encoding for the guide. You can build"
+                      "the one-hot-encoded dataset for other purposes")
 
     #script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
@@ -106,21 +107,21 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 "simulations_src_sh3_3":"https://drive.google.com/drive/folders/13xLOqW2ldRNm8OeU-bnp9DPEqU1d31Wy?usp=sharing"
 
             }
-        download=False #TODO: Remove
+        #download=False #TODO: Remove
         if os.path.isdir(dir_name):
             if not os.listdir(dir_name):
                 print("Directory is empty")
-                #os.remove(dir_name)
-                if download:
-                    print("Data directory is missing. Downloading, this might take a while. If you see an error like \n"
-                          " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
-                          "just wait, too many requests have been made to the google drive folder \n"
-                          "Otherwise just download the data sets manually from the google drive urls : \n {}".format(
-                        dict_urls[name]))
-                    gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder, name), quiet=True,
-                                          use_cookies=False, remaining_ok=True)
-                else:
-                    pass
+                #if download:
+                os.remove(dir_name)
+                print("Data directory is missing. Downloading, this might take a while. If you see an error like \n"
+                      " 'Cannot retrieve the public link of the file. You may need to change the permission to <Anyone with the link>, or have had many accesses', \n"
+                      "just wait, too many requests have been made to the google drive folder \n"
+                      "Otherwise just download the data sets manually from the google drive urls : \n {}".format(
+                    dict_urls[name]))
+                gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder, name), quiet=True,
+                                      use_cookies=False, remaining_ok=True)
+                # else:
+                #     pass
 
 
             else:
@@ -131,9 +132,6 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                   "just wait, too many requests have been made to the google drive folder \n"
                   "Otherwise just download the data sets MANUALLY from the google drive urls : \n {}".format(dict_urls[name]))
             gdown.download_folder(dict_urls[name], output='{}/{}'.format(storage_folder,name),quiet=True, use_cookies=False,remaining_ok=True)
-
-
-
 
         # Highlight: Simulation datasets, Simulations might produce stop codons---Use probabilities == 21
         if name.startswith("simulations"):

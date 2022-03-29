@@ -56,7 +56,6 @@ ModelLoad = namedtuple("ModelLoad",["z_dim","align_seq_len","device","args","bui
                                     "closest_leaves_dict","descendants_dict","clades_dict_all","leaves_testing","plate_unordered","one_hot_encoding"])
 BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_probs","triTSNE","align_seq_len",
                                         "leaves_testing","batch_size","plate_subsample_size","script_dir","no_testing"])
-
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
 def load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args):
@@ -567,7 +566,7 @@ def draupnir_sample(train_load,
                     graph_coo=None,
                     clades_dict=None):
     """Sample new sequences from a pretrained model
-    :param namedtuple train_load
+    :param namedtuple train_load: see utils.create_dataset for information on the input data format
     :param namedtuple test_load
     :param namedtuple additional_load
     :param namedtuple additional_info
@@ -671,9 +670,7 @@ def draupnir_sample(train_load,
                            plate_unordered=args.plate_unordered,
                            one_hot_encoding=settings_config.one_hot_encoding)
 
-    Draupnir, patristic_matrix_model = save_and_select_model(args, build_config, model_load, patristic_matrix_train,
-                                                             patristic_matrix_full,script_dir,results_dir)
-
+    Draupnir, patristic_matrix_model = save_and_select_model(args, build_config, model_load, patristic_matrix_train,patristic_matrix_full,script_dir,results_dir)
 
     hyperparameter_file = glob('{}/Hyperparameters*'.format(load_pretrained_folder))[0]
     select_guide = [line.split(":")[1].strip("\n") for line in open(hyperparameter_file,"r+").readlines() if line.startswith("Guide :")][0]
@@ -942,7 +939,6 @@ def draupnir_sample(train_load,
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
-
 def draupnir_train(train_load,
                    test_load,
                    additional_load,
@@ -958,7 +954,7 @@ def draupnir_train(train_load,
                    graph_coo=None,
                    clades_dict=None):
     """Trains Draupnir-OU by performing SVI inference with non-batched training
-    :param namedtuple train_load : contains several tensors and other data structures related to the training leaves
+    :param namedtuple train_load : contains several tensors and other data structures related to the training leaves. See see utils.create_dataset for information on the input data format
     :param namedtuple test_load : contains several tensors and other data structures related to the test internal nodes
     :param namedtuple additional_load
     :param namedtuple additional_info
@@ -977,38 +973,53 @@ def draupnir_train(train_load,
         correspondence_dict = dict(zip(list(range(len(additional_load.tree_levelorder_names))), additional_load.tree_levelorder_names))
     else:
         correspondence_dict = additional_load.correspondence_dict
-    if args.use_cuda:
-        blosum = additional_info.blosum.cuda()
-        aa_frequencies = additional_load.aa_frequencies.cuda()
-        dataset_train = train_load.dataset_train.cuda()
-        patristic_matrix_train = train_load.patristic_matrix_train.cuda()
-        patristic_matrix_full = additional_load.patristic_matrix_full.cuda()
-        patristic_matrix_test = test_load.patristic_matrix_test.cuda()
-        dataset_test = test_load.dataset_test.cuda()
-        if train_load.cladistic_matrix_train is not None:
-            cladistic_matrix_train = train_load.cladistic_matrix_train.cuda()
-            cladistic_matrix_test = [test_load.cladistic_matrix_test.cuda() if test_load.cladistic_matrix_test is not None else None][0]
-            cladistic_matrix_full = additional_load.cladistic_matrix_full.cuda()
-        else:
-            cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
-        nodes_representations_array = additional_info.nodes_representations_array.cuda()
-        dgl_graph = additional_info.dgl_graph
+    #device = [torch.device("cuda") if args.use_cuda else torch.device("cpu")][0]
+    device = torch.device("cuda" if args.use_cuda else "cpu") #TODO: Check that this works
+    blosum = additional_info.blosum.to(device)
+    aa_frequencies = additional_load.aa_frequencies.to(device)
+    dataset_train = train_load.dataset_train.to(device)
+    patristic_matrix_train = train_load.patristic_matrix_train.to(device)
+    patristic_matrix_full = additional_load.patristic_matrix_full.to(device)
+    patristic_matrix_test = test_load.patristic_matrix_test.to(device)
+    dataset_test = test_load.dataset_test.to(device)
+    if train_load.cladistic_matrix_train is not None:
+        cladistic_matrix_train = train_load.cladistic_matrix_train.to(device)
+        cladistic_matrix_test = \
+        [test_load.cladistic_matrix_test.to(device) if test_load.cladistic_matrix_test is not None else None][0]
+        cladistic_matrix_full = additional_load.cladistic_matrix_full.to(device)
     else:
-        dataset_test = test_load.dataset_test
-        blosum = additional_info.blosum
-        aa_frequencies = additional_load.aa_frequencies
-        dataset_train = train_load.dataset_train
-        patristic_matrix_train = train_load.patristic_matrix_train
-        patristic_matrix_test = test_load.patristic_matrix_test
-        patristic_matrix_full = additional_load.patristic_matrix_full
-        cladistic_matrix_train = train_load.cladistic_matrix_train
-        cladistic_matrix_test = test_load.cladistic_matrix_test
-        cladistic_matrix_full = additional_load.cladistic_matrix_full
-        nodes_representations_array = additional_info.nodes_representations_array
-        dgl_graph = additional_info.dgl_graph
-
-
-    # aa_probs = torch.unique(dataset_train[:, 2:, 0])
+        cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
+    nodes_representations_array = additional_info.nodes_representations_array.to(device)
+    dgl_graph = additional_info.dgl_graph
+    # if args.use_cuda: #TODO: Switch with to device
+    #     blosum = additional_info.blosum.cuda()
+    #     aa_frequencies = additional_load.aa_frequencies.cuda()
+    #     dataset_train = train_load.dataset_train.cuda()
+    #     patristic_matrix_train = train_load.patristic_matrix_train.cuda()
+    #     patristic_matrix_full = additional_load.patristic_matrix_full.cuda()
+    #     patristic_matrix_test = test_load.patristic_matrix_test.cuda()
+    #     dataset_test = test_load.dataset_test.cuda()
+    #     if train_load.cladistic_matrix_train is not None:
+    #         cladistic_matrix_train = train_load.cladistic_matrix_train.cuda()
+    #         cladistic_matrix_test = [test_load.cladistic_matrix_test.cuda() if test_load.cladistic_matrix_test is not None else None][0]
+    #         cladistic_matrix_full = additional_load.cladistic_matrix_full.cuda()
+    #     else:
+    #         cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
+    #     nodes_representations_array = additional_info.nodes_representations_array.cuda()
+    #     dgl_graph = additional_info.dgl_graph
+    # else:
+    #     dataset_test = test_load.dataset_test
+    #     blosum = additional_info.blosum
+    #     aa_frequencies = additional_load.aa_frequencies
+    #     dataset_train = train_load.dataset_train
+    #     patristic_matrix_train = train_load.patristic_matrix_train
+    #     patristic_matrix_test = test_load.patristic_matrix_test
+    #     patristic_matrix_full = additional_load.patristic_matrix_full
+    #     cladistic_matrix_train = train_load.cladistic_matrix_train
+    #     cladistic_matrix_test = test_load.cladistic_matrix_test
+    #     cladistic_matrix_full = additional_load.cladistic_matrix_full
+    #     nodes_representations_array = additional_info.nodes_representations_array
+    #     dgl_graph = additional_info.dgl_graph
 
     blosum_max,blosum_weighted,variable_score = DraupnirUtils.process_blosum(blosum,aa_frequencies,align_seq_len,build_config.aa_probs)
     dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum,aa_frequencies,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
@@ -1483,7 +1494,6 @@ def draupnir_train(train_load,
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
-
 def draupnir_train_batching(train_load,
                    test_load,
                    additional_load,
@@ -1498,6 +1508,21 @@ def draupnir_train_batching(train_load,
                    results_dir,
                    graph_coo=None,
                    clades_dict=None):
+    """Trains Draupnir-OU by performing SVI inference with conditionally independent batched training
+    :param namedtuple train_load : contains several tensors and other data structures related to the training leaves. See see utils.create_dataset for information on the input data format
+    :param namedtuple test_load : contains several tensors and other data structures related to the test internal nodes
+    :param namedtuple additional_load
+    :param namedtuple additional_info
+    :param namedtuple build_config
+    :param namedtuple settings_config
+    :param dict params_config
+    :param int n_samples
+    :param namedtuple args
+    :param str device
+    :param str script_dir
+    :param str results_dir
+    :param graph graph_coo: graph that embedds the tree into a COO graph that works with pytorch geometric
+    :param dict clades_dict"""
     align_seq_len = build_config.align_seq_len
     if not additional_load.correspondence_dict:
         correspondence_dict = dict(
@@ -1971,7 +1996,6 @@ def draupnir_train_batching(train_load,
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, results_dir)
-
 def draupnir_train_batch_by_clade(train_load,
                    test_load,
                    additional_load,
@@ -1986,6 +2010,21 @@ def draupnir_train_batch_by_clade(train_load,
                    results_dir,
                    graph_coo=None,
                    clades_dict=None):
+    """Trains Draupnir-OU by performing SVI inference with batched training, where each batch is a clade in the tree #TODO: scale ELBO by batch size
+    :param namedtuple train_load : contains several tensors and other data structures related to the training leaves. See see utils.create_dataset for information on the input data format
+    :param namedtuple test_load : contains several tensors and other data structures related to the test internal nodes
+    :param namedtuple additional_load
+    :param namedtuple additional_info
+    :param namedtuple build_config
+    :param namedtuple settings_config
+    :param dict params_config
+    :param int n_samples
+    :param namedtuple args
+    :param str device
+    :param str script_dir
+    :param str results_dir
+    :param graph graph_coo: graph that embedds the tree into a COO graph that works with pytorch geometric
+    :param dict clades_dict"""
     print("Batching by clade")
     align_seq_len = build_config.align_seq_len
     if not additional_load.correspondence_dict:
@@ -2003,8 +2042,7 @@ def draupnir_train_batch_by_clade(train_load,
         dataset_test = test_load.dataset_test.cuda()
         if train_load.cladistic_matrix_train is not None:
             cladistic_matrix_train = train_load.cladistic_matrix_train.cuda()
-            cladistic_matrix_test = \
-            [test_load.cladistic_matrix_test.cuda() if test_load.cladistic_matrix_test is not None else None][0]
+            cladistic_matrix_test = [test_load.cladistic_matrix_test.cuda() if test_load.cladistic_matrix_test is not None else None][0]
             cladistic_matrix_full = additional_load.cladistic_matrix_full.cuda()
         else:
             cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
@@ -2464,7 +2502,6 @@ def draupnir_train_batch_by_clade(train_load,
                  sample_out_test, sample_out_test_argmax,
                  sample_out_test2, sample_out_test_argmax2,
                  additional_load, additional_info, build_config, args, results_dir)
-
 def send_to_plot(n_samples,
                  dataset_train,
                  dataset_test,
