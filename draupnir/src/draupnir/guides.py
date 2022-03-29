@@ -55,7 +55,7 @@ class DRAUPNIRGUIDES(EasyGuide):
         lambd = pyro.sample("lambd", dist.Delta(self.lambd))
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        #Highlight: embed the amino acids represented by their respective blosum scores
+        #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
         aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24
         #aminoacid_sequences = self.dataset_train_blosum
         encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()

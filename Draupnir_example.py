@@ -45,9 +45,7 @@ def main():
                                           results_dir = "Mutual_info_dir",
                                           draupnir_folder_variational = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h23min14s337405ms_5epochs_variational",
                                           draupnir_folder_MAP="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map",
-                                          draupnir_folder_marginal="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map",
-                                          only_root=True,
-                                          only_variational=False)
+                                          draupnir_folder_marginal="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map")
 
 if __name__ == "__main__":
 
@@ -59,15 +57,15 @@ if __name__ == "__main__":
                         default=False,
                         help='Use a custom dataset (is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
                              'or a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
-    parser.add_argument('--alignment-file', type=str, nargs='?',
+    parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default=None,
                         help='Path to alignment in fasta format (use with custom dataset)')
-    parser.add_argument('--tree-file', type=str, nargs='?',
+    parser.add_argument('--tree-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
                         default=None,
                         help='Path to newick tree (in format 1 from ete3) (use with custom dataset)')
-    parser.add_argument('--fasta-file', type=str, nargs='?',
+    parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         default=None,
                         help='Path to fasta file (use with custom dataset)')
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,

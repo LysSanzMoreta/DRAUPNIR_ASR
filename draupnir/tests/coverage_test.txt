@@ -1,0 +1,34 @@
+coverage run *
+coverage run -m unittest *
+coverage run --branch -m unittest * #more complete for testing is else statements
+
+
+
+coverage report m
+coverage report --skip-covered #skips thos files with 100% test coverage
+
+
+
+coverage html
+
+
+#exclude code from coverage
+
+#for lines: add # pragma: no cover to line
+coverage run --omit=filename.py -m unittest *
+
+#Context: Creating "context labels" in which some of the files are included or not and then be excluded or included in the report
+
+coverage run -m --context=omission unittest filename.py
+coverage run -m --context=testing unittest tests.py
+coverage html --context=omission
+
+
+#create a file named .coveragerc under the htmlcov folder to state dynamic contexts as
+
+[run]
+dynamic_context = test_function #or none to not stablish a dynamic context
+
+
+#run
+coverage html --show_contexts #supposedly also shows which lines have been tested by which test function

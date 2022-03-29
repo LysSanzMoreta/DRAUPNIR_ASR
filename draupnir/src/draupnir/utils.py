@@ -758,7 +758,7 @@ def create_dataset(name_file,
                           "rapidnj": inference of Fast NJ unrooted inference (make sure is installed globally),
         aa_probs: amino acid probabilities
         rename_internal_nodes: {True,False} use different names for the internal/ancestral nodes from the ones given in the tree
-        storage_folder: "datasets/default" or "datasets/custom"
+        storage_folder: "draupnir/src/draupnir/data/dataset_name" or folder where the fasta file is located (recommended to put in a specific folder)
     out:
         if one_hot_encoding: where gap is [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
                Tensor with size: [Nsequences]x[Alignment length + 2]x[30] --> [[length,tree_position,dist_to_root,?,0,0,0...],[GIT vector],[aa1 one hot, phi, psi],[aa2 one hot, phi, psi],....[]]
@@ -768,13 +768,10 @@ def create_dataset(name_file,
 
     warnings.simplefilter('ignore', BiopythonWarning)
     one_hot_label= ["onehot" if one_hot_encoding else "integers"]
-    # if one_hot_encoding:
-    #     raise ValueError("There is some bug in one hot encoding yet to be fixed, do not use yet. Please set one_hot_encoding=False")
-    #
 
     prot_info_dict = {}
     prot_aa_dict = {}
-    if PDB_folder:# and not alignment_file:---> We allow to have sequences that have 3D structure
+    if PDB_folder:# and not alignment_file:---> We allow to have sequences that have and don't have 3D structure
         print("Creating dataset from PDB files...")
         prot_aa_dict,prot_info_dict = process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len)
     #Remove duplicated sequences in both dictionaries

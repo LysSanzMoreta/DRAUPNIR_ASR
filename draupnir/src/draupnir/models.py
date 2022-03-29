@@ -54,10 +54,6 @@ class DRAUPNIRModelClass(nn.Module):
         self.one_hot_encoding = ModelLoad.one_hot_encoding
         self.n_leaves_batch = self.batch_size
         self.n_internal_batch = self.batch_size
-        # if self.batch_size > 1 : # for normal batching and  batch by clade
-        #     self.n_leaves = self.batch_size
-        #     self.n_internal = len(self.internal_nodes)
-        #     self.n_all = self.n_leaves + self.n_internal
         self.n_leaves = len(self.leaves_nodes)
         self.n_internal = len(self.internal_nodes)
         self.n_all = self.n_leaves + self.n_internal
