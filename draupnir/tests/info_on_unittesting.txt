@@ -1,0 +1,4 @@
+#Info of pytests fixtures https://betterprogramming.pub/understand-5-scopes-of-pytest-fixtures-1b607b5c19ed
+#                         https://medium.com/ideas-at-igenius/fixtures-and-parameters-testing-code-with-pytest-d8603abb390a
+#info on run pytest in pycharm. https://stackoverflow.com/questions/6397063/how-do-i-configure-pycharm-to-run-py-test-tests
+#possible badge: https://stackoverflow.com/questions/29295965/python-coverage-badges-how-to-get-

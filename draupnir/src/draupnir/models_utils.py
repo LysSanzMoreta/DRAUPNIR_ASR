@@ -262,6 +262,8 @@ class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
     :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
     :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    **References:**
+    "Ancestral Inference from Functional Data: Statistical Methods and Numerical Examples"
     """
     def __init__(self, sigma_f, sigma_n, lamb):
         self.sigma_f = sigma_f
@@ -281,6 +283,8 @@ class OUKernel_Fast(GPKernel):
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
     :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
     :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    **References:**
+    "Ancestral Inference from Functional Data: Statistical Methods and Numerical Examples"
     """
     def __init__(self, sigma_f, sigma_n, lamb):
         self.sigma_f = sigma_f
