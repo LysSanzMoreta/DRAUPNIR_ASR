@@ -784,7 +784,6 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     plt.xlabel("Branch length between contiguous nodes",fontsize=20)
     plt.title("GP-VAE: Z {} vs Branch lengths for linked nodes (ancestors and leaves) \n Pearson correlation: {} \n Spearman correlation Coefficient: {}".format(distance_type,pearson_correlation_coefficient,spearman_correlation_coefficient),fontsize=20)
     plt.savefig("{}/Distances_GP_VAE_z_vs_branch_lengths_{}_INTERNAL_and_LEAVES.png".format(results_dir,distance_type))
-
 def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs, results_dir,patristic_matrix_train):
     """Plots the distance between the latent space vectors of 2 leaf nodes in the tree and the branch length between them
     :param tensor latent_space [n_leaves, 1 + z_dim]
@@ -821,9 +820,11 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
 
     if use_cosine_similarity:
         distance_type = "Cosine_similarity"
+        y_label = "Cosine similarity"
         distance_fn = cosine_similarity
     else:
         distance_type = "Pairwise_distance"
+        y_label = "Euclidean distance"
         distance_fn = pairwise_dist
 
     assert latent_space[:,0].all() == patristic_matrix_train[1:,0].all()
@@ -849,12 +850,11 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
             ax.scatter(branch_length[0,1],latent_space_distance,color = color_clade, s=200)
     distances_array = np.vstack(distances_list)
     pearson_correlation_coefficient = np.corrcoef(distances_array,rowvar=False)
-    print("Correlation coefficient: {}".format(pearson_correlation_coefficient))
+    print("Correlation coefficient: {}".format(pearson_correlation_coefficient[0][1]))
     spearman_correlation_coefficient = stats.spearmanr(distances_array[:,0],distances_array[:,1])[0]
     print("Spearman correlation coefficient {}".format(spearman_correlation_coefficient))
-    #plt.ylabel("Z vector pairwise distance",fontsize=50)
-    plt.ylabel("Euclidean distance", fontsize=50)
-    plt.xlabel("Branch length ",fontsize=50)
+    plt.ylabel("{}".format(y_label), fontsize=50)
+    plt.xlabel("Branch length",fontsize=50)
     plt.title("GP-VAE: Z {} vs Branch lengths for linked nodes (ancestors and leaves) \n Spearman correlation Coefficient: {}".format(distance_type,spearman_correlation_coefficient),fontsize=20)
 
     #plt.title("TOU-VAE: Z {} vs Branch lengths between leaves. \n Correlation coefficient : {} \n Spearman correlation : {}".format(distance_type,pearson_correlation_coefficient[0,1], spearman_correlation_coefficient),fontsize=40)

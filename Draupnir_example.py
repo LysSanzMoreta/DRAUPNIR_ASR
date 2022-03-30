@@ -74,7 +74,7 @@ if __name__ == "__main__":
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
     parser.add_argument('-pdb_folder', default=None, type=str,
                         help='Path to folder of PDB structures. The engine can read them and parse them into a dataset that the model can use.')
-    parser.add_argument('--one-hot-encoded', type=str2bool, nargs='?',
+    parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, so this is not needed for Draupnir inference')
     parser.add_argument('-n', '--num-epochs', default=5, type=int, help='number of training epochs')
@@ -92,7 +92,7 @@ if __name__ == "__main__":
                                                                     'Else it sets the plate size to a given integer')
     parser.add_argument('-plate-idx-shuffle','--plate-unordered', type=str2bool, nargs='?',const=None, default=False,help='When subsampling/plating, shuffle (True) or not (False) the idx of the sequences which are given in tree level order')
 
-    parser.add_argument('-aa-probs', default=24, type=int, help='21: 20 amino acids,1 gap probabilities; 24: 23 amino acids, 1 gap')
+    parser.add_argument('-aa-probs', default=21, type=int, help='21: 20 amino acids,1 gap probabilities; 24: 23 amino acids, 1 gap')
     parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples')
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on angles')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')

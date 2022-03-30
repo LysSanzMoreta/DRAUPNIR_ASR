@@ -531,7 +531,7 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
             # Build subprocess command
             subprocess.check_call([command,path2script,new_tree,patristic_file])
         else:
-            print("Patristic matrix already exists, not calculated")
+            print("Patristic matrix already exists at {}, not calculated. Delete it otherwise".format(patristic_file))
         #Highlight: PHYLOCOM
         # # #Highlight:Transform the file to Nexus format
         # new_tree = tree_file.split(".")[0]+".newick"
