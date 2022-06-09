@@ -4,10 +4,10 @@ __pycache*
 # Ada Library Information
 *.ali
 data/*
-PF0096/*
-!draupnir/src/draupnir/data/AA_properties.txt
-!draupnir/src/draupnir/data/PfamPdbMap.txt
+!data/AA_properties.txt
+!data/PfamPdbMap.txt
 datasets/*
+PF0096/*
 draupnir/src/draupnir/data/*
 dist/*
 .idea/*

@@ -7,7 +7,10 @@ logger = logging.getLogger(__name__)
 
 EXAMPLE_DIR = Path(__file__).parents[2] #two levels up dirname
 
-#TODO: Custom example, build True example
+#TODO: Add tests:
+# a) Custom example load,
+# b) build True example
+# c) Infer angles
 CPU_EXAMPLES = ["Draupnir_example.py -use-cuda False -name simulations_insulin_2 -use-custom False -build False -one-hot False -n 1 -guide delta_map -aa-probs 21",
                 "Draupnir_example.py -use-cuda False -name simulations_insulin_2 -use-custom False -build False -one-hot False -n 1 -guide variational -aa-probs 21",
                 "Draupnir_example.py -use-cuda False -name simulations_insulin_2 -use-custom False -build False -one-hot False -n 1 -guide delta_map -aa-probs 21 -embedding-dim 60",

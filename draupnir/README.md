@@ -20,6 +20,8 @@ conda install rapidnj
 ```
 **Extra requirements for fast patristic matrix construction**
 
+#Recommended if you have more than 200 sequences. The patristic matrix is constructed only once
+
 Install R (R version 4.1.2 (2021-11-01) -- "Bird Hippie"
 ) 
 ```

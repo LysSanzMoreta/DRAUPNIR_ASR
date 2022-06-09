@@ -231,15 +231,7 @@ def validate_aa_probs(alignment,build_config):
     different_elements = "".join(np.unique(align_array).tolist())
     aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements.lower())
     return aa_probs_updated
-    # alignment_ids = []
-    # alignment_seqs = []
-    # for i, aligned in enumerate(alignment):
-    #     alignment_ids.append(alignment[i].id)
-    #     alignment_seqs.append(alignment[i].seq.strip("*"))
-    # dict_alignment = dict(zip(alignment_ids, alignment_seqs))
-    # summary_aa_probs = [DraupnirUtils.validate_sequence_alphabet(value) for key, value in dict_alignment.items()]  # finds the alphabets of each of the sequences in the alignment, checks for dna
-    # aa_probs_updated = max(build_config.aa_prob,max(summary_aa_probs))  # if the input aa_probs is different from those found, the aa_probs change. And also the aa substitution  matrix
-    # return aa_probs_updated
+
 def pairwise_distance_matrix(name,script_dir):
     """Reads any of the available pairwise distances file and sorts them in pairs in ascending order
     :param str name

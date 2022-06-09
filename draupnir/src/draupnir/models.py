@@ -515,7 +515,8 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_batching(DRAUPNIRModelClass):
-    "Blosum weighted average embedding. Training on leaves, testing on internal nodes, no batching"
+    """Implements independent batching. Selects n sequences (in tree leverl order or random) and generates independent Gaussian processes.
+    It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_probs
@@ -642,7 +643,8 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
-    """Perform inference by dividing the tree into batches that correspond to the clade in the treeClade batch training and sampling, with full latent space inference"""
+    """Perform inference by dividing the tree into batches that correspond to the clade in the tree, with its corresponent batched latent space.
+    Clade batch training and sampling."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_probs
@@ -852,7 +854,8 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
-    "Leaves training and testing.Predicting both ANGLES and AA sequence. Working on full or partial leaves space"
+    """Leaves training and testing.Predicting both ANGLES and AA sequences. Working on full or partial leaves space depending on the
+    leaves_testing argument stated in datasets.py"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_probs
