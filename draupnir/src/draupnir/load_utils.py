@@ -769,8 +769,6 @@ class CladesDataset(Dataset):
         return {'clade_name': clade_name, 'clade_data': clade_data,'clade_patristic': clade_patristic ,'clade_blosum_weighted':clade_blosum_weighted,'clade_data_blosum':clade_data_blosum}
     def __len__(self):
         return len(self.clades_names)
-
-
 class SplittedDataset(Dataset):
     def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums):
         self.batches_names = batches_names

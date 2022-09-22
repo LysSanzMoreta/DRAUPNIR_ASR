@@ -22,10 +22,10 @@ class DRAUPNIRGUIDES(EasyGuide):
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
         self.encoder = RNNEncoder(self.draupnir.align_seq_len, self.draupnir.aa_probs,self.draupnir.n_leaves, self.draupnir.gru_hidden_dim, self.draupnir.z_dim, self.encoder_rnn_input_size,self.draupnir.kappa_addition,self.draupnir.num_layers,self.draupnir.pretrained_params)
         self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,self.draupnir.pretrained_params)
-        self.alpha = PyroParam(torch.rand(3),constraint=constraints.positive,event_dim=1) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
-        self.sigma_n = PyroParam(torch.rand(self.draupnir.z_dim),constraint=constraints.positive, event_dim=1)
-        self.sigma_f = PyroParam(torch.rand(self.draupnir.z_dim),constraint=constraints.positive,event_dim=1)
-        self.lambd = PyroParam(torch.rand(self.draupnir.z_dim),constraint=constraints.positive, event_dim=1)
+        self.alpha = PyroParam(torch.randn(3),constraint=constraints.positive,event_dim=1) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
+        self.sigma_n = PyroParam(torch.randn(self.draupnir.z_dim),constraint=constraints.positive, event_dim=1) #TODO: Change to randn
+        self.sigma_f = PyroParam(torch.randn(self.draupnir.z_dim),constraint=constraints.positive,event_dim=1)
+        self.lambd = PyroParam(torch.randn(self.draupnir.z_dim),constraint=constraints.positive, event_dim=1)
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
 

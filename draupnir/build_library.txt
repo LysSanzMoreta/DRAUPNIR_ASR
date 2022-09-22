@@ -5,7 +5,7 @@ MANIFEST.in: description of what non-code files to include README.txt: descripti
 
 #Steps to build package https://www.youtube.com/watch?v=0qXXsP5d3hU
 python3 -m pip install --upgrade build
-python3 pip install --upgrade twine
+python3 -m pip install --upgrade twine
 
 cd folder with the file setup.py
 python -m build
