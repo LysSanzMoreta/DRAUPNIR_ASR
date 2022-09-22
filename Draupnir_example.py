@@ -19,6 +19,10 @@ from draupnir import str2bool,str2None
 print("Loading draupnir module from {}".format(draupnir.__file__))
 
 def main():
+    """Executes the Draupnir pipeline:
+    a) Generate a dataset in the appropiate form
+    b) Run Draupnir model and generate results
+    c) Produce additional results with the output from the -run- step"""
 
     draupnir.available_datasets(print_dict=True)
     #Highlight: Creates the dataset configuration and the dataset tensor
@@ -51,12 +55,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_src_sh3_1",
-                        help='Dataset project name')
+                        default="simulations_calcitonin_1",
+                        help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
-                        help='Use a custom dataset (is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
-                             'or a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
+                        help='True:Use a custom dataset (it is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
+                             'False: Use a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default=None,
@@ -77,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, so this is not needed for Draupnir inference')
-    parser.add_argument('-n', '--num-epochs', default=5, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=10, type=int, help='number of training epochs')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
                                                                 'Set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '

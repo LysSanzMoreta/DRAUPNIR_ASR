@@ -980,35 +980,6 @@ def draupnir_train(train_load,
         cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
     nodes_representations_array = additional_info.nodes_representations_array.to(device)
     dgl_graph = additional_info.dgl_graph
-    # if args.use_cuda: #TODO: Switch with to device
-    #     blosum = additional_info.blosum.cuda()
-    #     aa_frequencies = additional_load.aa_frequencies.cuda()
-    #     dataset_train = train_load.dataset_train.cuda()
-    #     patristic_matrix_train = train_load.patristic_matrix_train.cuda()
-    #     patristic_matrix_full = additional_load.patristic_matrix_full.cuda()
-    #     patristic_matrix_test = test_load.patristic_matrix_test.cuda()
-    #     dataset_test = test_load.dataset_test.cuda()
-    #     if train_load.cladistic_matrix_train is not None:
-    #         cladistic_matrix_train = train_load.cladistic_matrix_train.cuda()
-    #         cladistic_matrix_test = [test_load.cladistic_matrix_test.cuda() if test_load.cladistic_matrix_test is not None else None][0]
-    #         cladistic_matrix_full = additional_load.cladistic_matrix_full.cuda()
-    #     else:
-    #         cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
-    #     nodes_representations_array = additional_info.nodes_representations_array.cuda()
-    #     dgl_graph = additional_info.dgl_graph
-    # else:
-    #     dataset_test = test_load.dataset_test
-    #     blosum = additional_info.blosum
-    #     aa_frequencies = additional_load.aa_frequencies
-    #     dataset_train = train_load.dataset_train
-    #     patristic_matrix_train = train_load.patristic_matrix_train
-    #     patristic_matrix_test = test_load.patristic_matrix_test
-    #     patristic_matrix_full = additional_load.patristic_matrix_full
-    #     cladistic_matrix_train = train_load.cladistic_matrix_train
-    #     cladistic_matrix_test = test_load.cladistic_matrix_test
-    #     cladistic_matrix_full = additional_load.cladistic_matrix_full
-    #     nodes_representations_array = additional_info.nodes_representations_array
-    #     dgl_graph = additional_info.dgl_graph
 
     blosum_max,blosum_weighted,variable_score = DraupnirUtils.process_blosum(blosum,aa_frequencies,align_seq_len,build_config.aa_probs)
     dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum,aa_frequencies,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
@@ -2098,7 +2069,7 @@ def draupnir_train_batch_by_clade(train_load,
         optim = pyro.optim.ClippedAdam(clippedadam_args)
 
     def load_tune_params(load_params):
-        """Loading pretrained parameters and allowing to tune them"""
+        """Loading pretrained parameters and allowing to tune them. TODO: not using it"""
         if load_params:
             pyro.clear_param_store()
             tune_folder = "/home/lys/Dropbox/PhD/DRAUPNIR/PLOTS_GP_VAE_PF00400_2021_11_17_22h59min34s252388ms_30000epochs"  # delta map
@@ -2850,7 +2821,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     else:
         clades_dict = additional_load.clades_dict_leaves
     graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
-    #graph_coo = additional_info.graph_coo
+    graph_coo = additional_info.graph_coo
     if args.generate_samples: #TODO: generate samples by batch for large data sets
         print("Generating samples not training!")
         draupnir_sample(train_load,
@@ -2901,6 +2872,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
                         clades_dict)
     #TODO: draupnir_tuning
     else:
+        print("Training Draupnir with the entire tree at once, not batching")
         draupnir_train(train_load,
                        test_load,
                        additional_load,

@@ -1526,9 +1526,10 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
     pickle.dump(children_dict, open('{}/Children_dict.p'.format(results_dir), 'wb'),
                 protocol=pickle.HIGHEST_PROTOCOL)
 
-    "https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html"
+    #"https://pytorch-geometric.readthedocs.io/en/latest/notes/introduction.html"
     #Highlight:Build the matrix representation of the tree graph: Directed (root-> leaves) weighted (patristic dist) graph
     if build_config.build_graph: #TODO: Fix in server
+        print("Building a tree-graph")
         #make graph adjacent matrix
         patristic_matrix = patristic_matrix[patristic_matrix[:, 0].argsort()]
         patristic_matrix = patristic_matrix[:, patristic_matrix[0, :].argsort()]
@@ -1554,17 +1555,20 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
             #Note that the order of the edge index is irrelevant to the Data object you create since such information is only for computing the adjacency matrix.
             from torch_geometric.utils.convert import from_scipy_sparse_matrix
             edge_index,edge_weight = from_scipy_sparse_matrix(weights_coo)
-            graph_coo = (edge_index.cuda(),edge_weight.cuda()) #graph for pytorch geometric for GNN
             # dgl_graph = dgl.DGLGraph() #graph for TreeLSTM
             # dgl_graph = dgl.DGLHeteroGraph()
             # dgl_graph.add_nodes(patristic_matrix[1:, 1:].shape[0])
             # dgl_graph.add_edges(edge_index[0].cuda(), edge_index[1].cuda())
             # dgl_graph.edata['y'] = edge_weight.cuda()
-            dgl_graph = dgl.from_scipy(weights_coo).to("cpu")
             if args.use_cuda:
-                dgl_graph.edata['y'] = edge_weight.cpu()  # cuda not working for dgl?
+                graph_coo = (edge_index.cuda(), edge_weight.cuda())  # graph for pytorch geometric for GNN
+                dgl_graph = dgl.convert.from_scipy(weights_coo).to("cuda")
+                dgl_graph.edata['y'] = edge_weight.to("cuda")
             else:
+                graph_coo = (edge_index.cpu(), edge_weight.cpu())  # graph for pytorch geometric for GNN
+                dgl_graph = dgl.convert.from_scipy(weights_coo).to("cpu")
                 dgl_graph.edata['y'] = edge_weight.cpu()
+            print("tree-graph finished")
 
         except:
             graph_coo = None
