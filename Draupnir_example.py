@@ -55,23 +55,24 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_calcitonin_1",
+                        default="simulations_src_sh3_1",
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True:Use a custom dataset (it is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
                              'False: Use a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
+    parser.add_argument('-n', '--num-epochs', default=10, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default=None,
-                        help='Path to alignment in fasta format (use with custom dataset)')
+                        help='Path to alignment in fasta format (use with custom dataset), with ALIGNED sequences')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
                         default=None,
                         help='Path to newick tree (in format 1 from ete3) (use with custom dataset)')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         default=None,
-                        help='Path to fasta file (use with custom dataset)')
+                        help='Path to fasta file (use with custom dataset) with UNALIGNED sequences')
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
                              'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
@@ -80,10 +81,10 @@ if __name__ == "__main__":
                         help='Path to folder of PDB structures. The engine can read them and parse them into a dataset that the model can use.')
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
-                        help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, so this is not needed for Draupnir inference')
-    parser.add_argument('-n', '--num-epochs', default=10, type=int, help='number of training epochs')
+                        help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, '
+                             'so this is not needed for Draupnir inference at the moment')
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
-                                                                'Set to 1 to NOT batch (batch_size = 1 = 1 batch = 1 entire dataset). '
+                                                                'Set to 1 to NOT batch (batch_size == 1 batch == entire dataset). '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
                                                                 'Else set the batchsize to the given number')

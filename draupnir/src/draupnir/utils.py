@@ -89,6 +89,7 @@ def validate_sequence_alphabet(seq):
         return aa_probs
     else:
         raise ValueError("Your sequences contain not allowed characters. Available alphabets are: {protein21}: -acdefghiklmnpqrstvwy or {protein21plus} -*acdefghiklmnpqrstvwybzx. If your sequence contains stop codons perhaps you can trim them.")
+
 def aminoacid_names_dict(aa_probs):
     """ Returns an aminoacid associated to a integer value
     :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
@@ -441,7 +442,7 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
     """
     Reads and alignment or performs alignment using MAFFT [MAFFT multiple sequence alignment software version 7: improvements in performance and usability]. Returns a dictionary with the sequence name
     and the sequence and a biopython alignment object
-    :param str or None alignment_file: path to pre computed alignment to read
+    :param str or None alignment_file: path to pre-computed alignment to read
     :param str input_file_name: path to the file containing unaligned sequences,in fasta format
     :param str output_file_name: name of the file that will contain the aligned sequences"""
     # Align the polypeptides/sequences and write to a fasta file
@@ -1823,7 +1824,7 @@ def process_blosum(blosum,aa_freqs,align_seq_len,aa_probs):
     Computes the matrices required to build a blosum embedding
     :param tensor blosum: BLOSUM likelihood  scores
     :param tensor aa_freqs : amino acid frequencies per position
-    :param align_seq_len: alignment lengths
+    :param align_seq_len: alignment length
     :param aa_probs: amino acid probabilities, types of amino acids in the alignment
     :out tensor blosum_max [align_len,aa_prob]: blosum likelihood scores for the most frequent aa in the alignment position
     :out tensor blosum_weighted [align_len,aa_prob: weighted average of blosum likelihoods according to the aa frequency
