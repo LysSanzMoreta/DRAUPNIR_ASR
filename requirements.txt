@@ -3,8 +3,7 @@ matplotlib>=3.3.4
 pandas>=1.0.1
 biopython>=1.78
 ete3>=3.1.1
-dgl-cu111>=0.6.1
-dill==0.3.3
+dill>=0.3.3
 seaborn==0.11.2
 pytorch-ignite>=0.4.4
 scipy>=1.5.4

@@ -101,6 +101,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         #DraupnirUtils.Folders(("{}/Test_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
         DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
         #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    json.dump(args.__dict__, open('{}/commandline_args.txt'.format(results_dir), 'w'), indent=2)
     dataset = DraupnirLoadUtils.remove_nan(dataset)
     DraupnirUtils.ramachandran_plot(dataset[:, 3:], "{}/TRAIN_OBSERVED_angles".format(results_dir + "/Train_Plots"), "Train Angles",one_hot_encoded=settings_config.one_hot_encoding)
     #Highlight: Read the alignment, find the alignment length and positions where there is any gap
@@ -2798,6 +2799,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     :param str script_dir
     """
     results_dir = "{}/PLOTS_Draupnir_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs, args.select_guide)
+
     print("Loading datasets....")
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
@@ -2821,7 +2823,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     else:
         clades_dict = additional_load.clades_dict_leaves
     graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
-    graph_coo = additional_info.graph_coo
+    #graph_coo = additional_info.graph_coo
     if args.generate_samples: #TODO: generate samples by batch for large data sets
         print("Generating samples not training!")
         draupnir_sample(train_load,

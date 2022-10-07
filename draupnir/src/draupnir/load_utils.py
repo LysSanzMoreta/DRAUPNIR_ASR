@@ -806,7 +806,6 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
     n_seqs = dataset.shape[0]
     if method == "batch_dim_0":
         if args.batch_size == 1 : #only 1 batch // plating
-
             train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
                 train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
@@ -845,7 +844,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
             Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted,
                                                 batch_data_blosums)
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
-            for batch_number, dataset in enumerate(train_loader):
+            for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
                 for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
                         dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
                         dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
@@ -858,8 +857,8 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
         clades_labels = []
         clades_datasets = []
         clades_patristic = []
-        clades_blosums_weighted = []  # this is were the weighted average goes
-        clades_data_blosums = []  # this is the dataset in blosum-encdoing goes
+        clades_blosums_weighted = []  # this is where the weighted average goes
+        clades_data_blosums = []  # this is the dataset in blosum-encoding goes
         for key, values in clades_dict.items():
             clades_labels.append(key)
             if isinstance(values, list) and len(values) > 1:

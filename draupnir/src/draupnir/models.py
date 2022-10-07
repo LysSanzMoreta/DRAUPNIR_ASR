@@ -6,6 +6,9 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 """
 
 from collections import namedtuple
+from abc import abstractmethod
+import torch.nn as nn
+import torch
 import draupnir.utils as DraupnirUtils
 from draupnir.models_utils import *
 import pyro
@@ -78,7 +81,7 @@ class DRAUPNIRModelClass(nn.Module):
         name = str(full_name).split(".")[-1].replace("'>","")
         return name
     def gp_prior(self,patristic_matrix_sorted):
-        """Computes a Ornstein Ulenbeck process prior over the latent space, representing the evolutionary process.
+        """Computes an Ornstein Ulenbeck process prior over the latent space, representing the evolutionary process.
         The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"""
         # Highlight; OU kernel parameters
         alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1)) + 1e-6 #TODO: Change to another distribution less centered around 0
@@ -104,7 +107,7 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = latent_space.T
         return latent_space
     def gp_prior_batched(self,patristic_matrix_sorted):
-        "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"
+        "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         # Highlight; OU kernel parameters #TODO: Add noise to OU parameters to avoid error in cholesky decomposition
         alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
         #alpha = pyro.sample("alpha", dist.Weibull(1,5).expand_by([3, ]).to_event(1))
@@ -347,7 +350,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
 
 class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
-    It receives as an input the entire leaves dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
+    It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
@@ -515,7 +518,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_batching(DRAUPNIRModelClass):
-    """Implements independent batching. Selects n sequences (in tree leverl order or random) and generates independent Gaussian processes.
+    """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)

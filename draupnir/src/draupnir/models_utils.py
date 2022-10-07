@@ -210,7 +210,7 @@ class Embed(nn.Module):
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
         self.fc1 = nn.Linear(self.aa_probs,self.aa_probs)
-        self.logsoftmax = nn.Softmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         return output
@@ -219,12 +219,12 @@ class EmbedComplex(nn.Module):
         super(EmbedComplex, self).__init__()
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
-        self.logsoftmax = nn.Softmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
         self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
         self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
-        output = self.logsoftmax(self.fc2(output))
+        output = self.softmax(self.fc2(output))
         return output
 
 class EmbedComplexEncoder(nn.Module):
@@ -232,13 +232,13 @@ class EmbedComplexEncoder(nn.Module):
         super(EmbedComplexEncoder, self).__init__()
         self.aa_probs = aa_probs
         self.embedding_dim = embedding_dim
-        self.logsoftmax = nn.Softmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-1)
         self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
         self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
 
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
-        output = self.logsoftmax(self.fc2(output))
+        output = self.softmax(self.fc2(output))
         return output
 
 
