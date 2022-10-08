@@ -365,10 +365,11 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             assert tree_file is not None, "Please provide a tree file in the same folder as the alignment or fasta sequences file, or first build the tree"
             assert alignment_file is not None, "Please provide a alignment file inside the same folder as the alignment or fasta sequences file or first build the alignment"
             storage_folder = os.path.dirname(os.path.dirname(alignment_file))
+
     settings_config = SettingsConfig(one_hot_encoding=args.one_hot_encoded,
                              model_design="GP_VAE",
                              aligned_seq=True,
-                             data_folder=["{}".format(storage_folder) if use_custom else "{}/{}".format(storage_folder,name)][0],
+                             data_folder="{}/{}".format(storage_folder,name), #["{}".format(storage_folder) if use_custom else "{}/{}".format(storage_folder,name)][0]
                              full_name=full_name,
                              tree_file=tree_file)
     return build_config,settings_config, root_sequence_name
