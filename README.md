@@ -7,7 +7,7 @@ DRAUPNIR: "Beta library version for performing ASR using a tree-structured Varia
 
 **Extra requirements for tree inference:**
 
-#These are not necessary if you have your own tree file or for using the default datasets
+#These are NOT necessary if you have your own tree file or for using the default datasets
 
 IQ-Tree: http://www.iqtree.org/doc/Quickstart
 ```
@@ -130,6 +130,14 @@ dict_urls = {
    4) Test_argmax_Plots: Contains the most voted sequence from the samples in Test_Plots.
    5) Test2_Plots == Test_Plots 
    6) Test2_argmax_Plots == Test_argmax_Plots
+
+**Where are my ancestral sequences?**
+
+- In each of the folders there should be a fasta file <dataset-name>_sampled_nodes_seq.fasta
+
+- Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
+
+    >Node_A1//1.0_sample_0
 
     
 **If this library is useful for your research please cite:**

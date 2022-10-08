@@ -25,6 +25,7 @@ def main():
     c) Produce additional results with the output from the -run- step"""
 
     draupnir.available_datasets(print_dict=True)
+
     #Highlight: Creates the dataset configuration and the dataset tensor
     build_config,settings_config, root_sequence_name = draupnir.create_draupnir_dataset(name=args.dataset_name,
                                                            use_custom=args.use_custom,
@@ -44,35 +45,38 @@ def main():
     #Highlight: Runs draupnir
     draupnir.run(args.dataset_name,root_sequence_name,args,device,settings_config,build_config,script_dir)
     exit()
-    #Highlight: Calculate mutual information---> AFTER at least the model has been run at least once with the variational guide
-    draupnir.calculate_mutual_information(args,
-                                          results_dir = "Mutual_info_dir",
-                                          draupnir_folder_variational = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h23min14s337405ms_5epochs_variational",
-                                          draupnir_folder_MAP="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map",
-                                          draupnir_folder_marginal="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map")
+    run_mutual_information = False
+    if run_mutual_information:
+        #Highlight: Calculate mutual information---> AFTER at least the model has been run at least once with the variational guide
+        draupnir.calculate_mutual_information(args,
+                                              results_dir = "Mutual_info_dir",
+                                              draupnir_folder_variational = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h23min14s337405ms_5epochs_variational",
+                                              draupnir_folder_MAP="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map",
+                                              draupnir_folder_marginal="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map")
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Draupnir args")
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
+                        #default="PF0096",
                         default="simulations_src_sh3_1",
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
-                        help='True:Use a custom dataset (it is recommended to create a folder with the -dataset-name- of the project where to store the necessary files ) '
+                        help='True: Use a custom dataset (it is recommended to create a folder with the same name es -dataset-name- where to store the necessary files ) '
                              'False: Use a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
     parser.add_argument('-n', '--num-epochs', default=10, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
-                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
-                        default=None,
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
+                        #default=None,
                         help='Path to alignment in fasta format (use with custom dataset), with ALIGNED sequences')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
-                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
-                        default=None,
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
+                        #default=None,
                         help='Path to newick tree (in format 1 from ete3) (use with custom dataset)')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         default=None,
-                        help='Path to fasta file (use with custom dataset) with UNALIGNED sequences')
+                        help='Path to fasta file (use with custom dataset) with UNALIGNED sequences and no tree')
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
                              'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '

@@ -1867,8 +1867,10 @@ def str2None(v):
     """Converts a string into None
     :param str v"""
 
-    if v.lower() in ('None'):
+    if v.lower() in ('None','none'):
         return None
+    elif isinstance(v,str):
+        return v
     else:
         v = ast.literal_eval(v)
         return v
