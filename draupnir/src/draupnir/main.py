@@ -532,7 +532,7 @@ def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     #align_lenght = dataset_true[:, 2:, 0].shape[1]
     #aa_sequences_predictions = torch.cat((node_info, aa_sequences_predictions), dim=2)
     #aa_sequences_predictions = aa_sequences_predictions.permute(1, 0, 2) #[n_nodes,n_samples,L]
-    equal_aminoacids = (aa_sequences_predictions == dataset_true[:, 2:,0]).float()  # is correct #[n_samples,n_nodes,L] #TODO: Review this is correct because it only works because n-sample = 1
+    equal_aminoacids = (aa_sequences_predictions == dataset_true[:, 2:,0]).float()  # is correct #[n_samples,n_nodes,L]
     equal_aminoacids = (equal_aminoacids.sum(-1) / align_lenght)*100
     average_pid = equal_aminoacids.mean().cpu().numpy()
     std_pid = equal_aminoacids.std().cpu().numpy()

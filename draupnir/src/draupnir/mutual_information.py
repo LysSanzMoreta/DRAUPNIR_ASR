@@ -21,7 +21,7 @@ def cal_coupling(fasta):
     return mi
 
 def correlation_coefficient(T1, T2):
-    """Correkation coefficient accross 2 matrices.
+    """Correlation coefficient accross 2 matrices.
     :param numpy-matrix T1
     :param numpy-matrix T2"""
     numerator = np.mean((T1 - T1.mean()) * (T2 - T2.mean()))
@@ -302,11 +302,11 @@ def calculate_mutual_information(args,results_dir,draupnir_folder_variational=No
     if all(v is None for v in [draupnir_folder_variational,draupnir_folder_MAP,draupnir_folder_marginal]):
         raise ValueError("Please provide at least the results for the variational guide")
     elif (draupnir_folder_MAP,draupnir_folder_variational) == (None,None) and draupnir_folder_marginal is not None:
-        warnings.warn("You have assigned draupnir_folder_MAP to None, therefore I am using the results from draupnir_folder_marginal. There are not variational guide results")
+        warnings.warn("You have assigned draupnir_folder_MAP to None, therefore I am using the results from draupnir_folder_marginal instead. There are not variational guide results")
         draupnir_folder_MAP = draupnir_folder_marginal
         MI_root_delta_map(args.name,draupnir_folder_MAP,draupnir_folder_marginal,results_dir)
     elif (draupnir_folder_marginal, draupnir_folder_variational) == (None, None) and draupnir_folder_MAP is not None:
-        warnings.warn("You have assigned draupnir_folder_marginal to None, therefore I am using the results from draupnir_folder_marginal. There are not variational guide results")
+        warnings.warn("You have assigned draupnir_folder_marginal to None, therefore I am using the results from draupnir_folder_MAP instead. There are not variational guide results")
         draupnir_folder_marginal = draupnir_folder_MAP
         MI_root_delta_map(args.name, draupnir_folder_MAP, draupnir_folder_marginal, results_dir)
     elif (draupnir_folder_MAP,draupnir_folder_marginal) == (None,None) and draupnir_folder_variational is not None:

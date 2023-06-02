@@ -1253,7 +1253,7 @@ def heatmaps(predictions_samples,dataset_test,name, num_samples,nodes_indexes,re
                     seq_sampled_i = convert_to_letters(all_sampled_i[w],aa_probs)
                     seq_sampled_j = convert_to_letters(all_sampled_j[w],aa_probs)
                     pid = perc_identity_pair_seq(seq_sampled_i,seq_sampled_j)
-                    blos = score_pairwise(seq_sampled_i,seq_sampled_j,blosum,gap_s=11, gap_e=1)
+                    blos = score_pairwise(seq_sampled_i,seq_sampled_j,blosum,gap_s=-11, gap_e=-1)
                     percent_id_i.append(pid)
                     blosum_score_i.append(blos)
                 storage()
@@ -1290,7 +1290,7 @@ def heatmaps(predictions_samples,dataset_test,name, num_samples,nodes_indexes,re
                     seq_sampled_test = convert_to_letters(all_sampled_test[w],aa_probs)
                     pid = perc_identity_pair_seq(test_obs_i, seq_sampled_test)
                     #wrong_pred = incorrectly_predicted_aa(test_obs_i,seq_sampled_test)
-                    blos = score_pairwise(test_obs_i, seq_sampled_test, blosum, gap_s=11, gap_e=1)
+                    blos = score_pairwise(test_obs_i, seq_sampled_test, blosum, gap_s=-11, gap_e=-1)
                     percent_id_i.append(pid)
                     blosum_score_i.append(blos)
                     #incorrect_aa_i.append(wrong_pred)
@@ -1310,7 +1310,7 @@ def heatmaps(predictions_samples,dataset_test,name, num_samples,nodes_indexes,re
                 test_obs_j = convert_to_letters(Dataset_test_sliced[i+j],aa_probs)
                 pid_score = perc_identity_pair_seq(test_obs_i,test_obs_j)
                 percent_id_OBS[t1][t2] = pid_score
-                blosum_score = score_pairwise(test_obs_i,test_obs_j, blosum, gap_s=11, gap_e=1)
+                blosum_score = score_pairwise(test_obs_i,test_obs_j, blosum, gap_s=-11, gap_e=-1)
                 blosum_OBS[t1][t2] = blosum_score
         return percent_id_OBS,blosum_OBS
 

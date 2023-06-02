@@ -9,6 +9,7 @@ import pyro
 import torch
 import argparse
 import os,sys
+from argparse import RawTextHelpFormatter
 local_repository=True
 if local_repository:
     sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src")
@@ -38,7 +39,7 @@ def main():
 
     #Highlight: Creates image of the estimated tree colured by clades
     draw_tree = False
-    if draw_tree :
+    if draw_tree:
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
         draupnir.draw_tree_facets(args.dataset_name,settings_config) #coloured panels and names
 
@@ -56,7 +57,8 @@ def main():
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Draupnir args")
+    parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
+
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
                         default="simulations_src_sh3_1",
                         help='Dataset project name, look at draupnir.available_datasets()')
@@ -75,7 +77,7 @@ if __name__ == "__main__":
                         help='Path to newick tree (in format 1 from ete3) (use with custom dataset)')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         default=None,
-                        help='Path to fasta file (use with custom dataset) with UNALIGNED sequences and no tree')
+                        help='Path to fasta file (use with custom dataset) with UNALIGNED sequences and NO tree (tree is inferred using IQtree)')
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from an alignment file/tree or just sequences;'
                              'False: use stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
@@ -86,17 +88,18 @@ if __name__ == "__main__":
                         default=False,
                         help='Build a one-hot-encoded dataset. Although Draupnir works with blosum-encoded and intergers as amino acid representations, '
                              'so this is not needed for Draupnir inference at the moment')
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size. '
-                                                                'Set to 1 to NOT batch (batch_size == 1 batch == entire dataset). '
-                                                                'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets). '
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+                                                                'Set to 1 to NOT batch (batch_size == 1 batch == entire dataset).\n '
+                                                                'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
                                                                 'Else set the batchsize to the given number')
-    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available "delta_map" , "diagonal_normal" or "variational"')
+    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     parser.add_argument('-bbc','--batch-by-clade', type=str2bool, nargs='?', default=False, help='Use the leaves divided by their corresponding clades into batches. Do not use with leaf-testing')
     parser.add_argument('-angles','--infer-angles', type=str2bool, nargs='?', default=False,help='Additional Inference of angles. Use only with sequences associated PDB structures and their angles.')
-    parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY, not the latent space). Remember to set plating size, otherwise it is done automatically')
-    parser.add_argument('-plate-size','--plating_size', type=str2None, nargs='?',default=None,help='Set plating/subsampling size '
-                                                                    'If set to None it automatically suggests a plate size, only if args.plating is TRUE!. Otherwise it remains as None and no plating occurs '
+    parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY, not the latent space, see DRAUPNIRModel_classic_plating under models.py).\n'
+                                                                                             ' Remember to set plating/subsampling size, otherwise it is done automatically')
+    parser.add_argument('-plate-size','--plating_size', type=str2None, nargs='?',default=None,help='Set plating/subsampling size:\n '
+                                                                    'If set to None it automatically suggests a plate size, only if args.plating is TRUE!. Otherwise it remains as None and no plating occurs\n '
                                                                     'Else it sets the plate size to a given integer')
     parser.add_argument('-plate-idx-shuffle','--plate-unordered', type=str2bool, nargs='?',const=None, default=False,help='When subsampling/plating, shuffle (True) or not (False) the idx of the sequences which are given in tree level order')
 
@@ -124,7 +127,7 @@ if __name__ == "__main__":
     else:
         torch.set_default_tensor_type(torch.DoubleTensor)
         device = "cpu"
-    #pyro.set_rng_seed(0) #TODO: Different seeds---> not needed, torch is already running with different seeds
+    #pyro.set_rng_seed(0) # torch is already running with different seeds
     #torch.manual_seed(0)
     pyro.enable_validation(False)
     script_dir = os.path.dirname(os.path.abspath(__file__))

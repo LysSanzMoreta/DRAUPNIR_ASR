@@ -291,14 +291,14 @@ class OUKernel_Fast(GPKernel):
         self.sigma_n = sigma_n
         self.lamb = lamb
     def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
-        diff = t1.unsqueeze(1) - t2.unsqueeze(0)
-        absdiff = diff.abs().sum(-1)
-        return absdiff
+        """Not used function"""
+
+        return torch.zeros((1,))
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
         #cov_b = torch.exp(-distance_matrix / _lambd) * _sigma_f ** 2 + _sigma_n + torch.eye(self.n_b*2, device=self.device) * 1e-5
         first_term = self.sigma_f ** 2
-        first_term = first_term.unsqueeze(-1).unsqueeze(-1)
+        first_term = first_term.unsqueeze(-1).unsqueeze(-1) #[:,None,None]
         lamb = self.lamb.unsqueeze(-1).unsqueeze(-1) #self.lamb[:, None, None]
         second_term = torch.exp(-t / lamb)
         noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance

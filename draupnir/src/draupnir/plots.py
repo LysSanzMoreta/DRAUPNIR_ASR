@@ -523,7 +523,7 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
     if stripped:
         clades_dict_all = additional_load.clades_dict_all
         #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
-        tsne_proj = reducer.fit_transform(latent_space[:, 1:])
+        umap_proj = reducer.fit_transform(latent_space[:, 1:])
 
         color_map21 = matplotlib.colors.ListedColormap(
             ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
@@ -539,9 +539,9 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         for idx,(clade, nodes) in enumerate(clades_dict_all.items()):
                 sequences = nodes["internal"] + nodes["leaves"]
                 indexes = (latent_space[:, 0][..., None] == sequences).any(-1)
-                ax.scatter(tsne_proj[indexes, 0], tsne_proj[indexes, 1], color=clrs(idx), label=clade.replace("_"," "), alpha=1,s=700)
+                ax.scatter(umap_proj[indexes, 0], umap_proj[indexes, 1], color=clrs(idx), label=clade.replace("_"," "), alpha=1,s=700)
                 if annotate:
-                    for name, point in zip(sequences, tsne_proj[indexes]):
+                    for name, point in zip(sequences, umap_proj[indexes]):
                         ax.annotate(name, xy=(point[0], point[1]), size=7)  # xytext=(1,1)
         #plt.legend(loc='upper left', prop={'size': 25},ncol=1, shadow=True)
         #plt.legend( bbox_to_anchor=(1.01, 1), loc='upper left', prop={'size': 25}, ncol=1, shadow=True)
@@ -551,7 +551,7 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         clades_dict_all = additional_load.clades_dict_all
         # n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
 
-        tsne_proj = reducer.fit_transform(latent_space[:, 1:])
+        umap_proj = reducer.fit_transform(latent_space[:, 1:])
         color_map21 = matplotlib.colors.ListedColormap(
             ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
              "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
@@ -566,10 +566,10 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         for idx, (clade, nodes) in enumerate(clades_dict_all.items()):
             sequences = nodes["internal"] + nodes["leaves"]
             indexes = (latent_space[:, 0][..., None] == sequences).any(-1)
-            ax.scatter(tsne_proj[indexes, 0], tsne_proj[indexes, 1], color=clrs(idx), label=clade.replace("_", " "),
+            ax.scatter(umap_proj[indexes, 0], umap_proj[indexes, 1], color=clrs(idx), label=clade.replace("_", " "),
                        alpha=1, s=200)
             if annotate:
-                for name, point in zip(sequences, tsne_proj[indexes]):
+                for name, point in zip(sequences, umap_proj[indexes]):
                     ax.annotate(name, xy=(point[0], point[1]), size=7)  # xytext=(1,1)
         plt.legend(title='Clades', bbox_to_anchor=(1.01, 1), loc='upper left', prop={'size': 15},ncol=1,shadow=True,fontsize=15)
         plt.title("UMAP projection of the tree's latent space; \n" + "{}".format(additional_load.full_name),fontsize=20)
