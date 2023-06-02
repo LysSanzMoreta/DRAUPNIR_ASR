@@ -94,7 +94,7 @@ def combine(input_type,datasets_folder_names):
                 df = df.replace(r'\\','', regex=True)
                 df = df.replace({"}":""},regex=True)
                 df = df.astype(float)
-                df.columns = headers
+                df.columns = headers/home/lys/Dropbox/Workshops/cloudcomputing
                 df_average_series = df.mean(axis=0)
                 df_std_series = df.std(axis=0).round(2)
                 full_name = datasets_names[dataset][2]

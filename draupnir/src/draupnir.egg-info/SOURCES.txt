@@ -30,3 +30,7 @@ src/draupnir/infer_angles/calculate_coords.py
 src/draupnir/infer_angles/nerf.py
 src/draupnir/infer_angles/pnerf.py
 src/draupnir/infer_angles/superposition.py
+tests/test_accuracy.py
+tests/test_examples.py
+tests/test_load.py
+tests/test_norworking.py

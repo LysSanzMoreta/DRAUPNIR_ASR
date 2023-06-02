@@ -20,7 +20,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 # Arguments marked as "Required" below must be included for upload to PyPI.
 # Fields marked as "Optional" may be commented out.
 setup(name='draupnir',
-      version='0.0.27',
+      version='0.0.28',
       # list folders, not files
       packages=find_packages('src'),
       package_dir={'': 'src'},
@@ -40,7 +40,7 @@ setup(name='draupnir',
             # Specify the Python versions you support here. In particular, ensure
             # that you indicate you support Python 3. These classifiers are *not*
             # checked by 'pip install'. See instead 'python_requires' below.
-            'Programming Language :: Python :: 3.7',
+            'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3 :: Only',
       ],
       python_requires='>=3.7, <4',

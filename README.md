@@ -47,9 +47,9 @@ See Draupnir_example.py
 ```
 **Which guide to use?**
 
-By experience, use delta_map, the marginal results (Test folder) are the most stable.
+By experience, use delta_map, since the marginal results (Test folder) are the most stable.
 It is recommended to run the model both with the variational and the delta_map guides and compare outputs using the mutual information.
-If necessary run the variational guide longer than the delta_map, since it has more parameters to infere and takes longer.
+If necessary, run the variational guide longer than the delta_map, since it has more parameters to optimize and takes longer.
 
 **How long should I run my model?**
 
@@ -114,17 +114,17 @@ dict_urls = {
 | Simulation SRC-kinase SH3 domain                  | 800              | 99               | simulations_src_sh3_2             |
 
 
-**What do the folders mean?**
+**What do the results folders mean?**
 
 1) If you selected **delta_map** guide:
-   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are samples obtained by using the MAP estimates of the logits.
-   2) Train_argmax_Plots: Single sequence per leaf obtained by the using the most likely amino acids indicated by the logits ("argmax the logits")
-   3) Test_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the marginal probability approach (equation 5 in the paper)
+   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are **samples** obtained by using the marginal probability approach (equation 5 in the paper).
+   2) Train_argmax_Plots: Single sequence per leaf obtained by the using the most likely amino acids indicated by the marginal logits ("argmax the logits") 
+   3) Test_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the **marginal probability** approach (equation 5 in the paper)
    4) Test_argmax_Plots: Contains the most voted sequence from the samples in Test_Plots.
-   5) Test2_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the MAP estimated of the logits. 
-   6) Test2_argmax_Plots:  Samples for the test sequences (ancestors). In this case they contain the most likely amino acids indicated by the logits ("argmax the logits") (equation 4 in the paper)
+   5) Test2_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the **MAP estimates** of the logits. 
+   6) Test2_argmax_Plots:  Samples for the test sequences (ancestors). In this case they contain the most likely amino acids indicated by the MAP logits ("argmax the logits") (equation 4 in the paper)
 2) If you selected **variational** guide:
-   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are samples obtained by using the MAP estimates of the logits.
+   1) Train_Plots: Contains information related to the inference of the train sequences (the leaves). They are **samples** obtained from sampling from the variational posterior (equation 6 in the paper).
    2) Train_argmax_Plots: Single sequence per leaf obtained by the using the most likely amino acids indicated by the logits ("argmax the logits")
    3) Test_Plots: Samples for the test sequences (ancestors). In this case they contain the sequences sampled using the full variational probability approach (equation 6 in the paper)
    4) Test_argmax_Plots: Contains the most voted sequence from the samples in Test_Plots.
@@ -137,6 +137,10 @@ dict_urls = {
 
 - Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
 
+    -Node-name-input-tree: Original name of the node in the given input tree
+
+    -Tree-level-order: Position of the node in tree-level order in the tree
+    
     >Node_A1//1.0_sample_0
 
     
@@ -150,6 +154,9 @@ dict_urls = {
   year={2021}
 }
 ```
+
+
+**Do not hesitate to give input on how to improve the documentation of this library**
 
 
 
