@@ -293,7 +293,7 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
     if n_test > 100:
         torch.manual_seed(0)
         percentage_test = 50/n_test #get 50 seq only
-        test_indx = (torch.rand(size=(n_test,)) < percentage_test).int().bool() #create n  (n= n internal nodes) random True and False, Supposedly 45% of the values will be 1(True)
+        test_indx = (torch.rand(size=(n_test,)) < percentage_test).int().bool().to(dataset_test.device) #create n  (n= n internal nodes) random True and False, Supposedly 45% of the values will be 1(True)
         dataset_test = dataset_test[test_indx]
         nodes_indexes = dataset_test[:, 0, 1]
         dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], nodes_indexes)]

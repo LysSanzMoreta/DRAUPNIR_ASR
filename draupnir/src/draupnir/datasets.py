@@ -82,7 +82,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
 
     #script_dir = os.path.dirname(os.path.abspath(__file__))
     if not use_custom:
-        warnings.warn("You have selected a pre-defined dataset, if not present, it will be downloaded. Otherwise set use_custom to True")
+        warnings.warn("You have selected a pre-defined dataset, if not present, it will be downloaded. Otherwise set args.use_custom to True")
         root_sequence_name = available_datasets()[0][name]
         full_name = available_datasets()[1][name]
         storage_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "data")) #changed from "datasets/default"
@@ -477,8 +477,6 @@ def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
     return dataset_test,leaves_names_test,max_lenght_internal_aligned
-
-
 def load_coral_fluorescent_proteins_ancestral_sequences(name,ancestral_file,tree_levelorder_names,aa_probs):
     """Loads the 5 ancestral root nodes from the coral fluorescent proteins as the data set test.
     :param str name

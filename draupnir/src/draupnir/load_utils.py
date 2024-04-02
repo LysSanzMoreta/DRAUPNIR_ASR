@@ -546,7 +546,7 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
-def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir):
+def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
     """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
     :param str name: dataset_name
     :param str root_sequence_name: for the default simulated datasets, we need an additional name string to retrieve the ancestral sequences
@@ -558,6 +558,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     :param namedtuple settings_config
     :param str script_dir
     """
+    device = args.device
     #Highlight: Loading for special test datasets
     if name.startswith("simulation"):
         dataset_test,internal_names_test,max_len_test = DraupnirDatasets.load_simulations_ancestral_sequences(name,
@@ -766,9 +767,14 @@ class CladesDataset(Dataset):
         clade_patristic = self.clades_patristic[index]
         clade_blosum_weighted = self.clades_blosum_weighted[index]
         clade_data_blosum = self.clades_data_blosum[index]
-        return {'clade_name': clade_name, 'clade_data': clade_data,'clade_patristic': clade_patristic ,'clade_blosum_weighted':clade_blosum_weighted,'clade_data_blosum':clade_data_blosum}
+        return {'clade_name': clade_name,
+                'clade_data': clade_data,
+                'clade_patristic': clade_patristic ,
+                'clade_blosum_weighted':clade_blosum_weighted,
+                'clade_data_blosum':clade_data_blosum}
     def __len__(self):
         return len(self.clades_names)
+
 class SplittedDataset(Dataset):
     def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums):
         self.batches_names = batches_names
@@ -783,23 +789,46 @@ class SplittedDataset(Dataset):
         batch_patristic = self.batches_patristic[index]
         batch_blosum_weighted = self.batches_blosum_weighted[index]
         batch_data_blosum = self.batches_data_blosum[index]
-        return {'batch_name': batch_name, 'batch_data': batch_data, 'batch_patristic': batch_patristic,'batch_blosum_weighted': batch_blosum_weighted,'batch_data_blosum':batch_data_blosum}
+        return {'batch_name': batch_name,
+                'batch_data': batch_data,
+                'batch_patristic': batch_patristic,
+                'batch_blosum_weighted': batch_blosum_weighted,
+                'batch_data_blosum':batch_data_blosum}
 
     def __len__(self):
         return len(self.batches_names)
+
+class CustomDataset(Dataset):
+    def __init__(self, data_array_blosum,data_array_int,data_array_onehot,patristic_matrix):
+        self.batch_data_blosum = data_array_blosum
+        self.batch_data_int = data_array_int
+        self.batch_data_onehot = data_array_onehot
+    def __getitem__(self, index):  # sets a[i]
+        batch_data_blosum = self.batch_data_blosum[index]
+        batch_data_int = self.batch_data_int[index]
+        batch_data_onehot = self.batch_data_onehot[index]
+
+        return {'batch_data_blosum': batch_data_blosum,
+                'batch_data_int':batch_data_int,
+                'batch_data_onehot':batch_data_onehot
+                }
+    def __len__(self):
+        return len(self.batch_data_blosum)
+
+
 def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
     """Loads the data set into the model. There are 3 modalities of data loading:
     a) No batching, load the entire data set (batch_dim_0, batch_size=1)
     b) batching, split evenly the data set, the batch size is automatically calculated if None is given (batch_dim_0, batch_size>1 or None)
-    c) Clade batching, loads the data divided by tree clades, the latent space is not splitted, full inference (args.batch_by_clade=True: 1 batch= 1 clade )
+    c) Clade batching, loads the data divided by the tree's clades: the latent space is not splitted, full inference (args.batch_by_clade=True: 1 batch= 1 clade )
     :param dataset
     :param patristic_matrix_train
     :param clades_dict: dictionary containing the tree nodes divided by clades
     :param blosum: BLOSUM matrix
     :param namedtuple build_config
     :param namedtuple args
-    :param method: batching method"""
-    '''If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used'''
+    :param method: batching method
+    NOTES: If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used"""
     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
     patristic_matrix_train = patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader

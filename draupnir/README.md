@@ -137,9 +137,9 @@ dict_urls = {
 
 - Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
 
-    -Node-name-input-tree: Original name of the node in the given input tree
+    -<node-name-input-tree>: Original name of the node in the given/user's input tree.
 
-    -Tree-level-order: Position of the node in tree-level order in the tree
+    -<tree-level-order>: Position of the node in the tree expressed in tree-level order.
     
     >Node_A1//1.0_sample_0
 

@@ -65,11 +65,11 @@ class DRAUPNIRModelClass(nn.Module):
         if ModelLoad.args.use_cuda:
             self.cuda()
     @abstractmethod
-    def guide(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum):
+    def guide(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
         raise NotImplementedError
 
     @abstractmethod
-    def model(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum):
+    def model(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
         raise NotImplementedError
 
     @abstractmethod
@@ -85,18 +85,28 @@ class DRAUPNIRModelClass(nn.Module):
         The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"""
         # Highlight; OU kernel parameters
         alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1)) + 1e-6 #TODO: Change to another distribution less centered around 0
-        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1)) +1e-6 # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
         sigma_n = pyro.sample("sigma_n", dist.HalfNormal(alpha[1]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # Gaussian noise
         lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.z_dim, ]).to_event(1))  +1e-6 # characteristic length-scale
+
+        alpha = DraupnirUtils.squeeze_tensor(1,alpha)
+        sigma_f = DraupnirUtils.squeeze_tensor(1,sigma_f)
+        sigma_n = DraupnirUtils.squeeze_tensor(1,sigma_n)
+        lambd = DraupnirUtils.squeeze_tensor(1,lambd)
+
         # Highlight: Sample the latent space from MultivariateNormal with GP prior on covariance
         patristic_matrix = patristic_matrix_sorted[1:, 1:]
         OU_covariance = OUKernel_Fast(sigma_f, sigma_n, lambd).forward(patristic_matrix)
         OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
+        # print("Model Covariance: {}".format(OU_covariance.shape))
+        # print("Model Mean: {}".format(OU_mean.shape))
+
         if self.leaves_testing:
-            assert OU_covariance.shape == (self.z_dim, self.n_all, self.n_all)
+            assert OU_covariance.shape == (self.z_dim, self.n_all, self.n_all),f"Expected shape {(self.z_dim, self.n_all, self.n_all)}, got {OU_covariance.shape}"
             assert OU_mean.shape == (1, self.n_all)
         else:
-            assert OU_covariance.shape == (self.z_dim, self.n_leaves, self.n_leaves)
+
+            assert OU_covariance.shape == (self.z_dim, self.n_leaves, self.n_leaves), f"Expected shape {(self.z_dim, self.n_leaves, self.n_leaves)}, got {OU_covariance.shape}"
             assert OU_mean.shape == (1,self.n_leaves)
         #noise = 1e-15 + torch.eye(OU_covariance.shape[1])
         #https://github.com/pyro-ppl/pyro/issues/702
@@ -104,13 +114,13 @@ class DRAUPNIRModelClass(nn.Module):
         #https://forum.pyro.ai/t/using-constraints-within-an-nn-module/486
         #OU_covariance = transform_to(constraints.lower_cholesky)(OU_covariance) #check that this does not affect performance
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
+        #print("Model Latent space: {}".format(latent_space.shape))
         latent_space = latent_space.T
         return latent_space
     def gp_prior_batched(self,patristic_matrix_sorted):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         # Highlight; OU kernel parameters #TODO: Add noise to OU parameters to avoid error in cholesky decomposition
         alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-        #alpha = pyro.sample("alpha", dist.Weibull(1,5).expand_by([3, ]).to_event(1))
         sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
         sigma_n = pyro.sample("sigma_n", dist.HalfNormal(alpha[1]).expand_by([self.z_dim, ]).to_event(1))  # Gaussian noise
         lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.z_dim, ]).to_event(1))  # characteristic length-scale
@@ -128,7 +138,6 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
         latent_space = latent_space.T
         return latent_space
-
     def map_sampling(self,map_estimates,patristic_matrix_full):
         "Use map sampling for leaves prediction/testing, when internal nodes are not available"
         test_indexes = (patristic_matrix_full[1:, 0][..., None] == self.internal_nodes).any(-1) #indexes of the leaves selected for testing
@@ -139,9 +148,10 @@ class DRAUPNIRModelClass(nn.Module):
             """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
             :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
             :param patristic_matrix: full patristic matrix"""
-            sigma_f = map_estimates["sigma_f"]
-            sigma_n = map_estimates["sigma_n"]
-            lambd = map_estimates["lambd"]
+            sigma_f = DraupnirUtils.squeeze_tensor(1,map_estimates["sigma_f"])
+            sigma_n = DraupnirUtils.squeeze_tensor(1,map_estimates["sigma_n"])
+            lambd = DraupnirUtils.squeeze_tensor(1,map_estimates["lambd"])
+
             internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
 
             #n_internal = family_data_test.shape[0]
@@ -153,7 +163,7 @@ class DRAUPNIRModelClass(nn.Module):
             OU_covariance_full = OU.forward(patristic_matrix_full)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
             inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
+            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all), f"Expected dimensions : {(self.z_dim, self.n_all, self.n_all)}, got {inverse_full.shape}"
             # Highlight: B.49 Λ−1aa
             inverse_internal = inverse_full[:, internal_indexes, :]
             inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
@@ -177,6 +187,7 @@ class DRAUPNIRModelClass(nn.Module):
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
+
             latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(inverse_internal) + 1e-6).to_event(1).sample()
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal, self.z_dim)
@@ -185,9 +196,9 @@ class DRAUPNIRModelClass(nn.Module):
             """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
             :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
             :param patristic_matrix: full patristic matrix"""
-            sigma_f = map_estimates["sigma_f"]
-            sigma_n = map_estimates["sigma_n"]
-            lambd = map_estimates["lambd"]
+            sigma_f = DraupnirUtils.squeeze_tensor(1, map_estimates["sigma_f"])
+            sigma_n = DraupnirUtils.squeeze_tensor(1, map_estimates["sigma_n"])
+            lambd = DraupnirUtils.squeeze_tensor(1, map_estimates["lambd"])
             internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
 
             #n_internal = family_data_test.shape[0]
@@ -199,7 +210,7 @@ class DRAUPNIRModelClass(nn.Module):
             OU_covariance_full = OU.forward(patristic_matrix_full)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
             inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
+            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all), f"Expected dimensions : {(self.z_dim, self.n_all, self.n_all)}, got {inverse_full.shape}"
             # Highlight: B.49 Λ−1aa
             inverse_internal = inverse_full[:, internal_indexes, :]
             inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
@@ -229,9 +240,9 @@ class DRAUPNIRModelClass(nn.Module):
             return OU_mean.squeeze(-1).T
     def conditional_sampling_batch(self,map_estimates, patristic_matrix):
             """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
-            sigma_f = map_estimates["sigma_f"] + 1e-6
-            sigma_n = map_estimates["sigma_n"] + 1e-6
-            lambd = map_estimates["lambd"] + 1e-6
+            sigma_f = DraupnirUtils.squeeze_tensor(1, map_estimates["sigma_f"]) + 1e-6
+            sigma_n = DraupnirUtils.squeeze_tensor(1, map_estimates["sigma_n"])  + 1e-6
+            lambd = DraupnirUtils.squeeze_tensor(1, map_estimates["lambd"]) + 1e-6
             internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes_batch).any(-1)
             #n_internal = family_data_test.shape[0]
             # Highlight: Sample the ancestors conditiones on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
@@ -273,38 +284,42 @@ class DRAUPNIRModelClass(nn.Module):
             assert latent_space.shape == (self.n_internal_batch, self.z_dim)
             return latent_space
 
-class DRAUPNIRModel_classic(DRAUPNIRModelClass):
-    """Implements the ordinary version of Draupnir. It receives as an input the entire leaves dataset, uses a GRU as the mapping function and blosum embeddings"""
+class DRAUPNIRModel_classic_test(DRAUPNIRModelClass):
+    """Implements the ordinary version of Draupnir as described in the paper. It receives as an input the entire leaves dataset,
+     uses a GRU as the mapping function and blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_probs
         self.num_layers = 1
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling_new(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim,
+                                         self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         #batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
-        # Highlight: GP prior over the latent space
-        latent_space = self.gp_prior(patristic_matrix_sorted)
 
-        # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim] #This can maybe be done with new axis solely
-        blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21]
-        blosum = self.embed(blosum)
-        latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
-        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
-                                               self.gru_hidden_dim).contiguous()  # bidirectional
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            latent_space = self.gp_prior(patristic_matrix_sorted)
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim] #This can maybe be done with new axis solely
+            blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21]
+            blosum = self.embed(blosum)
+            latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
+                                                       self.gru_hidden_dim).contiguous()  # bidirectional
 
-        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
-            with pyro.plate("plate_seq", aminoacid_sequences.shape[0], dim=-2):
-                logits = self.decoder.forward(
-                    input=latent_space,
-                    hidden=decoder_hidden)
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+            # if guide_map_estimates is not None:
+            #     decoder_hidden = guide_map_estimates["rnn_final_bidirectional"]
+            with pyro.plate("plate_len", dim=-2):#with pyro.plate("plate_len", dim=-2, device=self.device):
+                    logits = self.decoder.forward(
+                        input=latent_space,
+                        hidden=decoder_hidden)
+                    pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test2: #MAP estimate
@@ -355,25 +370,24 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
-        # Highlight: GP prior over the latent space
-        latent_space = self.gp_prior(patristic_matrix_sorted)
-        # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
-        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
-                                               self.gru_hidden_dim).contiguous()  # bidirectional
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            latent_space = self.gp_prior(patristic_matrix_sorted)
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
+                                                   self.gru_hidden_dim).contiguous()  # bidirectional
 
-        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
-            with pyro.plate("plate_seq", aminoacid_sequences.shape[0], dim=-2) :
-                logits = self.decoder.forward(
-                    input=latent_space,
-                    hidden=decoder_hidden)
-                pyro.sample("aa_sequences", dist.Categorical(logits=logits),
-                            obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+            with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-2):
+                    logits = self.decoder.forward(
+                        input=latent_space,
+                        hidden=decoder_hidden)
+                    pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test or use_test2:
@@ -427,7 +441,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
             self.model = self.model_unordered
         else:
             self.model = self.model_ordered
-    def model_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None):
+    def model_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -443,7 +457,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
-                                               self.gru_hidden_dim).contiguous()  #TODO: Should the subsamples are sharing the same initial hidden state?
+                                               self.gru_hidden_dim).contiguous()
 
         with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
             with pyro.plate("plate_seq", aminoacid_sequences.shape[0], dim=-2, subsample=self.splitted_leaves_indexes.pop(0)) as indx:  # Highlight: Ordered subsampling
@@ -452,7 +466,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                     hidden=decoder_hidden[:,indx])
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
-    def model_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None):
+    def model_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -468,7 +482,7 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
         latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,align_seq_len,z_dim + 21]
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
-                                               self.gru_hidden_dim).contiguous()  #TODO: Should the subsamples are sharing the same initial hidden state?
+                                               self.gru_hidden_dim).contiguous()
 
         with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
             with pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2,subsample_size=self.plate_size) as indx:#Highlight: Random subsampling
@@ -527,7 +541,7 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         batch_nodes = family_data[:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -654,7 +668,7 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         #batch_nodes = family_data[:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -781,7 +795,7 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         #angles = family_data[:, 2:, 1:3]
         train_nodes = family_data[:, 0, 1]
@@ -864,7 +878,7 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
         self.rnn_input_size = self.z_dim + self.aa_probs
         self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None):
+    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
         aminoacid_sequences = family_data[:, 2:, 0]
         angles = family_data[:, 2:, 1:3]
         angles_mask = torch.where(angles == 0., angles, 1.).type(angles.dtype) #keep as 0 the gaps and set to 1 where there is an observation

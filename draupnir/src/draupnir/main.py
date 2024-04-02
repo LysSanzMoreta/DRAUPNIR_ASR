@@ -427,7 +427,7 @@ def visualize_latent_space(latent_space_train,latent_space_test,patristic_matrix
                                     args.num_epochs,
                                     results_dir)
 def save_and_select_model(args,build_config, model_load, patristic_matrix_train,patristic_matrix_full,script_dir,results_dir):
-    """Selects the Draupnir derivation model to use. It saves the model and guides code to a file for easy checking
+    """Selects the class of Draupnir derivation model to use. It saves the entire model's and guide's code to a file for debugging/reproducibility
     :param namedtuple args
     :param namedtuple build_config
     :param namedtuple model_load
@@ -466,7 +466,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         patristic_matrix_model = patristic_matrix_train
     else:  # batching
         print("Batching! (batch_size == None or batch_size != 1)")
-        assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map"
+        assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
         Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
         patristic_matrix_model = patristic_matrix_train
 
@@ -632,7 +632,7 @@ def draupnir_sample(train_load,
 
     model_load = ModelLoad(z_dim=int(params_config["z_dim"]),
                            align_seq_len=align_seq_len,
-                           device=device,
+                           device=args.device,
                            args=args,
                            build_config=build_config,
                            leaves_nodes=dataset_train[:, 0, 1],
@@ -938,7 +938,6 @@ def draupnir_train(train_load,
                    params_config,
                    n_samples,
                    args,
-                   device,
                    script_dir,
                    results_dir,
                    graph_coo=None,
@@ -953,7 +952,6 @@ def draupnir_train(train_load,
     :param dict params_config
     :param int n_samples
     :param namedtuple args
-    :param str device
     :param str script_dir
     :param str results_dir
     :param graph graph_coo: graph that embedds the tree into a COO graph that works with pytorch geometric
@@ -963,8 +961,7 @@ def draupnir_train(train_load,
         correspondence_dict = dict(zip(list(range(len(additional_load.tree_levelorder_names))), additional_load.tree_levelorder_names))
     else:
         correspondence_dict = additional_load.correspondence_dict
-    #device = [torch.device("cuda") if args.use_cuda else torch.device("cpu")][0]
-    device = torch.device("cuda" if args.use_cuda else "cpu") #TODO: Check that this works
+    device = args.device
     blosum = additional_info.blosum.to(device)
     aa_frequencies = additional_load.aa_frequencies.to(device)
     dataset_train = train_load.dataset_train.to(device)
@@ -1030,7 +1027,9 @@ def draupnir_train(train_load,
     #Highlight: Select optimizer/scheduler
     if args.use_scheduler:
         print("Using a learning rate scheduler on top of the optimizer!")
-        adam_args = {"lr": params_config["lr"], "betas": (params_config["beta1"], params_config["beta2"]), "eps": params_config["eps"],
+        adam_args = {"lr": params_config["lr"],
+                     "betas": (params_config["beta1"],params_config["beta2"]),
+                     "eps": params_config["eps"],
                      "weight_decay": params_config["weight_decay"]}
         optim = torch.optim.Adam #Highlight: For the scheduler we need to use TORCH.optim not PYRO.optim, and there is no clipped adam in torch
         #Highlight: "Reduce LR on plateau: Scheduler: Reduce learning rate when a metric has stopped improving."
@@ -1040,7 +1039,7 @@ def draupnir_train(train_load,
         clippedadam_args = {"lr": params_config["lr"], "betas": (params_config["beta1"], params_config["beta2"]), "eps": params_config["eps"],
                      "weight_decay": params_config["weight_decay"], "clip_norm": params_config["clip_norm"], "lrd": params_config["lrd"]}
         optim = pyro.optim.ClippedAdam(clippedadam_args)
-    def load_tune_params(load_params):
+    def load_tune_params(load_params):#TODO: Remove?
         """Loading pretrained parameters and allowing to tune them"""
         if load_params:
             pyro.clear_param_store()
@@ -1064,17 +1063,15 @@ def draupnir_train(train_load,
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
     train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
-
-    training_method= lambda f, svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args: lambda svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args: f(svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args)
-
-    if args.batch_by_clade and clades_dict:
-        training_function = training_method(DraupnirTrain.train_batch_clade,svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args)
-    elif args.batch_size == 1:#no batching or plating
-        training_function = training_method(DraupnirTrain.train, svi, patristic_matrix_model,cladistic_matrix_full,dataset_train_blosum, train_loader, args)
-
-    else:#batching
-        training_function = training_method(DraupnirTrain.train_batch, svi, patristic_matrix_model,
-                                            cladistic_matrix_full,dataset_train_blosum, train_loader, args)
+    map_estimates = None
+    training_function_input = {"patristic_matrix_model":patristic_matrix_model,
+                   "cladistic_matrix_full":cladistic_matrix_full,
+                   "dataset_train_blosum":dataset_train_blosum,
+                   "train_loader":train_loader,
+                   "args":args,
+                   "map_estimates":map_estimates,
+                   "args":args}
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
     ######################
     ####Training Loop#####
@@ -1089,13 +1086,19 @@ def draupnir_train(train_load,
     epoch_count=0
     added_epochs = 0
     output_file = open("{}/output.log".format(results_dir),"w")
+
     while epoch < args.num_epochs:
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
-        total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args)
+
+        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
+                              None,
+                              None)
+        training_function_input["map_estimates"] = map_estimates
+        total_epoch_loss_train = training_function(svi, training_function_input)
         memory_usage_mib = torch.cuda.max_memory_allocated()*9.5367*1e-7 #convert byte to MiB
         stop = time.time()
         train_loss.append(float(total_epoch_loss_train)) #convert to float because otherwise it's kept in torch's history
@@ -1106,8 +1109,6 @@ def draupnir_train(train_load,
         # for name_i, value in pyro.get_param_store().named_parameters():
         #     value.register_hook(lambda g, name_i=name_i: gradient_norms[name_i].append(g.norm().item()))
         #map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,batch_blosum=None) #only saving 1 sample
-        map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,dataset_train_blosum,batch_blosum=None) #only saving 1 sample
-
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample(map_estimates,
                                            1,
@@ -1464,7 +1465,6 @@ def draupnir_train_batching(train_load,
                    params_config,
                    n_samples,
                    args,
-                   device,
                    script_dir,
                    results_dir,
                    graph_coo=None,
@@ -1490,7 +1490,7 @@ def draupnir_train_batching(train_load,
             zip(list(range(len(additional_load.tree_levelorder_names))), additional_load.tree_levelorder_names))
     else:
         correspondence_dict = additional_load.correspondence_dict
-    device = torch.device("cuda" if args.use_cuda else "cpu") #TODO: Check that this works
+    device = args.device
     blosum = additional_info.blosum.to(device)
     aa_frequencies = additional_load.aa_frequencies.to(device)
     dataset_train = train_load.dataset_train.to(device)
@@ -1605,18 +1605,19 @@ def draupnir_train_batching(train_load,
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
     train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
-
-
-    training_method= lambda f, svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args: lambda svi, patristic_matrix_model, cladistic_matrix_full,train_loader,args: f(svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args)
-
-    if args.batch_by_clade and clades_dict:
-        training_function = training_method(DraupnirTrain.train_batch_clade,svi, patristic_matrix_model, cladistic_matrix_full,dataset_train_blosum,train_loader,args)
-    elif args.batch_size == 1:#no batching or plating
-        training_function = training_method(DraupnirTrain.train, svi, patristic_matrix_model,cladistic_matrix_full,dataset_train_blosum, train_loader, args)
-
-    else:#batching
-        training_function = training_method(DraupnirTrain.train_batch, svi, patristic_matrix_model,
-                                            cladistic_matrix_full,dataset_train_blosum, train_loader, args)
+    # map_estimates = None
+    # training_function = DraupnirTrain.select_training_function(clades_dict, svi, patristic_matrix_model,
+    #                                                            cladistic_matrix_full, dataset_train_blosum,
+    #                                                            train_loader, args, map_estimates)
+    map_estimates = None
+    training_function_input = {"patristic_matrix_model":patristic_matrix_model,
+                   "cladistic_matrix_full":cladistic_matrix_full,
+                   "dataset_train_blosum":dataset_train_blosum,
+                   "train_loader":train_loader,
+                   "args":args,
+                   "map_estimates":map_estimates,
+                   "args":args}
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
     ######################
     ####Training Loop#####
@@ -1635,7 +1636,11 @@ def draupnir_train_batching(train_load,
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
         start = time.time()
-        total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full, train_loader,args)
+        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
+                              batch_blosum=None,
+                              map_estimates=None)  # only saving 1 sample
+        training_function_input["map_estimates"] = map_estimates
+        total_epoch_loss_train = training_function(svi, training_function_input)
 
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
         stop = time.time()
@@ -1646,7 +1651,6 @@ def draupnir_train_batching(train_load,
         epoch_count, total_epoch_loss_train, stop - start, memory_usage_mib), file=output_file)
         print("Current total time : {}".format(str(datetime.timedelta(seconds=stop - start_total))), file=output_file)
 
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample_batched(map_estimates,
                                            n_samples,
@@ -1954,7 +1958,6 @@ def draupnir_train_batch_by_clade(train_load,
                    params_config,
                    n_samples,
                    args,
-                   device,
                    script_dir,
                    results_dir,
                    graph_coo=None,
@@ -1981,7 +1984,7 @@ def draupnir_train_batch_by_clade(train_load,
             zip(list(range(len(additional_load.tree_levelorder_names))), additional_load.tree_levelorder_names))
     else:
         correspondence_dict = additional_load.correspondence_dict
-    device = torch.device("cuda" if args.use_cuda else "cpu") #TODO: Check that this works
+    device = args.device
     blosum = additional_info.blosum.to(device)
     aa_frequencies = additional_load.aa_frequencies.to(device)
     dataset_train = train_load.dataset_train.to(device)
@@ -2106,15 +2109,15 @@ def draupnir_train_batch_by_clade(train_load,
                                                                                                                     train_loader,
                                                                                                                     args)
 
-    if args.batch_by_clade and clades_dict:
-        training_function = training_method(DraupnirTrain.train_batch_clade, svi, patristic_matrix_model,
-                                            cladistic_matrix_full, dataset_train_blosum, train_loader, args)
-    elif args.batch_size == 1:  # no batching or plating
-        training_function = training_method(DraupnirTrain.train, svi, patristic_matrix_model, cladistic_matrix_full,
-                                            dataset_train_blosum, train_loader, args)
-    else:  # batching
-        training_function = training_method(DraupnirTrain.train_batch, svi, patristic_matrix_model,
-                                            cladistic_matrix_full, dataset_train_blosum, train_loader, args)
+    map_estimates = None
+    training_function_input = {"patristic_matrix_model":patristic_matrix_model,
+                   "cladistic_matrix_full":cladistic_matrix_full,
+                   "dataset_train_blosum":dataset_train_blosum,
+                   "train_loader":train_loader,
+                   "args":args,
+                   "map_estimates":map_estimates,
+                   "args":args}
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
     ######################
     ####Training Loop#####
@@ -2135,8 +2138,9 @@ def draupnir_train_batch_by_clade(train_load,
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
         start = time.time()
-        total_epoch_loss_train = training_function(svi, patristic_matrix_model, cladistic_matrix_full, train_loader,
-                                                   args)
+        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None,map_estimates=None)  # only saving 1 sample
+        training_function_input["map_estimates"] = map_estimates
+        total_epoch_loss_train = training_function(svi, training_function_input)
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
         stop = time.time()
         train_loss.append(float(total_epoch_loss_train))  # convert to float because otherwise it's kept in torch's history
@@ -2146,8 +2150,7 @@ def draupnir_train_batch_by_clade(train_load,
         epoch_count, total_epoch_loss_train, stop - start, memory_usage_mib), file=output_file)
         print("Current total time : {}".format(str(datetime.timedelta(seconds=stop - start_total))), file=output_file)
 
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
-                              batch_blosum=None)  # only saving 1 sample
+
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample_batched(map_estimates,
                                            n_samples,
@@ -2788,12 +2791,11 @@ def manual_random_search(): #TODO: This probably does not work
         print(config)
         proc= subprocess.Popen(args=[sys.executable,"Draupnir_example.py","--parameter-search","True","--config-dict",str(config).replace("'", '"')],stdout=open('Random_Search_results.txt', 'a')) #stdout=open(os.devnull, 'wb'),stderr=open(os.devnull, 'wb')
         proc.communicate()
-def run(name,root_sequence_name,args,device,settings_config,build_config,script_dir):
+def run(name,root_sequence_name,args,settings_config,build_config,script_dir):
     """Loads and pre-treats the data for inference, executes Draupnir model for training or for sampling.
     :param str name
     :param str root_sequence_name
     :param namedtuple args
-    :param device: torch device
     :param namedtuple settings_config
     :param namedtuple build_config
     :param str script_dir
@@ -2804,7 +2806,7 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
-    train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,device,settings_config,script_dir)
+    train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))
     if args.one_hot_encoded:
         raise ValueError("Please set one_hot_encoding to False")
@@ -2835,7 +2837,6 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
                         param_config,
                         args.n_samples,
                         args,
-                        device,
                         script_dir,
                         results_dir,
                         graph_coo,
@@ -2852,7 +2853,6 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
                         param_config,
                         args.n_samples,
                         args,
-                        device,
                         script_dir,
                         results_dir,
                         graph_coo,
@@ -2867,7 +2867,6 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
                         param_config,
                         args.n_samples,
                         args,
-                        device,
                         script_dir,
                         results_dir,
                         graph_coo,
@@ -2884,7 +2883,6 @@ def run(name,root_sequence_name,args,device,settings_config,build_config,script_
                        param_config,
                        args.n_samples,
                        args,
-                       device,
                        script_dir,
                        results_dir,
                        graph_coo,
