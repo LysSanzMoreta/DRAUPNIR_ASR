@@ -34,9 +34,10 @@ class RNNEncoder(nn.Module):
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
-        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-        self.linear_means = nn.Linear(self.gru_hidden_dim, self.z_dim)
-        self.linear_std = nn.Linear(self.gru_hidden_dim, self.z_dim)
+        self.nndim = int(self.gru_hidden_dim/2)
+        self.fc1 = nn.Linear(self.gru_hidden_dim, self.nndim)
+        self.linear_means = nn.Linear(self.nndim, self.z_dim)
+        self.linear_std = nn.Linear(self.nndim, self.z_dim)
 
         self.softplus = nn.Softplus()
 
@@ -50,47 +51,19 @@ class RNNEncoder(nn.Module):
 
     def forward(self, input, hidden):
 
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-        rnn_output = self.fc1(rnn_output[:,-1]) #pick the last state of the sequence given by the GRU
-        output_means = self.linear_means(rnn_output)
-        output_std = self.softplus(self.linear_std(rnn_output))
-        return output_means,output_std
-class RNNEncoder_no_mean(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNEncoder_no_mean, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.n_leaves = n_leaves
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = num_layers
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
-        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-        #self.linear_means = nn.Linear(self.gru_hidden_dim, self.z_dim)
-        self.linear_std = nn.Linear(self.gru_hidden_dim, self.z_dim)
+        rnn_hidden_states, rnn_final_bidirectional = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        forward_out_r,backward_out_r = rnn_hidden_states[:,:,:self.gru_hidden_dim],rnn_hidden_states[:,:,self.gru_hidden_dim:]
+        rnn_hidden_states = forward_out_r + backward_out_r
+        rnn_final_hidden_state = self.fc1(rnn_hidden_states[:,-1]) #pick the last state of the sequence given by the GRU
+        z_loc = self.linear_means(rnn_final_hidden_state)
+        z_scale = self.softplus(self.linear_std(rnn_final_hidden_state))
 
-        self.softplus = nn.Softplus()
-
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                          hidden_size=self.gru_hidden_dim,
-                          batch_first=True,
-                          bidirectional=True,
-                          num_layers=self.num_layers,
-                          dropout=0.0)
-
-
-    def forward(self, input, hidden):
-
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-        rnn_output = self.fc1(rnn_output[:,-1]) #pick the last state of the sequence given by the GRU
-        #output_means = self.linear_means(rnn_output)
-        output_std = self.softplus(self.linear_std(rnn_output))
-        return output_std
+        return  {"z_loc":z_loc,
+                 "z_scale":z_scale,
+                 "rnn_final_bidirectional":rnn_final_bidirectional,
+                 "rnn_hidden_states":rnn_hidden_states,
+                 "rnn_final_hidden_state":rnn_final_hidden_state}
+        #return output_means,output_std
 class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
@@ -123,6 +96,43 @@ class RNNDecoder_Tiling(nn.Module):
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
+        return output_logits
+class RNNDecoder_Tiling_new(nn.Module):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+        super(RNNDecoder_Tiling_new, self).__init__()
+        self.gru_hidden_dim = gru_hidden_dim
+        self.z_dim = z_dim
+        self.rnn_input_size = rnn_input_size
+        self.align_seq_len = align_seq_len
+        self.aa_prob = aa_prob
+        self.num_layers = num_layers
+        self.kappa_addition = kappa_addition
+        self.softmax = nn.Softmax()
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+
+        self.fc1 = nn.Linear(self.gru_hidden_dim, int(self.gru_hidden_dim/2))
+        self.linear_probs = nn.Linear(int(self.gru_hidden_dim/2), self.aa_prob)
+        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
+            #rnn.state_dict()
+
+
+    def forward(self, input, hidden):
+        rnn_hidden_states, rnn_final_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        forward_hidden_states = rnn_hidden_states[:, :, :self.gru_hidden_dim]
+        backward_hidden_states = rnn_hidden_states[:, :, self.gru_hidden_dim:]
+        rnn_hidden_states = forward_hidden_states + backward_hidden_states
+        #rnn_final_hidden = rnn_hidden_states[:,-1]
+
+        rnn_final_hidden = self.fc1(rnn_hidden_states)
+        output_logits = self.logsoftmax(self.linear_probs(rnn_final_hidden))  # [n_nodes,align_seq_len,aa_probs]
+        #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
@@ -203,7 +213,6 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         output_means = self.tanh(self.fc2_means(self.fc1_means(output)))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas
-
 class Embed(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(Embed, self).__init__()
@@ -226,7 +235,6 @@ class EmbedComplex(nn.Module):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.softmax(self.fc2(output))
         return output
-
 class EmbedComplexEncoder(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(EmbedComplexEncoder, self).__init__()
@@ -240,8 +248,6 @@ class EmbedComplexEncoder(nn.Module):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.softmax(self.fc2(output))
         return output
-
-
 class GPKernel(ABC):
     @abstractmethod
     def preforward(self, t1: torch.Tensor,t2: torch.Tensor) -> torch.Tensor:
@@ -277,7 +283,6 @@ class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
         first_term = self.sigma_f ** 2
         second_term = torch.exp(-t / self.lamb)
         return first_term * second_term + self.sigma_n ** 2 * torch.eye(t.shape[0])
-
 class OUKernel_Fast(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance

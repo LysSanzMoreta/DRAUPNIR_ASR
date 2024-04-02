@@ -38,7 +38,7 @@ import draupnir.models_utils as DraupnirModelUtils
 #Biopython
 import Bio.PDB as PDB
 from Bio.PDB.Polypeptide import PPBuilder, CaPPBuilder
-from Bio.Data.SCOPData import protein_letters_3to1
+from Bio.Data.IUPACData import protein_letters_3to1
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio import BiopythonWarning
@@ -1727,7 +1727,6 @@ def gradients_plot(gradient_norms,epochs,directory):
     plt.savefig("{}/Gradients_{}_epochs.png".format(directory,epochs))
     plt.clf()
     plt.close()
-
 def renaming(tree):
         """Rename the internal nodes, unless the given newick file already has the names on it
         :param tree: ete3 format 1 tree"""
@@ -1740,7 +1739,6 @@ def renaming(tree):
                 node.name = "A%d" % edge
                 internal_nodes_names.append(node.name)
                 edge += 1
-
 def calculate_aa_frequencies(dataset,freq_bins):
     """Calculates a frequency for each of the aa & gap at each position.The number of bins (of size 1) is one larger than the largest value in x. This is done for numpy arrays
     :param tensor dataset
@@ -1773,7 +1771,6 @@ def compare_trees(t1,t2):
     cmd = [command, path2script] + args
     distance = subprocess.check_output(cmd, universal_newlines=True)
     return distance
-
 def remove_stop_codons(sequence_file,is_prot=False):
     """Remove the stop codons(*) from an alignment file"""
     if is_prot:
@@ -1805,7 +1802,6 @@ def remove_stop_codons(sequence_file,is_prot=False):
         #check = any(item in codons for item in stop_codons)
         seq_file.write("".join(codons))
         seq_file.truncate()  # remove contents
-
 def convert_to_integers(dataset,aa_probs,axis):
     """Transforms one hot encoded amino acids into 0-indexed integers i.e [1,0,0,0] --> 0  [0,1,0,0] -> 1
     :param numpy dataset
@@ -1874,7 +1870,35 @@ def str2None(v):
     else:
         v = ast.literal_eval(v)
         return v
+def squeeze_tensor(required_ndims,tensor):
+    """Squeezes a tensor to match required_ndim without leftover empty dimensions (1)
+    EXAMPLE:
+        a.shape is [30,1,1,40] #contains empty dimensions
+        required_ndims= 2
+        a_squeezed = squeeze_tensor(required_ndims,a)
+        a_squeezed.shape = [30,40]
+    """
+    size = torch.tensor(tensor.shape)
+    ndims = len(size)
+    idx_ones = (size == 1)
+    if True in idx_ones:
+        ones_pos = size.tolist().index(1)
+    if ndims > required_ndims:
+        while ndims > required_ndims:
+            if tensor.shape[0] == 1:
+                tensor = tensor.squeeze(0)
+                size = torch.tensor(tensor.shape)
+                ndims = len(size)
+            elif True in idx_ones:
+                tensor = tensor.squeeze(ones_pos)
+                size = torch.tensor(tensor.shape)
+                ndims = len(size)
+            else:
+                ndims = required_ndims
 
+        return tensor
+    else:
+        return tensor
 
 
 
