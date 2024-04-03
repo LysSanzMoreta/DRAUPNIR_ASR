@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: draupnir
-Version: 0.0.28
+Version: 0.0.29
 Summary: Ancestral sequence reconstruction using a tree structured Ornstein Uhlenbeck variational autoencoder
 Home-page: https://github.com/LysSanzMoreta/DRAUPNIR_ASR
 Author: Lys Sanz Moreta
@@ -14,6 +14,22 @@ Classifier: Programming Language :: Python :: 3 :: Only
 Requires-Python: >=3.7, <4
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: pyro-ppl>1.6.0
+Requires-Dist: biopython>1.78
+Requires-Dist: pandas>1.0.1
+Requires-Dist: matplotlib>3.3.4
+Requires-Dist: ete3>3.1.1
+Requires-Dist: dgl>0.6.1
+Requires-Dist: dill>0.3.3
+Requires-Dist: seaborn>=0.11.2
+Requires-Dist: pytorch-ignite>0.4.4
+Requires-Dist: scipy>1.5.4
+Requires-Dist: scikit-learn>0.24.1
+Requires-Dist: umap-learn>0.5.2
+Requires-Dist: gdown>=4.3.1
+Requires-Dist: ProDy>2.0.0
+Requires-Dist: PyQt5>=5.15.7
+Requires-Dist: lxml>=4.9.1
 
 
 DRAUPNIR: "Beta library version for performing ASR using a tree-structured Variational Autoencoder"
@@ -154,9 +170,9 @@ dict_urls = {
 
 - Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
 
-    -Node-name-input-tree: Original name of the node in the given input tree
+    -<node-name-input-tree>: Original name of the node in the given/user's input tree.
 
-    -Tree-level-order: Position of the node in tree-level order in the tree
+    -<tree-level-order>: Position of the node in the tree expressed in tree-level order.
     
     >Node_A1//1.0_sample_0
 
