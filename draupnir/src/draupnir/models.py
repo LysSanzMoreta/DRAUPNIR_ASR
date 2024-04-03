@@ -284,7 +284,7 @@ class DRAUPNIRModelClass(nn.Module):
             assert latent_space.shape == (self.n_internal_batch, self.z_dim)
             return latent_space
 
-class DRAUPNIRModel_classic_test(DRAUPNIRModelClass):
+class DRAUPNIRModel_classic(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir as described in the paper. It receives as an input the entire leaves dataset,
      uses a GRU as the mapping function and blosum embeddings"""
     def __init__(self,ModelLoad):
