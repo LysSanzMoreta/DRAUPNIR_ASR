@@ -95,7 +95,7 @@ if __name__ == "__main__":
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
                                                                 'Else set the batchsize to the given number')
-    parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
+    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     parser.add_argument('-bbc','--batch-by-clade', type=str2bool, nargs='?', default=False, help='Experimental. Use the leaves divided by their corresponding clades into batches. Do not use with leaf-testing')
     parser.add_argument('-angles','--infer-angles', type=str2bool, nargs='?', default=False,help='Experimental. Additional Inference of angles. Use only with sequences associated PDB structures and their angles.')
     parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY, not the latent space, see DRAUPNIRModel_classic_plating under models.py).\n'

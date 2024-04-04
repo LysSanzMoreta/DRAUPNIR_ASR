@@ -158,7 +158,7 @@ dict_urls = {
 
 **Do not hesitate to give input on how to improve the documentation of this library**
 
-**Leave like and subscribe ... wait that was somewhere else ... well, a star will do it ;) ***
+**Leave like and subscribe ... wait that was somewhere else ... well, a star will do it ;) **
 
 
 
