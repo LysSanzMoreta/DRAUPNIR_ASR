@@ -62,13 +62,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_src_sh3_1",
+                        default="simulations_blactamase_1",
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True: Use a custom dataset (first create a folder with the same name es -dataset-name- where to store the necessary files here draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)')
-    parser.add_argument('-n', '--num-epochs', default=10000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=15000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default=None,

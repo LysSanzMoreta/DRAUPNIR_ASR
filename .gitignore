@@ -26,3 +26,5 @@ PLOTS*
 *.zip
 draupnir/src/draupnir/images/*
 draupnir/src/draupnir/dist/*
+
+draupnir/src/draupnir.egg-info/

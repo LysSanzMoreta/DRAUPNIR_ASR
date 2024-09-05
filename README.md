@@ -35,6 +35,12 @@ together with ape 5.5 and TreeDist 2.3 libraries
 install.packages(c("ape","TreeDist"))
 ```
 
+**Draupnir python environment .yaml**
+
+```
+https://github.com/LysSanzMoreta/DRAUPNIR_ASR/tree/main/draupnir/env/Python3_9
+```
+
 **Draupnir pip install**
 
 ```
