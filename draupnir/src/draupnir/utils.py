@@ -898,7 +898,7 @@ def create_dataset(name_file,
     calculate_directly_linked_nodes(name_file, tree,"{}/{}".format(storage_folder,name_file))
     calculate_descendants(name_file,tree,"{}/{}".format(storage_folder,name_file))
     print("Ready and saved!")
-    print("Building clades (warning: collapses the original tree!)")
+    warnings.warn("Building clades (Collapses the original tree into monophyletic clades!)")
     divide_into_monophyletic_clades(tree,"{}/{}".format(storage_folder,name_file),name_file)
     np.save("{}/{}/{}_dataset_numpy_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset)
     max_lenght_not_aligned = max([int(sequence[0][0]) for idx,sequence in Combined_dict.items()]) #Find the largest sequence without being aligned
@@ -1847,7 +1847,6 @@ def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_probs,dataset_trai
 
 
     return aa_train_blosum
-
 def str2bool(v):
     """Converts a string into a boolean, useful for boolean arguments
     :param str v"""

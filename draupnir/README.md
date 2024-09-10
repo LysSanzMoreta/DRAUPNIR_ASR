@@ -35,6 +35,12 @@ together with ape 5.5 and TreeDist 2.3 libraries
 install.packages(c("ape","TreeDist"))
 ```
 
+**Draupnir python environment .yaml**
+
+```
+https://github.com/LysSanzMoreta/DRAUPNIR_ASR/tree/main/draupnir/env/Python3_9
+```
+
 **Draupnir pip install**
 
 ```
@@ -137,9 +143,9 @@ dict_urls = {
 
 - Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
 
-    -<node-name-input-tree>: Original name of the node in the given/user's input tree.
+    -Node-name-input-tree: Original name of the node in the given input tree
 
-    -<tree-level-order>: Position of the node in the tree expressed in tree-level order.
+    -Tree-level-order: Position of the node in tree-level order in the tree
     
     >Node_A1//1.0_sample_0
 
@@ -159,7 +165,6 @@ dict_urls = {
 **Do not hesitate to give input on how to improve the documentation of this library**
 
 **Leave like and subscribe ... wait that was somewhere else ... well, a star will do it ;) **
-
 
 
 

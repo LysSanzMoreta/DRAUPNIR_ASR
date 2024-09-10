@@ -62,27 +62,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_blactamase_1",
+                        #default="simulations_blactamase_1",
+                        default="ABO",
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
-                        default=False,
-                        help='True: Use a custom dataset (first create a folder with the same name as -dataset-name- where to store the necessary files here draupnir/src/draupnir/data) '
-                             'False: Use a default dataset (those shown in the paper) (they will be downloaded at draupnir/src/draupnir/data)') #TODO: Create folder automatically or not?
+                        default=True,
+                        help='True: Use a custom dataset (create your own dataset). First create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
+                             'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data)')
     parser.add_argument('-n', '--num-epochs', default=15000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default=None,
-                        help='Path to alignment in fasta format (use with args.use_custom = True), with ALIGNED sequences')
+                        help='Path to alignment in fasta format (use with args.use_custom = True), with ALIGNED sequences. '
+                             'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
                         default=None,
-                        help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True)')
+                        help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True).'
+                             'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         default=None,
-                        help='Path to fasta file (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree)')
-    parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
+                        help='Path to fasta file (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
+                             'PLEASE make sure that the fasta header names and the names in the tree are the same')
+    parser.add_argument('-build', '--build-dataset', default=True, type=str2bool,
                         help='True: Create and store the dataset from a given alignment file/tree or the unaligned sequences;'
                              'False: Use previously stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
+                             'Once you have built once the dataset you do not have to do it again (if everything went fine)'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
     parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
@@ -97,7 +102,7 @@ if __name__ == "__main__":
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from ~/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
-                        help='True: Use GPU; False: Use CPU')  # not working for encoder
+                        help='True: Use GPU; False: Use CPU')  
     parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
     parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
     parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
