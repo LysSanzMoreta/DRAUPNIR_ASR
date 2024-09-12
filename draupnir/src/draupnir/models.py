@@ -293,7 +293,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim + self.aa_probs
         self.num_layers = 1
-        self.decoder = RNNDecoder_Tiling_new(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim,
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim,
                                          self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
 
