@@ -64,7 +64,7 @@ class RNNEncoder(nn.Module):
                  "rnn_hidden_states":rnn_hidden_states,
                  "rnn_final_hidden_state":rnn_final_hidden_state}
         #return output_means,output_std
-class RNNDecoder_Tiling(nn.Module):
+class RNNDecoder_Tiling_old(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
@@ -97,9 +97,9 @@ class RNNDecoder_Tiling(nn.Module):
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
-class RNNDecoder_Tiling_new(nn.Module):
+class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNDecoder_Tiling_new, self).__init__()
+        super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size

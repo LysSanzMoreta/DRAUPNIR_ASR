@@ -152,7 +152,8 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                                        script_dir=script_dir,
                                        no_testing=False)
             if build:
-                DraupnirUtils.create_dataset(name,
+                DraupnirUtils.create_dataset(name_file=name,
+                               args=args,
                                one_hot_encoding=args.one_hot_encoded,
                                tree_file= tree_file,
                                alignment_file="{}/{}/{}_True_Pep_alignment.FASTA".format(storage_folder,name,root_sequence_name),
@@ -168,7 +169,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                                        build_graph=True,aa_prob=21,
                                        triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
-                benchmark_randalls_dataset_train(name, storage_folder,args.one_hot_encoded,aa_prob=21)
+                benchmark_randalls_dataset_train(name, args,storage_folder,aa_prob=21)
 
         elif name == "SH3_pf00018_larger_than_30aa":# Highlight: SRC Kinases, SH3 domain with PDB structures
             alignment_file = "{}/SH3_pf00018_larger_than_30aa/SH3_pf00018_larger_than_30aa.mafft".format(storage_folder) #I hope it's the correct one
@@ -190,6 +191,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,storage_folder,first_match=True,update_pfam=False)
                 DraupnirUtils.download_PDB(pdb_list, "{}/PDB_files_Draupnir_{}_{}".format(storage_folder,family_name.strip(";"),len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              method="iqtree",
                                              PDB_folder="{}/PDB_files_Draupnir_{}_{}".format(storage_folder,family_name.strip(";"),len(pdb_list)),
@@ -212,6 +214,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                                        script_dir=script_dir)
             if build:
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              method="iqtree",
                                              alignment_file=alignment_file,
@@ -233,6 +236,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                                        script_dir=script_dir)
             if build:
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              method="iqtree",
                                              alignment_file=alignment_file,
@@ -256,6 +260,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name,storage_folder,first_match=True, update_pfam=False)
                 #DraupnirUtils.download_PDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(family_name.strip(";"), len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              method="iqtree",
                                              PDB_folder="{}/PDB_files_Draupnir_{}_{}".format(storage_folder,
@@ -284,6 +289,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 pfam_dict, pdb_list = DraupnirUtils.Pfam_parser(family_name, storage_folder, first_match=True,update_pfam=False)
                 # DraupnirUtils.download_PDB(pdb_list, "/home/lys/Dropbox/PhD/DRAUPNIR/PDB_files_Draupnir_{}_{}".format(family_name.strip(";"), len(pdb_list)))
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              method="iqtree",
                                              PDB_folder="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/PDB_files_test",
@@ -299,6 +305,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             build_config = BuildConfig(alignment_file=alignment_file,use_ancestral=False,n_test=0,build_graph=False,aa_prob=21,triTSNE=False,leaves_testing=False,script_dir=script_dir,no_testing=False)
             if build:
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              tree_file=tree_file,
                                              alignment_file=alignment_file,
@@ -319,6 +326,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
             if build_config.no_testing: warnings.warn("You have chose NOT to test the Coral sequences")
             if build:
                 DraupnirUtils.create_dataset(name_file=name,
+                                             args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              PDB_folder=None,
                                              tree_file="{}/{}/c90.PP.tree".format(storage_folder,name),
@@ -353,6 +361,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                 storage_folder = os.path.dirname(os.path.dirname(alignment_file))
 
             tree_file = DraupnirUtils.create_dataset(name_file=name,
+                                                     args=args,
                                              one_hot_encoding=args.one_hot_encoded,
                                              PDB_folder=args.pdb_folder,
                                              tree_file=tree_file,
@@ -374,7 +383,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                              tree_file=tree_file)
     return build_config,settings_config, root_sequence_name
 
-def benchmark_randalls_dataset_train(name,storage_folder,one_hot_encoded,aa_prob):
+def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):
     """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name
     :param int aa_prob: amino acid probabilities"""
@@ -389,7 +398,7 @@ def benchmark_randalls_dataset_train(name,storage_folder,one_hot_encoded,aa_prob
                 observed_fasta.append(seq)
         SeqIO.write(observed_fasta, output_handle, "fasta")
     DraupnirUtils.create_dataset(name,
-                   one_hot_encoding=one_hot_encoded,
+                   one_hot_encoding=args.one_hot_encoded,
                    fasta_file="{}/original_data/Randall_Benchmark_Observed.fasta",
                    alignment_file="{}/benchmark_randall_original.mafft".format(storage_folder),
                    tree_file="{}/RandallBenchmarkTree_OriginalNaming.tree".format(storage_folder),

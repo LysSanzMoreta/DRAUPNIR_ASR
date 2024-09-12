@@ -730,6 +730,7 @@ def process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len):
                 duplicates.append("".join(aa_list))
     return prot_aa_dict,prot_info_dict
 def create_dataset(name_file,
+                   args,
                    one_hot_encoding,
                    min_len=30,
                    fasta_file=None,
@@ -741,7 +742,7 @@ def create_dataset(name_file,
                    aa_probs=21,
                    rename_internal_nodes=False,
                    storage_folder=""):
-    """ Complex function to create the dataset and additional files (i.e dictionaries) that Draupnir uses for inference
+    """ Combination function to create the dataset and additional files (i.e dictionaries) that Draupnir uses for inference
     in:
         :param str name_file : dataset name
         :param bool one_hot_encoding: {True,False} WARNING: One hot encoding is faulty, needs to be fixed, DO NOT USE
@@ -897,6 +898,7 @@ def create_dataset(name_file,
     calculate_closest_leaves(name_file,tree,"{}/{}".format(storage_folder,name_file))
     calculate_directly_linked_nodes(name_file, tree,"{}/{}".format(storage_folder,name_file))
     calculate_descendants(name_file,tree,"{}/{}".format(storage_folder,name_file))
+
     print("Ready and saved!")
     warnings.warn("Building clades (Collapses the original tree into monophyletic clades!)")
     divide_into_monophyletic_clades(tree,"{}/{}".format(storage_folder,name_file),name_file)

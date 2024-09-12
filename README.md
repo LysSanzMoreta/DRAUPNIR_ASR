@@ -161,6 +161,7 @@ dict_urls = {
 }
 ```
 
+**This software is not for commercial use.**
 
 **Do not hesitate to give input on how to improve the documentation of this library**
 
