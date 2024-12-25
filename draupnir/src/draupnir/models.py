@@ -67,11 +67,11 @@ class DRAUPNIRModelClass(nn.Module):
         if ModelLoad.args.use_cuda:
             self.cuda()
     @abstractmethod
-    def guide(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
+    def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
         raise NotImplementedError
 
     @abstractmethod
-    def model(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,guide_map_estimates):
         raise NotImplementedError
 
     @abstractmethod
@@ -203,7 +203,7 @@ class DRAUPNIRModelClass(nn.Module):
             lambd = DraupnirUtils.squeeze_tensor(1, map_estimates["lambd"])
             internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
 
-            #n_internal = family_data_test.shape[0]
+            #n_internal = datasets_test.shape[0]
             # Highlight: Sample the ancestors conditiones on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
             # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
             patristic_matrix_full = patristic_matrix[1:, 1:]
@@ -297,9 +297,9 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
                                          self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
 
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #batch_nodes = family_data[:, 0, 1]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        #batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -325,9 +325,10 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
                     pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
 
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #batch_nodes = family_data[:, 0, 1]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+
+        #batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -352,11 +353,11 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
 
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test2: #MAP estimate
@@ -400,16 +401,16 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
 
         return sampling_out
 
-class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
+class DRAUPNIRModel_classic_no_blosum_old(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
         with pyro.plate("plate_batch", dim=-1, device=self.device):
@@ -426,9 +427,9 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
                         hidden=decoder_hidden)
                     pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
         # Highlight: GP prior over the latent space
@@ -444,11 +445,97 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
                     hidden=decoder_hidden)
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
 
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+    def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
+        if use_test or use_test2:
+            assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
+            latent_space = self.conditional_sampling(map_estimates,patristic_matrix)
+            n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
+        else:
+            latent_space = map_estimates["latent_z"].T
+            assert latent_space.shape == (self.n_leaves, self.z_dim)
+            n_nodes = self.n_leaves
+
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+
+        #with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
+        logits = self.decoder.forward(
+            input=latent_space_,
+            hidden=decoder_hidden)
+        if use_argmax:
+            #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
+            aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
+        else:
+            aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+        #return aa_sequences,latent_space, logits, None, None
+        sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
+                                      latent_space=latent_space.detach(),
+                                      logits=logits.detach(),
+                                      phis=None,
+                                      psis=None,
+                                      mean_phi=None,
+                                      mean_psi=None,
+                                      kappa_phi=None,
+                                      kappa_psi=None)
+
+        return sampling_out
+
+class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
+    """Implements the ordinary version of Draupnir without blosum embeddings.
+    It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings
+    https://github.com/apapiu/transformer_latent_diffusion/tree/main
+    """
+    def __init__(self,ModelLoad):
+        DRAUPNIRModelClass.__init__(self,ModelLoad)
+        self.rnn_input_size = self.z_dim
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        # Highlight: Register GRU module
+        pyro.module("decoder", self.decoder)
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            latent_space = self.gp_prior(patristic_matrix_sorted)
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
+                                                   self.gru_hidden_dim).contiguous()  # bidirectional
+
+            with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-2):
+                    logits = self.decoder.forward(
+                        input=latent_space,
+                        hidden=decoder_hidden)
+                    pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        # Highlight: Register GRU module
+        pyro.module("decoder", self.decoder)
+        # Highlight: GP prior over the latent space
+        latent_space = self.gp_prior(patristic_matrix_sorted)
+        # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
+                                               self.gru_hidden_dim).contiguous()  # bidirectional
+
+        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0], dim=-2):
+                logits = self.decoder.forward(
+                    input=latent_space,
+                    hidden=decoder_hidden)
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+        if self.args.select_guide == "delta_map":
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+        else:
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test or use_test2:
             assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
@@ -501,9 +588,9 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
             self.model = self.model_unordered
         else:
             self.model = self.model_ordered
-    def model_delta_map_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_delta_map_ordered(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -526,9 +613,9 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                     hidden=decoder_hidden[:,indx])
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
-    def model_variational_ordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_variational_ordered(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -552,9 +639,9 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                         hidden=decoder_hidden[:,indx])
                     pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
-    def model_delta_map_unordered(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_delta_map_unordered(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -578,22 +665,22 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
                     hidden=decoder_hidden[:,indx])
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences[indx])  # aa_seq = [n_nodes,align_seq_len]
 
-    def model(self, family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum,
+    def model(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum,
               guide_map_estimates):
         if self.args.select_guide == "delta_map":
             if self.args.plate_unordered:
-                self.model_delta_map_unordered(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,
+                self.model_delta_map_unordered(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,
                                      batch_blosum, guide_map_estimates)
             else:
-                self.model_delta_map_ordered(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,
+                self.model_delta_map_ordered(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,
                                      batch_blosum, guide_map_estimates)
         else:
             raise ValueError("Under construction")
             if self.args.plate_unordered:
-                self.model_variationl_unordered(sfamily_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,
+                self.model_variationl_unordered(sdatasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,
                                      batch_blosum, guide_map_estimates)
             else:
-                self.model_variational_ordered(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,
+                self.model_variational_ordered(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,
                                        batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
@@ -645,9 +732,9 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -667,9 +754,9 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        batch_nodes = family_data[:, 0, 1]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -689,11 +776,11 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         """Samples using all sequences, which is not computationally feasible if there is a high number of sequences"""
@@ -799,14 +886,14 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #batch_nodes = family_data[:, 0, 1]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        #batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
-        self.n_leaves_batch = family_data.shape[0]
+        self.n_leaves_batch = datasets["int"].shape[0]
         # Highlight: GP prior over the latent space of all the leaves
         latent_space = self.gp_prior_batched(patristic_matrix_sorted) #TODO: make a function model and one model_batched?
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
@@ -825,14 +912,14 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
 
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #batch_nodes = family_data[:, 0, 1]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        #batch_nodes = datasets["int"][:, 0, 1]
         #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
-        self.n_leaves_batch = family_data.shape[0]
+        self.n_leaves_batch = datasets["int"].shape[0]
         with pyro.plate("plate_batch", dim=-1, device=self.device):
             # Highlight: GP prior over the latent space of all the leaves
             latent_space = self.gp_prior_batched(patristic_matrix_sorted) #TODO: make a function model and one model_batched?
@@ -852,11 +939,11 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
                         hidden=decoder_hidden)
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
 
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         """Full latent space inference, plating sequences by clade"""
@@ -959,10 +1046,10 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #angles = family_data[:, 2:, 1:3]
-        train_nodes = family_data[:, 0, 1]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        #angles = datasets["int"][:, 2:, 1:3]
+        train_nodes = datasets["int"][:, 0, 1]
         train_indexes = (patristic_matrix_sorted[1:, 0][..., None] == train_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -986,10 +1073,10 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
             logits = logits[train_indexes]
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,align_seq_len]
 
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        #angles = family_data[:, 2:, 1:3]
-        train_nodes = family_data[:, 0, 1]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        #angles = datasets["int"][:, 2:, 1:3]
+        train_nodes = datasets["int"][:, 0, 1]
         train_indexes = (patristic_matrix_sorted[1:, 0][..., None] == train_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -1013,11 +1100,11 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
                 logits = logits[train_indexes]
                 pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,align_seq_len]
 
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test2:
@@ -1075,11 +1162,11 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
         self.rnn_input_size = self.z_dim + self.aa_probs
         self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
-    def model_delta_map(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        angles = family_data[:, 2:, 1:3]
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        angles = datasets["int"][:, 2:, 1:3]
         angles_mask = torch.where(angles == 0., angles, 1.).type(angles.dtype) #keep as 0 the gaps and set to 1 where there is an observation
-        train_nodes = family_data[:, 0, 1]
+        train_nodes = datasets["int"][:, 0, 1]
         train_indexes = (patristic_matrix_sorted[1:, 0][..., None] == train_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -1108,11 +1195,11 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
             pyro.sample("phi",dist.VonMises(loc = means[:,:,0],concentration = kappas[:,:,0]).mask(angles_mask), obs=angles[:,:,0])
             pyro.sample("psi",dist.VonMises(loc = means[:,:,1],concentration = kappas[:,:,1]).mask(angles_mask), obs=angles[:,:,1])
 
-    def model_variational(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
-        aminoacid_sequences = family_data[:, 2:, 0]
-        angles = family_data[:, 2:, 1:3]
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,guide_map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        angles = datasets["int"][:, 2:, 1:3]
         angles_mask = torch.where(angles == 0., angles, 1.).type(angles.dtype) #keep as 0 the gaps and set to 1 where there is an observation
-        train_nodes = family_data[:, 0, 1]
+        train_nodes = datasets["int"][:, 0, 1]
         train_indexes = (patristic_matrix_sorted[1:, 0][..., None] == train_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
@@ -1141,11 +1228,11 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
                 pyro.sample("phi",dist.VonMises(loc = means[:,:,0],concentration = kappas[:,:,0]).mask(angles_mask), obs=angles[:,:,0])
                 pyro.sample("psi",dist.VonMises(loc = means[:,:,1],concentration = kappas[:,:,1]).mask(angles_mask), obs=angles[:,:,1])
 
-    def model(self, family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,guide_map_estimates):
         if self.args.select_guide == "delta_map":
-            self.model_delta_map(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
         else:
-            self.model_variational(family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, guide_map_estimates)
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         if use_test:

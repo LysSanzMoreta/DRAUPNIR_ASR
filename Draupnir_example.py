@@ -62,31 +62,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_blactamase_1",
-                        #default="ABO", #TODO: fix fasta and tree file to have same names
+                        #default="simulations_blactamase_1",
+                        default="ABO", #TODO: fix fasta and tree file to have same names
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
-                        default=False,
+                        default=True,
                         help='True: Use a custom dataset (create your own dataset). First create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data)')
-    parser.add_argument('-n', '--num-epochs', default=15000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=20, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
-                        default=None,
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
+                        #default=None,
                         help='Path to alignment in fasta format (use with args.use_custom = True), with ALIGNED sequences. '
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
-                        default=None,
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_manual5_mafft_trimmed.fasta.treefile",
+                        #default=None,
                         help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True).'
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/unaligned_wo_slash.fa",
                         default=None,
                         help='Path to fasta file (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
-    parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
-                        default=None,
-                        help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESMB embeddings)') #TODO: IMPLEMENT
+
 
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from a given alignment file/tree or the unaligned sequences;'
@@ -116,6 +117,11 @@ if __name__ == "__main__":
     parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
     #Highlight: EXPERIMENTAL FEATURES
+    parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
+                        default=None,
+                        help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
+    parser.add_argument('-draupnir-version', default="1", type=str,
+                        help='Draupnir version.')
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '

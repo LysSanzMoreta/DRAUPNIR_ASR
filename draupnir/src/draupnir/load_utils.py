@@ -798,25 +798,26 @@ class SplittedDataset(Dataset):
     def __len__(self):
         return len(self.batches_names)
 
+
 class CustomDataset(Dataset):
-    def __init__(self, data_array_blosum,data_array_int,data_array_onehot,patristic_matrix):
+    def __init__(self, data_array_blosum,data_array_int,data_array_onehot):
         self.batch_data_blosum = data_array_blosum
         self.batch_data_int = data_array_int
         self.batch_data_onehot = data_array_onehot
+
     def __getitem__(self, index):  # sets a[i]
         batch_data_blosum = self.batch_data_blosum[index]
-        batch_data_int = self.batch_data_int[index]
-        batch_data_onehot = self.batch_data_onehot[index]
-
-        return {'batch_data_blosum': batch_data_blosum,
-                'batch_data_int':batch_data_int,
-                'batch_data_onehot':batch_data_onehot
+        batch_data_int = self.batch_data_int[index] if self.batch_data_int is not None else None
+        batch_data_onehot = self.batch_data_onehot[index] if self.batch_data_onehot is not None else None
+        return {'blosum': batch_data_blosum,
+                'int':batch_data_int,
+                'onehot':batch_data_onehot,
                 }
     def __len__(self):
         return len(self.batch_data_blosum)
 
 
-def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
+def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
     """Loads the data set into the model. There are 3 modalities of data loading:
     a) No batching, load the entire data set (batch_dim_0, batch_size=1)
     b) batching, split evenly the data set, the batch size is automatically calculated if None is given (batch_dim_0, batch_size>1 or None)
@@ -832,12 +833,17 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
     patristic_matrix_train = patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader
-    n_seqs = dataset.shape[0]
+    n_seqs = datasets["int"].shape[0]
     if method == "batch_dim_0":
         if args.batch_size == 1 : #only 1 batch // plating
-            train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
+            #train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
+            train_loader = CustomDataset(datasets["blosum"].cpu(),datasets["int"].cpu(),datasets["onehot"].cpu())
+            train_loader = DataLoader(train_loader,batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
-                train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
+                for dataset in train_loader:
+                    for x in dataset.values():
+                        x.to('cuda', non_blocking=True)
+                #train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
         else: #split the dataset for batching
             blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
@@ -848,7 +854,7 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
             batch_blosums_weighted = []
             batch_data_blosums = []
             for block_idx in blocks:
-                batch_data = dataset[int(block_idx[0]):int(block_idx[1])]
+                batch_data = datasets["int"][int(block_idx[0]):int(block_idx[1])]
                 batch_datasets.append(batch_data.cpu())
                 batch_nodes = batch_data[:, 0, 1]
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == batch_nodes.cpu()).any(-1)
@@ -874,15 +880,16 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
                                                 batch_data_blosums)
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
             for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
-                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
-                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
-                    batch_dataset.to('cuda', non_blocking=True)
-                    batch_patristic.to('cuda', non_blocking=True)
-                    batch_blosum_weighted.to('cuda', non_blocking=True)
-                    batch_data_blosum.to('cuda', non_blocking=True)
+                train_loader = [x.to('cuda', non_blocking=True) for x in dataset.values()]
+                # for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
+                #         dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
+                #         dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
+                #     batch_dataset.to('cuda', non_blocking=True)
+                #     batch_patristic.to('cuda', non_blocking=True)
+                #     batch_blosum_weighted.to('cuda', non_blocking=True)
+                #     batch_data_blosum.to('cuda', non_blocking=True)
 
-    else:
+    elif method == "batch_by_clade":
         clades_labels = []
         clades_datasets = []
         clades_patristic = []
@@ -891,13 +898,13 @@ def setup_data_loaders(dataset,patristic_matrix_train,clades_dict,blosum,build_c
         for key, values in clades_dict.items():
             clades_labels.append(key)
             if isinstance(values, list) and len(values) > 1:
-                clades_indexes = (dataset[:, 0, 1][..., None] == torch.Tensor(values)).any(-1)
+                clades_indexes = (datasets["int"][:, 0, 1][..., None] == torch.Tensor(values)).any(-1)
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == torch.Tensor(values).cpu()).any(-1)
             else:
-                clades_indexes = (dataset[:, 0, 1][..., None] == values).any(-1)
+                clades_indexes = (datasets["int"][:, 0, 1][..., None] == values).any(-1)
                 patristic_indexes = (patristic_matrix_train[:, 0][..., None] == values).any(-1)
 
-            clade_dataset = dataset[clades_indexes]
+            clade_dataset = datasets["int"][clades_indexes]
             clades_datasets.append(clade_dataset.cpu())
             patristic_indexes[0] = True  # To re-add the node names
             clade_patristic = patristic_matrix_train[patristic_indexes]

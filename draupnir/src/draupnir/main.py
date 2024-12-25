@@ -84,9 +84,9 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     dataset = np.load("{}/{}_dataset_numpy_{}_{}.npy".format(settings_config.data_folder,name,aligned[0], one_hot[0]),allow_pickle=True)
 
     DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
-    DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)
-    DraupnirUtils.folders(("{}/ReplacementPlots_Train/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/ReplacementPlots_Test/".format(ntpath.basename(results_dir))), script_dir)
+    #DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)
+    #DraupnirUtils.folders(("{}/ReplacementPlots_Train/".format(ntpath.basename(results_dir))), script_dir)
+    #DraupnirUtils.folders(("{}/ReplacementPlots_Test/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
@@ -672,7 +672,11 @@ def draupnir_sample(train_load,
             parameter.copy_(pretrained_params_dict_model[name])
 
     #map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,batch_blosum=None)
-
+    n_train_seqs = dataset_train.shape[0]
+    datasets_train = {"blosum": dataset_train_blosum,
+                "int": dataset_train,
+                "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
+                }
     print("Generating new samples!")
     if select_guide == "variational":
         #map_estimates_dict = defaultdict()
@@ -689,7 +693,7 @@ def draupnir_sample(train_load,
         latent_space_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], int(params_config["z_dim"]))).detach()
         logits_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], dataset_train.shape[1] - 2, build_config.aa_probs)).detach()
         for sample_idx, sample in enumerate(samples_names):
-            map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
+            map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
 
             map_estimates_dict[sample] = {val:key.detach() for val,key in map_estimates.items()}
             # Highlight: Sample one train sequence
@@ -1062,7 +1066,14 @@ def draupnir_train(train_load,
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
-    train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
+    n_train_seqs = dataset_train.shape[0]
+    datasets_train = {"blosum": dataset_train_blosum,
+                "int": dataset_train,
+                "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
+                }
+
+    train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
+
     map_estimates = None
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":cladistic_matrix_full,
@@ -1072,6 +1083,7 @@ def draupnir_train(train_load,
                    "map_estimates":map_estimates,
                    "args":args}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
+
 
     ######################
     ####Training Loop#####
@@ -1094,9 +1106,10 @@ def draupnir_train(train_load,
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
 
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
+        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
                               None,
                               None)
+
         training_function_input["map_estimates"] = map_estimates
         total_epoch_loss_train = training_function(svi, training_function_input)
         memory_usage_mib = torch.cuda.max_memory_allocated()*9.5367*1e-7 #convert byte to MiB
@@ -1108,7 +1121,7 @@ def draupnir_train(train_load,
         # # Register hooks to monitor gradient norms.
         # for name_i, value in pyro.get_param_store().named_parameters():
         #     value.register_hook(lambda g, name_i=name_i: gradient_norms[name_i].append(g.norm().item()))
-        #map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,batch_blosum=None) #only saving 1 sample
+        #map_estimates = guide(datasets,patristic_matrix_train,cladistic_matrix_train,batch_blosum=None) #only saving 1 sample
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample(map_estimates,
                                            1,
@@ -1238,8 +1251,9 @@ def draupnir_train(train_load,
         aa_sequences_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], dataset_train.shape[1] - 2)).detach()
         latent_space_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], int(params_config["z_dim"]))).detach()
         logits_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], dataset_train.shape[1] - 2, build_config.aa_probs)).detach()
+
         for sample_idx,sample in enumerate(samples_names):
-            map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
+            map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
 
             map_estimates_dict[sample] = {val:key.detach() for val,key in map_estimates.items()}
             #Highlight: Sample one train sequence
@@ -1327,7 +1341,7 @@ def draupnir_train(train_load,
     elif args.select_guide == "delta_map":
         samples_names = ["sample_{}".format(i) for i in range(n_samples)]
         #map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, batch_blosum=None)
-        map_estimates = guide(dataset_train,patristic_matrix_train,cladistic_matrix_train,dataset_train_blosum,batch_blosum=None) #only saving 1 sample
+        map_estimates = guide(datasets_train,patristic_matrix_train,cladistic_matrix_train,dataset_train_blosum,batch_blosum=None) #only saving 1 sample
 
         pickle.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
         # Highlight: Test storage: Marginal
@@ -1604,7 +1618,12 @@ def draupnir_train_batching(train_load,
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
-    train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
+    n_train_seqs = dataset_train.shape[0]
+    datasets_train = {"blosum": dataset_train_blosum,
+                "int": dataset_train,
+                "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
+                }
+    train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
     # map_estimates = None
     # training_function = DraupnirTrain.select_training_function(clades_dict, svi, patristic_matrix_model,
     #                                                            cladistic_matrix_full, dataset_train_blosum,
@@ -1636,7 +1655,7 @@ def draupnir_train_batching(train_load,
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
         start = time.time()
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
+        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
                               batch_blosum=None,
                               map_estimates=None)  # only saving 1 sample
         training_function_input["map_estimates"] = map_estimates
@@ -1803,7 +1822,7 @@ def draupnir_train_batching(train_load,
 
     for sample_idx, sample in enumerate(samples_names):
         # print("sample idx {}".format(sample_idx))
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
+        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
         map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
         for batch_idx,batch_idx_test in zip(blocks_train,blocks_test):
             batch_train_sample = Draupnir.sample_batched(map_estimates,
@@ -2098,7 +2117,12 @@ def draupnir_train_batch_by_clade(train_load,
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
-    train_loader = DraupnirLoadUtils.setup_data_loaders(dataset_train, patristic_matrix_train, clades_dict, blosum,
+    n_train_seqs = dataset_train.shape[0]
+    datasets_train = {"blosum": dataset_train_blosum,
+                "int": dataset_train,
+                "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
+                }
+    train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train, patristic_matrix_train, clades_dict, blosum,
                                                         build_config, args, method=batching_method,
                                                         use_cuda=args.use_cuda)
 
@@ -2138,7 +2162,7 @@ def draupnir_train_batch_by_clade(train_load,
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
         start = time.time()
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None,map_estimates=None)  # only saving 1 sample
+        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,batch_blosum=None,map_estimates=None)  # only saving 1 sample
         training_function_input["map_estimates"] = map_estimates
         total_epoch_loss_train = training_function(svi, training_function_input)
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
@@ -2302,7 +2326,7 @@ def draupnir_train_batch_by_clade(train_load,
     print("Sampling is also divided in batches by clade")
 
     for sample_idx, sample in enumerate(samples_names):
-        map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
+        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
         map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
         for batch_idx,batch_idx_test in zip(blocks_train,blocks_test): #still valid because the internal nodes and leaves are organize at the same clades
             batch_train_sample = Draupnir.sample_batched(map_estimates,

@@ -4,6 +4,16 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
+import torch
+import numpy as np
+from dataclasses import dataclass
+
+@dataclass
+class TrainConfig:
+    beta_a: float = 1
+    beta_b : float = 2.5
+
+
 def index_generator(indexes):
     """Call method to subsample in order.
     model (args, iter_num = index_generator())
@@ -13,6 +23,7 @@ def index_generator(indexes):
         yield indexes[i]
         i = (i + 1) % len(indexes)
         return i ##?
+
 def train_batch(svi,training_function_input):
     """Regular batch training without shuffling datatasets
     :param svi: pyro infer engine
@@ -54,7 +65,6 @@ def train_batch(svi,training_function_input):
     total_epoch_loss_train = train_loss / normalizer_train
     return total_epoch_loss_train
 
-
 def train(svi,training_function_input):
     """Non batched training
     :param svi: pyro infer engine
@@ -68,11 +78,16 @@ def train(svi,training_function_input):
     dataset_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
     map_estimates = training_function_input["map_estimates"]
+    args = training_function_input["args"]
     train_loss = 0.0
     seq_lens = []
-    for batch_number, dataset in enumerate(train_loader):
-            seq_lens += dataset[:,0,0].tolist()
-            train_loss += svi.step(dataset,patristic_matrix,cladistic_matrix,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
+
+    for batch_number, datasets in enumerate(train_loader):
+            data_int = datasets["int"]
+            seq_lens += data_int[:, 0, 0].tolist()
+            if args.use_cuda:
+                datasets = {key:val.cuda() for key,val in datasets.items()}
+            train_loss += svi.step(datasets,patristic_matrix,cladistic_matrix,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
     # Normalize loss
     #normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss #/ normalizer_train
@@ -113,6 +128,60 @@ def train_batch_clade(svi,training_function_input):
     return total_epoch_loss_train
 
 
+def random_masking(data):
+
+    dim0,dim1,dim2 = data.shape
+    random_mask = torch.rand(dim0)
+    random_mask = (random_mask > 0.5)
+
+    random_mask = random_mask[:,None,None].repeat(1,dim1,dim2)
+
+    return random_mask
+
+
+def train_guided_latest(svi,training_function_input):
+    """Masked diffusion trasformer
+    https://github.com/apapiu/transformer_latent_diffusion/blob/main/tld/train.py
+    https://medium.com/@mickael.boillaud/denoising-diffusion-model-from-scratch-using-pytorch-658805d293b4
+    https://www.youtube.com/watch?v=zc5NTeJbk-k
+    TODO: Likelihood annealing if it does not work
+
+    https://medium.com/@luvverma2011/demystifying-attention-mechanisms-in-sequence-to-sequence-models-transformers-part-1-98e2962408f0
+    Flash cosine sim attention: https://github.com/lucidrains/flash-cosine-sim-attention
+    Fast attention: https://github.com/kyegomez/MegaVIT/blob/main/mega_vit/main.py
+        Einops+atention : https://medium.com/@kyeg/einops-in-30-seconds-377a5f4d641a
+
+    Evoformer: https://github.com/hpcaitech/FastFold/blob/main/fastfold/model/fastnn/evoformer.py
+    Differentiable MSA: https://academic.oup.com/bioinformatics/article/39/1/btac724/6820925
+        smith waterman: local alignment
+        Needleman–Wunsch: global alignment
+    Benchmark MSA methods: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1633746/
+
+    SNAIL: https://lilianweng.github.io/posts/2018-06-24-attention/
+
+    Other positional encodings: https://dongkwan-kim.github.io/blogs/a-short-history-of-positional-encoding/
+
+
+    """
+    patristic_matrix = training_function_input["patristic_matrix_model"]
+    cladistic_matrix = training_function_input["cladistic_matrix_full"]
+    dataset_blosum = training_function_input["dataset_train_blosum"]
+    train_loader = training_function_input["train_loader"]
+    map_estimates = training_function_input["map_estimates"]
+    args = training_function_input["args"]
+    train_loss = 0.0
+    seq_lens = []
+    train_config = TrainConfig()
+    #TODO: implement Accelerator from accelerate dataclass
+
+    for batch_number,datasets in enumerate(train_loader):
+
+
+
+        exit()
+
+        train_loss += svi.step(dataset, patristic_matrix, cladistic_matrix, dataset_blosum, None,
+                               map_estimates)  # None is the clade blosum, it's None because here we do not do clade batching #TODO: change to dict
 
 def select_training_function(clades_dict,svi, training_function_input):
     """Selects a training function
@@ -122,23 +191,33 @@ def select_training_function(clades_dict,svi, training_function_input):
     args = training_function_input["args"]
     training_method= lambda f, svi, training_function_input: lambda svi, training_function_input: f(svi, training_function_input)
 
-    print(training_method.__code__.co_varnames)
-    if args.batch_by_clade and clades_dict:
-        training_function = training_method(train_batch_clade,
-                                            svi,
-                                            training_function_input
-                                            )
-    elif args.batch_size == 1:#no batching or plating
-        training_function = training_method(train,
-                                            svi,
-                                            training_function_input
-                                            )
 
-    else:#batching
-        training_function = training_method(train_batch,
+    if args.draupnir_version == "2":
+        print("Using Draupnir 2.0")
+        training_function = training_method(train_guided_latest,
                                             svi,
-                                            training_function_input
-                                            )
+                                            training_function_input)
+
+    else: #first draupnir version
+
+        if args.batch_by_clade and clades_dict:
+            training_function = training_method(train_batch_clade,
+                                                svi,
+                                                training_function_input
+                                                )
+        elif args.batch_size == 1:#no batching or plating
+
+            training_function = training_method(train,
+                                                svi,
+                                                training_function_input
+                                                )
+
+
+        else:#batching
+            training_function = training_method(train_batch,
+                                                svi,
+                                                training_function_input
+                                                )
 
 
 

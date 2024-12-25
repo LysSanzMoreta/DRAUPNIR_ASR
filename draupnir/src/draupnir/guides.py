@@ -38,7 +38,7 @@ class DRAUPNIRGUIDES(EasyGuide):
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
 
-    def guide(self, family_data, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+    def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
         """
         :param patristic_matrix: matrix of patristic distances (branch lengths) between the nodes in the tree
         :param cladistic_matrix: matrix of cladistic distances between the nodes in the tree
@@ -46,26 +46,25 @@ class DRAUPNIRGUIDES(EasyGuide):
         :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
         if self.batch_size == None or self.batch_size > 1:
             if self.batch_by_clade:
-                return self.guide_batch_by_clade(family_data, patristic_matrix, cladistic_matrix, data_blosum,
+                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                                  batch_blosum)
             else:
-                return self.guide_batch(family_data, patristic_matrix, cladistic_matrix, data_blosum,
+                return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                         batch_blosum=None)
         else:
-            return self.guide_noplating(family_data, patristic_matrix, cladistic_matrix, data_blosum,
+            return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                         batch_blosum=None)
 
-    def guide_noplating(self,family_data, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
+    def guide_noplating(self,datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
         """
         :param tensor data_blosum here is the ENTIRE data encoded in blosum vector form instead of integers ---> EQUAL to self.dataset_train_blosum
         """
-        #aminoacid_sequences = family_data[:, 2:, 0]
+        #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
         alpha = self.alpha
         sigma_n = self.sigma_n
         sigma_f = self.sigma_f
         lambd = self.lambd
-
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
@@ -92,13 +91,13 @@ class DRAUPNIRGUIDES(EasyGuide):
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
                 }
 
-    def guide_batch(self, family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+    def guide_batch(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
         """
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        # aminoacid_sequences = family_data[:, 2:, 0]
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
         with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
             # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
             # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
@@ -132,12 +131,12 @@ class DRAUPNIRGUIDES(EasyGuide):
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
                 }
 
-    def guide_batch_by_clade(self, family_data, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+    def guide_batch_by_clade(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
 
         """
         :param tensor data_blosum here is the CLADE-BATCHED data in blosum vector form instead of integers
         :param batch_blosum is the weighted average of the blosum vectors for the clade per column site in the MSA"""
-        # aminoacid_sequences = family_data[:, 2:, 0]
+        # aminoacid_sequences = datasets[:, 2:, 0]
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):

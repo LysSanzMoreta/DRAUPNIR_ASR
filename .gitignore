@@ -28,3 +28,6 @@ draupnir/src/draupnir/images/*
 draupnir/src/draupnir/dist/*
 
 draupnir/src/draupnir.egg-info/
+ESM_experiment/*
+
+draupnir/src/draupnir/prototypes/

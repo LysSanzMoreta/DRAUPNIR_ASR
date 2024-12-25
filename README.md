@@ -137,9 +137,40 @@ dict_urls = {
    5) Test2_Plots == Test_Plots 
    6) Test2_argmax_Plots == Test_argmax_Plots
 
+**Diving into the Train folder outputs**
+   Entropy.png : Average entropy convergence calculated from the logits (log probability values)
+   Heatmap_Blosum_Train_OBS_OBS.png: 
+   Heatmap_Blosum_Train_OBS_SAMPLED.png:
+   Heatmap_Blosum_Train_SAMPLED_SAMPLED.png:
+   Heatmap_Blosum_Train_OBS_OBS.png: 
+   Heatmap_Blosum_Train_OBS_SAMPLED.png:
+   Heatmap_Blosum_Train_SAMPLED_SAMPLED.png:
+   IncorrectlyPredictedAA_BarPlot.png
+   train_info_dict.torch:
+   TRAIN_OBSERVED_angles.png: Only valid when using PDB files with angles information
+
+**Other outputs**
+   <dataset-name>_training.fasta : Original given sequences not aligned
+   <dataset-name>_training_aligned.fasta : Original given sequences aligned
+   Alignment_gap_positions.npy: Numpy array that indicates where in the alignment there are gaps
+   Ancestor_info_dict.p
+   Children_dict.p
+   Distances_GP_VAE_z_vs_branch_lengths_Cosine_similarity_INTERNAL_and_LEAVES.png
+   ELBO_error.png
+   Entropy_convergence.png
+   PCA_z_space_epoch_<num-epochs>.png
+   Percent_ID.png
+   rng_key.torch : Contains the random seed used in this run
+   Sites_count.p
+   t_SNE_z_space_by_clade_epoch_<num-epochs>.png
+   UMAP_z_space_by_clade_epoch_<num-epochs>.png
+   Tree_by_levels_dict.p
+   Variable_score.png: Represents the diversity/variability per position (number of different amino acids) in the alignment
+   
+
 **Where are my ancestral sequences?**
 
-- In each of the folders there should be a fasta file <dataset-name>_sampled_nodes_seq.fasta
+- In each of the folders there should be a fasta file <dataset-name>_sampled_nodes_seq.fasta. The ancestral sequences are located in the Test folders
 
 - Each of the sequences in the file should be identified as <node-name-input-tree>//<tree-level-order>\_sample\_<sample-number>
 
@@ -148,6 +179,8 @@ dict_urls = {
     -Tree-level-order: Position of the node in tree-level order in the tree
     
     >Node_A1//1.0_sample_0
+
+
 
     
 **If this library is useful for your research please cite:**
