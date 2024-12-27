@@ -95,22 +95,22 @@ if __name__ == "__main__":
                              'Once you have built once the dataset you do not have to do it again (if everything went fine)'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=35, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1 batch == entire dataset).\n '
-                                                                'Set to None it automatically suggests a batch size and activates batching (it is slow, only use for very large datasets).\n '
+                                                                'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
-                                                                'Else set the batchsize to the given number')
+                                                                'Else set the batchsize to the given number, it will check if it makes sense')
     parser.add_argument('-aa-probs', default=21, type=int, help='21: 20 amino acids,1 gap probabilities \n '
                                                                 ' 24: 23 amino acids, 1 gap')
     parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples (sequences sampled) per node')
-    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix embedding')
+    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from ~/anaconda3/pkgs/biopython-1.76-py37h516909a_0/lib/python3.7/site-packages/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
                         help='True: Use GPU; False: Use CPU')
     parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
     parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
-    parser.add_argument('-guide', '--select_guide', default="delta_map", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
+    parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     #Highlight: Sample from a pre-trained model
     parser.add_argument('-load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_jj_1_2022_03_25_18h42min36s777683ms_10000epochs_delta_map",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')

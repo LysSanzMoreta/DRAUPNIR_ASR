@@ -404,7 +404,8 @@ def print_divisors(n) :
     return divisors
 def intervals(parts, duration):
     """Compose a list of intervals on which a number is divided """
-    part_duration = duration / parts
+    part_duration = int(duration / parts)
+
     return [(int(i) * part_duration, (int(i) + 1) * part_duration) for i in range(parts)]
 def compute_sites_entropies(logits, node_names):
     """

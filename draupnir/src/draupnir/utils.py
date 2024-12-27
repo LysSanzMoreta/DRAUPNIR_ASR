@@ -7,6 +7,7 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 
 import re
 import os,sys,shutil
+import inspect
 from os import listdir
 from os.path import isfile, join
 import subprocess
@@ -1626,19 +1627,20 @@ class MyDataset(Dataset):#TODO: remove
         return {'family_name': label, 'family_data': data}
     def __len__(self):
         return len(self.labels)
-def define_batch_size(n,batch_size=True, benchmarking=False):
+def define_batch_size(n,return_batch_size=True, benchmarking=False):
     """Automatic calculation the available divisors of the number of training data points (n).
     This helps to suggest an appropiate integer batch size number, that splits evenly the data
     :param int n: number of sequences
     :param bool batch_size
     :param benchmarking"""
-    if not benchmarking:
-        assert n >= 100 ,"Not worth batching, number of sequences is < 100 "
+    # if not benchmarking:
+    #     assert n >= 100 ,"Not worth batching, number of sequences is < 100 "
+
     divisors = DraupnirModelUtils.print_divisors(n)
     n_digits = len(list(str(n))) # 100 has 3 digits, 1000 has 4 digits, 10000 has 5 digits and so on
     n_chunks = [min(divisors[n_digits-1:]) if len(divisors) > n_digits-1 else 1][0]  # smallest divisor that is not 1, or just use 1 , when no other divisors are available (prime numbers)
     batchsize = int(DraupnirModelUtils.intervals(n_chunks, n)[0][1])
-    if batch_size:return batchsize
+    if return_batch_size:return batchsize
     else:return n_chunks
 def covariance(x,y):
     """Computes cross-covariance between vectors, and is defined by cov[X,Y]=E[(X−μX)(Y−μY)T]"""
@@ -1838,7 +1840,7 @@ def process_blosum(blosum,aa_freqs,align_seq_len,aa_probs):
     variable_score = torch.count_nonzero(aa_freqs, dim=1)/aa_probs #higher score, more variable
 
     return blosum_max,blosum_weighted, variable_score
-def blosum_embedding_encoder(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_hot_encoding):
+def blosum_encoding(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_hot_encoding):
     """Transforms the train dataset, which is formed by a tensor of integers that represent the amino acids, into a dataset where each amino acid (integer) is exchanged with its blosum score
     :out tensor aa_train_blosum : Training dataset with the blosum vectors instead of the amino acids (numbers or one hot representation)"""
     if one_hot_encoding:
@@ -1902,6 +1904,12 @@ def squeeze_tensor(required_ndims,tensor):
         return tensor
 
 
-
+def get_method_arguments(cls, method_name):
+    """Retrieves the arguments for a function/method inside a class instance
+    :param class cls : class
+    :param str method_name : function or method name"""
+    method = getattr(cls, method_name)
+    signature = inspect.signature(method)
+    return list(signature.parameters.keys())
 
 

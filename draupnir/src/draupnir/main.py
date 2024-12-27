@@ -142,8 +142,9 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     else:
         subtracted = 0
 
-
-    batch_size = [DraupnirUtils.define_batch_size(n_seq-subtracted) if not args.batch_size else args.batch_size if args.batch_size > 1 else n_seq-subtracted][0]
+    divisors =  DraupnirModelsUtils.print_divisors(n_seq)
+    batch_size = [DraupnirUtils.define_batch_size(n_seq-subtracted) if not args.batch_size or args.batch_size not in divisors else args.batch_size if args.batch_size > 1 else n_seq-subtracted][0]
+    if batch_size != args.batch_size : warnings.warn(f"switched your batch size {args.batch_size} to {batch_size} to guarantee even batch splitting an ease the computations")
     plate_size = [DraupnirUtils.define_batch_size(n_seq-subtracted) if not  args.plating_size and args.plating else args.plating_size][0]
 
     if not args.plating: assert plate_size == None, "Please set plating_size to None if you do not want to do plate subsampling"
@@ -444,7 +445,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         Draupnir = DraupnirModels.DRAUPNIRModel_cladebatching(model_load)
         patristic_matrix_model =patristic_matrix_train
     elif args.plating :#plating without splitted weighted average of blosum scores
-        assert args.batch_size == 1, "We are plating, no batching, please set batch_size == 1"
+        assert args.batch_size == 1, "We are plating (splitting the data inside the model), no batching, please set batch_size == 1"
         Draupnir = DraupnirModels.DRAUPNIRModel_classic_plating(model_load) #plating in tree level order, no blosum splitting
         patristic_matrix_model = patristic_matrix_train
     elif build_config.leaves_testing and not args.infer_angles: #training and testing on leaves. In this case, the latent space is composed by both train-leaves and test-leaves patristic matrices, but only the train sequences are observed
@@ -465,12 +466,13 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
     else:  # batching
-        print("Batching! (batch_size == None or batch_size != 1)")
+        print("Batching! (currently batch_size == None or batch_size != 1)")
         assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
         Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
         patristic_matrix_model = patristic_matrix_train
+    #print(DraupnirUtils.get_method_arguments(Draupnir,"model"))
 
-    plating_info = ["WITH PLATING" if args.plating else "WITHOUT plating"][0]
+    plating_info = "WITH PLATING" if args.plating else "WITHOUT plating"
     print("Using model {} {}".format(Draupnir.get_class(),plating_info))
     text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
     text_file.write("Model Class:  {} \n".format(Draupnir.get_class()))
@@ -522,7 +524,9 @@ def select_quide(Draupnir,model_load,choice):
     #return guide_types[choice]
     if choice in guide_types.keys(): return guide_types[choice]
     else:
-        guide = DraupnirGuides.DRAUPNIRGUIDES(Draupnir.model,model_load,Draupnir) #TODO: How to put inside of the Draupnir class??
+        guide = DraupnirGuides.DRAUPNIRGUIDES(Draupnir.model,model_load,Draupnir)
+        # print(DraupnirUtils.get_method_arguments(guide,"guide"))
+
         return guide
 def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     """Fast version to calculate %ID among predictions and observed data, we are only using 1 sample, could use more but it's more memory expensive
@@ -607,7 +611,7 @@ def draupnir_sample(train_load,
 
     blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
                                                                   settings_config.one_hot_encoding)
 
@@ -809,7 +813,7 @@ def draupnir_sample(train_load,
                                            dataset_train,
                                            patristic_matrix_full,
                                            cladistic_matrix_train,
-                                           use_argmax=False,# <----ATTENTION, not using most likely sequence, cause not conditional sampling
+                                           use_argmax=False,# <----ATTENTION, not using most likely sequence, cause not using conditional sampling
                                            use_test=False,
                                            use_test2=False)
 
@@ -984,7 +988,7 @@ def draupnir_train(train_load,
     dgl_graph = additional_info.dgl_graph
 
     blosum_max,blosum_weighted,variable_score = DraupnirUtils.process_blosum(blosum,aa_frequencies,align_seq_len,build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum,aa_frequencies,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum,aa_frequencies,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
     #Highlight: plot the amount of change per position in the alignment
     plt.plot(variable_score.cpu().detach().numpy())
     plt.savefig("{}/Variable_score.png".format(results_dir))
@@ -1005,7 +1009,7 @@ def draupnir_train(train_load,
                            blosum =blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,
-                           dataset_train_blosum = dataset_train_blosum, #train dataset with blosum vectors instead of one-hot encodings
+                           dataset_train_blosum = dataset_train_blosum, #train dataset with blosum vectors encodings instead of one-hot encodings
                            variable_score=variable_score,
                            internal_nodes= patristic_matrix_test[1:,0], #dataset_test[:,0,1]
                            graph_coo=graph_coo,
@@ -1067,8 +1071,8 @@ def draupnir_train(train_load,
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
     n_train_seqs = dataset_train.shape[0]
-    datasets_train = {"blosum": dataset_train_blosum,
-                "int": dataset_train,
+    datasets_train = {"blosum": dataset_train_blosum, #contains only the aa sequences (not the extra information)
+                "int": dataset_train, # contains integer encoded sequences and some extra information about the sequences (len, tree order etc)
                 "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
                 }
 
@@ -1105,6 +1109,8 @@ def draupnir_train(train_load,
             DraupnirPlots.plot_entropy(entropy, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
+
+
 
         map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
                               None,
@@ -1526,7 +1532,7 @@ def draupnir_train_batching(train_load,
 
     blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
                                                                   settings_config.one_hot_encoding)
 
@@ -1631,10 +1637,11 @@ def draupnir_train_batching(train_load,
     map_estimates = None
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":cladistic_matrix_full,
+                   "cladistic_matrix_train":cladistic_matrix_train,
                    "dataset_train_blosum":dataset_train_blosum,
                    "train_loader":train_loader,
-                   "args":args,
                    "map_estimates":map_estimates,
+                   "guide":guide,
                    "args":args}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
@@ -1650,16 +1657,15 @@ def draupnir_train_batching(train_load,
     epoch_count = 0
     added_epochs = 0
     output_file = open("{}/output.log".format(results_dir), "w")
+
+
     while epoch < args.num_epochs:
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
         start = time.time()
-        map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
-                              batch_blosum=None,
-                              map_estimates=None)  # only saving 1 sample
-        training_function_input["map_estimates"] = map_estimates
-        total_epoch_loss_train = training_function(svi, training_function_input)
+
+        total_epoch_loss_train, map_estimates = training_function(svi, training_function_input)
 
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
         stop = time.time()
@@ -1816,7 +1822,8 @@ def draupnir_train_batching(train_load,
     n_test_seqs = dataset_test.shape[0]
     print("Sampling is also divided in batches")
     #blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs)
-    assert n_test_seqs - build_config.batch_size + 1 >= blocks_train[-1][0], "Please select a smaller batch size" #TODO: review
+
+    #assert n_test_seqs - build_config.batch_size + 1 >= blocks_train[-1][0], "Please select a smaller batch size" #TODO: review
     blocks_test = blocks_train.copy()
     blocks_test[-1] = (blocks_test[-1][0],None) #this trick works by re-using blocks train, but this approach is more flexible
 
@@ -2025,7 +2032,7 @@ def draupnir_train_batch_by_clade(train_load,
 
     blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
                                                                   settings_config.one_hot_encoding)
 

@@ -845,6 +845,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                         x.to('cuda', non_blocking=True)
                 #train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
         else: #split the dataset for batching
+
             blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
             batch_datasets = []
@@ -863,6 +864,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                 batch_patristic = batch_patristic[:, patristic_indexes]
                 batch_patristics.append(batch_patristic)
 
+
                 batch_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(batch_data[:, 2:, 0].cpu().numpy(),
                                                                 build_config.aa_probs)
                 batch_aa_freqs.append(batch_aa_frequencies)
@@ -872,7 +874,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                                                                build_config.aa_probs)
                 batch_blosums_max.append(batch_blosum_max)
                 batch_blosums_weighted.append(batch_blosum_weighted)
-                batch_data_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, batch_aa_frequencies, build_config.align_seq_len,
+                batch_data_blosum = DraupnirUtils.blosum_encoding(blosum, batch_aa_frequencies, build_config.align_seq_len,
                                                              build_config.aa_probs, batch_data, False)
                 batch_data_blosums.append(batch_data_blosum.cpu())
 
@@ -880,14 +882,14 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                 batch_data_blosums)
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
             for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
-                train_loader = [x.to('cuda', non_blocking=True) for x in dataset.values()]
-                # for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
-                #         dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
-                #         dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
-                #     batch_dataset.to('cuda', non_blocking=True)
-                #     batch_patristic.to('cuda', non_blocking=True)
-                #     batch_blosum_weighted.to('cuda', non_blocking=True)
-                #     batch_data_blosum.to('cuda', non_blocking=True)
+                #train_loader = [ x.to('cuda', non_blocking=True) if isinstance(x,torch.Tensor) else x for x in dataset.values()]
+                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
+                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
+                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
+                    batch_dataset.to('cuda', non_blocking=True)
+                    batch_patristic.to('cuda', non_blocking=True)
+                    batch_blosum_weighted.to('cuda', non_blocking=True)
+                    batch_data_blosum.to('cuda', non_blocking=True)
 
     elif method == "batch_by_clade":
         clades_labels = []
@@ -916,7 +918,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                                          build_config.align_seq_len,
                                                                          build_config.aa_probs)
             clades_blosums_weighted.append(blosum_weighted)
-            clade_data_blosum = DraupnirUtils.blosum_embedding_encoder(blosum, clade_aa_frequencies, build_config.align_seq_len,
+            clade_data_blosum = DraupnirUtils.blosum_encoding(blosum, clade_aa_frequencies, build_config.align_seq_len,
                                                          build_config.aa_probs, clade_dataset, False)
             clades_data_blosums.append(clade_data_blosum.cpu())
         Clades_Datasets = CladesDataset(clades_labels, clades_datasets, clades_patristic, clades_blosums_weighted,

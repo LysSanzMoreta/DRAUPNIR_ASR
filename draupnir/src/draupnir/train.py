@@ -4,10 +4,13 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
+from collections import defaultdict
+
 import torch
 import numpy as np
 from dataclasses import dataclass
-
+import draupnir
+import draupnir.utils as DraupnirUtils
 @dataclass
 class TrainConfig:
     beta_a: float = 1
@@ -32,14 +35,16 @@ def train_batch(svi,training_function_input):
     :param dataloader train_loader: Pytorch dataloader
     :param namedtuple args
     """
-    patristic_matrix = training_function_input["patristic_matrix_model"]
-    cladistic_matrix = training_function_input["cladistic_matrix_full"]
-    dataset_blosum = training_function_input["dataset_train_blosum"]
+    patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
+    cladistic_matrix_train = training_function_input["cladistic_matrix_train"]
+    dataset_train_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
-    map_estimates = training_function_input["map_estimates"]
+    guide = training_function_input["guide"]
     args = training_function_input["args"]
     train_loss = 0.0
     seq_lens = []
+    map_estimates = defaultdict()
     for batch_number, dataset in enumerate(train_loader):
         for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
                 dataset["batch_name"],
@@ -52,18 +57,51 @@ def train_batch(svi,training_function_input):
                 batch_blosum_weighted = batch_blosum_weighted.cuda()
                 batch_patristic = batch_patristic.cuda()
                 batch_data_blosum = batch_data_blosum.cuda()
+
+            batch_datasets = {"int":batch_dataset,
+                              "blosum":batch_data_blosum,
+                              "onehot":torch.ones(batch_dataset.shape[0])}
             seq_lens += batch_dataset[:, 0, 0].tolist()
-            train_loss += svi.step(batch_dataset,
+            guide_map_estimates = guide(batch_datasets,
+                                  batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
+                                  cladistic_matrix_train,
+                                  dataset_train_blosum,
+                                  batch_blosum=None,
+                                  map_estimates=None)  # only saving 1 sample
+
+            for key,val in guide_map_estimates.items():
+                if key in ["latent_z"]:
+                    guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2,tensor=val)
+                    if key not in map_estimates:
+                        map_estimates[key] = val
+                    else:
+                        map_estimates[key] = torch.concat([map_estimates[key],guide_map_estimates[key]],dim=1)
+                elif key in ["alpha","sigma_n","sigma_f","lambd"]:
+                    guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
+                    map_estimates[key] = val
+                elif key in ["rnn_final_hidden_state","rnn_hidden_states","z_scale","z_loc"]:
+                    if key not in map_estimates:
+                        map_estimates[key] = val
+                    else:
+                        map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+                elif key in ["rnn_final_bidirectional"]:
+                    if key not in map_estimates:
+                        map_estimates[key] = val
+                    else:
+                        map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+
+
+            train_loss += svi.step(batch_datasets,
                                    batch_patristic,
-                                   cladistic_matrix,
+                                   cladistic_matrix_full,
                                    batch_data_blosum,
                                    batch_blosum_weighted,
-                                   map_estimates)
+                                   map_estimates) #TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
-    return total_epoch_loss_train
+    return total_epoch_loss_train, map_estimates
 
 def train(svi,training_function_input):
     """Non batched training
@@ -165,7 +203,7 @@ def train_guided_latest(svi,training_function_input):
     """
     patristic_matrix = training_function_input["patristic_matrix_model"]
     cladistic_matrix = training_function_input["cladistic_matrix_full"]
-    dataset_blosum = training_function_input["dataset_train_blosum"]
+    #dataset_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
     map_estimates = training_function_input["map_estimates"]
     args = training_function_input["args"]
@@ -175,12 +213,13 @@ def train_guided_latest(svi,training_function_input):
     #TODO: implement Accelerator from accelerate dataclass
 
     for batch_number,datasets in enumerate(train_loader):
-
-
+        print("made it here")
 
         exit()
+        if args.use_cuda:
+            datasets = {key: val.cuda() for key, val in datasets.items()}
 
-        train_loss += svi.step(dataset, patristic_matrix, cladistic_matrix, dataset_blosum, None,
+        train_loss += svi.step(datasets, patristic_matrix, cladistic_matrix, dataset_blosum, None,
                                map_estimates)  # None is the clade blosum, it's None because here we do not do clade batching #TODO: change to dict
 
 def select_training_function(clades_dict,svi, training_function_input):
