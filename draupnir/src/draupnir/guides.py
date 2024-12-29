@@ -13,13 +13,14 @@ import torch.nn as nn
 import torch
 import torch.distributions.constraints as constraints
 import pyro.distributions as dist
-from draupnir.models import *
+from draupnir.models_utils import *
 import draupnir.models_utils as DraupnirModelsUtils
 class DRAUPNIRGUIDES(EasyGuide):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         super(DRAUPNIRGUIDES, self).__init__(draupnir_model)
         self.guide_type = ModelLoad.args.select_guide
         self.draupnir = Draupnir
+        self.args = ModelLoad.args
         self.encoder_rnn_input_size = self.draupnir.aa_probs
         self.dataset_train_blosum = self.draupnir.dataset_train_blosum
         self.batch_size = self.draupnir.batch_size
@@ -28,13 +29,24 @@ class DRAUPNIRGUIDES(EasyGuide):
             self.h_0_GUIDE = nn.Parameter(self.draupnir.pretrained_params["h_0_GUIDE"], requires_grad=True).to(self.draupnir.device)
         else:
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
-        self.encoder = RNNEncoder(self.draupnir.align_seq_len, self.draupnir.aa_probs,self.draupnir.n_leaves, self.draupnir.gru_hidden_dim, self.draupnir.z_dim, self.encoder_rnn_input_size,self.draupnir.kappa_addition,self.draupnir.num_layers,self.draupnir.pretrained_params)
-        self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,self.draupnir.pretrained_params)
+
         self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]),constraint=constraints.positive,event_dim=0) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
         self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
-
+        if self.args.draupnir_version == "2":
+            # self.encoder = nn.TransformerEncoder(
+            #     nn.TransformerEncoderLayer(d_model=self.draupnir.aa_probs, nhead=1,dim_feedforward = self.draupnir.gru_hidden_dim),
+            #     num_layers=1
+            # )
+            #self.encoder = Transformer(self.draupnir.align_seq_len,self.draupnir.aa_probs,self.draupnir.gru_hidden_dim, self.draupnir.z_dim,self.encoder_rnn_input_size, self.draupnir.kappa_addition,self.draupnir.num_layers)
+            out_dim = self.draupnir.aa_probs if self.draupnir.aa_probs%2 == 0 else self.draupnir.aa_probs + 1
+            self.encoder = Transformer(out_dim,self.draupnir.align_seq_len)
+            self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,out_dim)
+            self.positional_encodings = PositionalEncodings(self.draupnir.align_seq_len, out_dim, 10000)
+        else:
+            self.encoder = RNNEncoder(self.draupnir.align_seq_len, self.draupnir.aa_probs,self.draupnir.n_leaves, self.draupnir.gru_hidden_dim, self.draupnir.z_dim, self.encoder_rnn_input_size,self.draupnir.kappa_addition,self.draupnir.num_layers,self.draupnir.pretrained_params)
+            self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,self.draupnir.aa_probs)
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
 
@@ -50,8 +62,12 @@ class DRAUPNIRGUIDES(EasyGuide):
                 return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                                  batch_blosum)
             else:
-                return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                        batch_blosum=None,map_estimates=map_estimates)
+                if self.args.draupnir_version == "2":
+                    return self.guide_batch_transformer(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+                                            batch_blosum=None,map_estimates=map_estimates)
+                else:
+                    return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+                                            batch_blosum=None,map_estimates=map_estimates)
         else:
             return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                         batch_blosum=None,map_estimates=map_estimates)
@@ -134,6 +150,49 @@ class DRAUPNIRGUIDES(EasyGuide):
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
                 }
+
+    def guide_batch_transformer(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+        #pyro.module("encoder", self.encoder) #the transformer is only the scaled dot attention
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+        aa_sequences = datasets["blosum"]
+
+        nseqs = aa_sequences.shape[0]
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
+            # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+            # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
+            # lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
+
+            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(aa_sequences)  # Highlight: i) Makes linear projection ii) Makes the feature dimensions even to be able to apply the rotational embeddings
+            queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            #with pyro.plate("plate_guide", aminoacid_sequences.shape[0], dim=-1):
+            encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Z ?
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            assert latent_z.shape == (self.draupnir.z_dim, nseqs)
+
+        return {"alpha": alpha,
+                "sigma_n": sigma_n,
+                "sigma_f": sigma_f,
+                "lambd": lambd,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                "rnn_final_bidirectional":encoder_output["rnn_final_bidirectional"],
+                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                }
+
 
     def guide_batch_by_clade(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
 

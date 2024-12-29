@@ -27,6 +27,29 @@ def index_generator(indexes):
         i = (i + 1) % len(indexes)
         return i ##?
 
+def fill_estimates(guide_map_estimates,map_estimates):
+    for key, val in guide_map_estimates.items():
+        if key in ["latent_z"]:
+            guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2, tensor=val)
+            if key not in map_estimates:
+                map_estimates[key] = val
+            else:
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+        elif key in ["alpha", "sigma_n", "sigma_f", "lambd"]:
+            guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
+            map_estimates[key] = val
+        elif key in ["rnn_final_hidden_state", "rnn_hidden_states", "z_scale", "z_loc"]:
+            if key not in map_estimates:
+                map_estimates[key] = val
+            else:
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+        elif key in ["rnn_final_bidirectional"]:
+            if key not in map_estimates:
+                map_estimates[key] = val
+            else:
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+    return  guide_map_estimates, map_estimates
+
 def train_batch(svi,training_function_input):
     """Regular batch training without shuffling datatasets
     :param svi: pyro infer engine
@@ -69,26 +92,28 @@ def train_batch(svi,training_function_input):
                                   batch_blosum=None,
                                   map_estimates=None)  # only saving 1 sample
 
-            for key,val in guide_map_estimates.items():
-                if key in ["latent_z"]:
-                    guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2,tensor=val)
-                    if key not in map_estimates:
-                        map_estimates[key] = val
-                    else:
-                        map_estimates[key] = torch.concat([map_estimates[key],guide_map_estimates[key]],dim=1)
-                elif key in ["alpha","sigma_n","sigma_f","lambd"]:
-                    guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
-                    map_estimates[key] = val
-                elif key in ["rnn_final_hidden_state","rnn_hidden_states","z_scale","z_loc"]:
-                    if key not in map_estimates:
-                        map_estimates[key] = val
-                    else:
-                        map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
-                elif key in ["rnn_final_bidirectional"]:
-                    if key not in map_estimates:
-                        map_estimates[key] = val
-                    else:
-                        map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+            # for key,val in guide_map_estimates.items():
+            #     if key in ["latent_z"]:
+            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2,tensor=val)
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key],guide_map_estimates[key]],dim=1)
+            #     elif key in ["alpha","sigma_n","sigma_f","lambd"]:
+            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
+            #         map_estimates[key] = val
+            #     elif key in ["rnn_final_hidden_state","rnn_hidden_states","z_scale","z_loc"]:
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+            #     elif key in ["rnn_final_bidirectional"]:
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+
+            guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates)
 
 
             train_loss += svi.step(batch_datasets,
@@ -177,7 +202,7 @@ def random_masking(data):
     return random_mask
 
 
-def train_guided_latest(svi,training_function_input):
+def train_transformer(svi,training_function_input):
     """Masked diffusion trasformer
     https://github.com/apapiu/transformer_latent_diffusion/blob/main/tld/train.py
     https://medium.com/@mickael.boillaud/denoising-diffusion-model-from-scratch-using-pytorch-658805d293b4
@@ -201,26 +226,75 @@ def train_guided_latest(svi,training_function_input):
 
 
     """
-    patristic_matrix = training_function_input["patristic_matrix_model"]
-    cladistic_matrix = training_function_input["cladistic_matrix_full"]
-    #dataset_blosum = training_function_input["dataset_train_blosum"]
+    patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
+    cladistic_matrix_train = training_function_input["cladistic_matrix_train"]
+    dataset_train_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
-    map_estimates = training_function_input["map_estimates"]
+    guide = training_function_input["guide"]
     args = training_function_input["args"]
     train_loss = 0.0
     seq_lens = []
-    train_config = TrainConfig()
-    #TODO: implement Accelerator from accelerate dataclass
+    map_estimates = defaultdict()
+    for batch_number, dataset in enumerate(train_loader):
+        for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
+                dataset["batch_name"],
+                dataset["batch_data"],
+                dataset["batch_patristic"],
+                dataset["batch_blosum_weighted"],
+                dataset["batch_data_blosum"]):
+            if args.use_cuda:
+                batch_dataset = batch_dataset.cuda()
+                batch_blosum_weighted = batch_blosum_weighted.cuda()
+                batch_patristic = batch_patristic.cuda()
+                batch_data_blosum = batch_data_blosum.cuda()
 
-    for batch_number,datasets in enumerate(train_loader):
-        print("made it here")
+            batch_datasets = {"int": batch_dataset,
+                              "blosum": batch_data_blosum,
+                              "onehot": torch.ones(batch_dataset.shape[0])}
+            seq_lens += batch_dataset[:, 0, 0].tolist()
+            guide_map_estimates = guide(batch_datasets,
+                                        batch_patristic,
+                                        # recall that the patristic is n_seqs + 1 to re-add the node names
+                                        cladistic_matrix_train,
+                                        dataset_train_blosum,
+                                        batch_blosum=None,
+                                        map_estimates=None)  # only saving 1 sample
 
-        exit()
-        if args.use_cuda:
-            datasets = {key: val.cuda() for key, val in datasets.items()}
+            # for key,val in guide_map_estimates.items():
+            #     if key in ["latent_z"]:
+            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2,tensor=val)
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key],guide_map_estimates[key]],dim=1)
+            #     elif key in ["alpha","sigma_n","sigma_f","lambd"]:
+            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
+            #         map_estimates[key] = val
+            #     elif key in ["rnn_final_hidden_state","rnn_hidden_states","z_scale","z_loc"]:
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+            #     elif key in ["rnn_final_bidirectional"]:
+            #         if key not in map_estimates:
+            #             map_estimates[key] = val
+            #         else:
+            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
 
-        train_loss += svi.step(datasets, patristic_matrix, cladistic_matrix, dataset_blosum, None,
-                               map_estimates)  # None is the clade blosum, it's None because here we do not do clade batching #TODO: change to dict
+            guide_map_estimates, map_estimates = fill_estimates(guide_map_estimates, map_estimates)
+
+            train_loss += svi.step(batch_datasets,
+                                   batch_patristic,
+                                   cladistic_matrix_full,
+                                   batch_data_blosum,
+                                   batch_blosum_weighted,
+                                   map_estimates)  # TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
+            # Normalize loss
+            # torch.cuda.reset_max_memory_allocated() #necessary?
+    normalizer_train = sum(seq_lens)
+    total_epoch_loss_train = train_loss / normalizer_train
+    return total_epoch_loss_train, map_estimates
 
 def select_training_function(clades_dict,svi, training_function_input):
     """Selects a training function
@@ -233,7 +307,7 @@ def select_training_function(clades_dict,svi, training_function_input):
 
     if args.draupnir_version == "2":
         print("Using Draupnir 2.0")
-        training_function = training_method(train_guided_latest,
+        training_function = training_method(train_transformer,
                                             svi,
                                             training_function_input)
 

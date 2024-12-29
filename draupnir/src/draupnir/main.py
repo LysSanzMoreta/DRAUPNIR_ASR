@@ -465,6 +465,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         else:
             Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
+
     else:  # batching
         print("Batching! (currently batch_size == None or batch_size != 1)")
         assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"

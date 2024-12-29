@@ -7,6 +7,7 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 # TORCH
 import torch.nn as nn
 import torch
+import  torch.nn.functional as F
 from torch.distributions import constraints
 import math
 from ignite.engine import Engine, Events
@@ -16,7 +17,6 @@ from typing import Callable
 from pyro.infer import SVI
 from pyro import distributions as dist
 from pyro.distributions.torch_distribution import TorchDistribution
-
 
 
 class RNNEncoder(nn.Module):
@@ -213,6 +213,14 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         output_means = self.tanh(self.fc2_means(self.fc1_means(output)))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas
+# class TransformerH(nn.Module):
+#     def __init__(self,align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers):
+#         super(TransformerH, self).__init__()
+#         self.aa_prob = aa_prob
+#         self.fc = nn.Linear(gru_hidden_dim,aa_prob)
+#     def forward(self,input):
+#         out = self.fc(input)
+#         return  out
 class Embed(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(Embed, self).__init__()
@@ -236,13 +244,14 @@ class EmbedComplex(nn.Module):
         output = self.softmax(self.fc2(output))
         return output
 class EmbedComplexEncoder(nn.Module):
-    def __init__(self,aa_probs,embedding_dim,pretrained_params):
+    def __init__(self,input_dim,embedding_dim,out_dim):
         super(EmbedComplexEncoder, self).__init__()
-        self.aa_probs = aa_probs
+        self.input_dim = input_dim
+        self.out_dim = out_dim
         self.embedding_dim = embedding_dim
         self.softmax = nn.Softmax(dim=-1)
-        self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
-        self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
+        self.fc1 = nn.Linear(self.input_dim,self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim,self.out_dim)
 
     def forward(self,input):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
@@ -255,6 +264,7 @@ class GPKernel(ABC):
     @abstractmethod
     def forward(self, t: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
+
 class SVIEngine(Engine):
     def __init__(self, *args, step_args=None, **kwargs):
         self.svi = SVI(*args, **kwargs)
@@ -263,6 +273,7 @@ class SVIEngine(Engine):
 
     def _update(self, engine, batch):
         return -engine.svi.step(batch, **self._step_args)
+
 class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
@@ -283,6 +294,7 @@ class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
         first_term = self.sigma_f ** 2
         second_term = torch.exp(-t / self.lamb)
         return first_term * second_term + self.sigma_n ** 2 * torch.eye(t.shape[0])
+
 class OUKernel_Fast(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
@@ -309,6 +321,7 @@ class OUKernel_Fast(GPKernel):
         noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
         sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
         return first_term * second_term + sigma_n ** 2 * noise
+
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
@@ -327,6 +340,7 @@ class OUKernel_Fast_Sparse(GPKernel):
         first_term = self.sigma_f ** 2
         second_term = torch.exp(-t / self.lamb[:, None, None])
         return first_term[:, None, None] * second_term + self.sigma_n[:, None, None] ** 2
+
 class VSGP(TorchDistribution):
     """
     Variational Sparse Gaussian Process distribution
@@ -385,6 +399,254 @@ class VSGP(TorchDistribution):
         representing this distribution's support.
         """
         return self.support()
+
+class PositionalEncodings():
+    def __init__(self,max_seq_len,feat_dim,base):
+        self.max_seq_len = max_seq_len
+        self.feat_dim = feat_dim
+        self.base = base
+        self.positions_idx = torch.arange(0, self.max_seq_len)[None, :]  # [1,L]
+        self.dimensions_idx = torch.arange(0, self.feat_dim // 2 )
+    def align(self,tensor, axes, ndim=None): #TODO: Do I need this? Does not seem to do anything
+        """Exapnd dimensions?
+        axes：
+        ndim：
+        """
+        assert len(axes) == tensor.ndim
+        assert ndim or min(axes) >= 0
+        ndim = ndim or max(axes) + 1
+        indices = [None] * ndim
+        for i in axes:
+            indices[i] = slice(None)
+        return tensor[indices]
+
+    def sinusoidal_encodings(self):
+        """
+        Implements trigonometric or sinusoidal positional encodings
+
+        1) Calculation of frequencies: feat_dim=10, base=10000
+        MethodA : torch.pow(self.base , -2 * torch.arange(0,self.feat_dim//2) / self.feat_dim)
+        [0,1,2,3,4] -> divide by dim ->  [0,0,1,0.2,0.3,0.4] -> [0,-0.2,-0.4,-0.6,-0.8] -> power -> [10000⁰, 10000^{-0.2}, 10000^{-0.4},10000^{-0.6}, 10000^{-0.8}] (already inverted)
+        MethodB:  1/ (self.base**(torch.arange(0,self.feat_dim,2)/self.feat_dim))
+        [0,2,4,6,8] -> divide by dim -> [0,0.2,0.4,0.6,0.8] --> power -> [10000⁰, 10000^{0.2}, 10000^{0.4},10000^{0.6}, 10000^{0.8}] -> invert -> [1/10000⁰, 1/10000^{0.2}, ....]
+
+        2) Vector multiplication via Einstein summation:
+
+        y = a1x1 + a2x2 + ... + anxn ->    y = sum(aixi) -> ii
+
+        #Example1: Selects the diagonal values (00,11,22) and sums them so the result is 15 (2 + 5 + 8)
+        # >>> torch.einsum("ii",torch.tensor([[1,2,3],[4,5,6],[7,8,9]]))
+        # 15
+        #Example2: 1D vector multiplication: c00 = a0*b0; c01 = a0*b1 ....
+        # >>> a = torch.tensor([3,4,5])
+        # >>> b = torch.tensor([6,7,8])
+        # >>> torch.einsum("i,j->ij",a,b)
+        tensor([[18, 21, 24],
+                [24, 28, 32],
+                [30, 35, 40]])
+        # The above is equivalent to torch.einsum("...,i->...i",a,b) and to torch.matmul(a[:,None],b[None,:])
+
+        3) Stacking the sine and cosine results in an overlapping manner:
+
+        Given the frequencies for a single feature vector of size 3 (feat_dim) at time step 0 of the sequence
+        frequencies  = [\theta1, \theta2, \theta3]
+        sine_frequencies = [sin\theta1, sin\theta2, sin\theta3]
+        cosine_frequencies = [cos\theta1, cos\theta2, cos\theta3]
+
+        stack = torch.stack([sine_frequencies,cosine_frequencies],dim=-2)
+        stack
+             [[sin\theta1,cos\theta1],
+              [sin\theta2,cos\theta2],
+              [sin\theta3,cos\theta3]]
+        stack.flatten(-2)
+             [sin\theta1,cos\theta1,sin\theta2,cos\theta2,sin\theta3,cos\theta3]
+        when we index the odd positions of the flattened stack latter, we will get the values for the cosine and fof the even, the sine
+
+        SOURCE: https://github.com/bojone/bert4keras/blob/master/bert4keras/layers.py#L845
+
+        returns:
+            :param sinusoidal_embeddings of shape [L,feat_dim*2]
+
+
+
+        """
+
+        frequencies= torch.pow(self.base , -2 * self.dimensions_idx / self.feat_dim) #frequencies or angle rates #[feat_dim]
+
+        #frequencies = 1/ (self.base**(torch.arange(0,self.feat_dim,2)/self.feat_dim)) #equivalent code, but needs one more operation
+        frequencies = torch.einsum('...,d->...d', self.positions_idx,frequencies) #1D vector multiplication [L,feat_dim] #equivalent to torch.einsum('i,j->ij') or torch.matmul(a[:,None],b[None,:])
+        #Highlight: The upcoming code is a bit of a cumbersome one and I am not sure why they do not just keep the cosine and sine values separated always,
+        # and avoid indexing. I do not think they are ever used together...
+        sinusoidal_embeddings = torch.stack([torch.sin(frequencies), torch.cos(frequencies)], axis=-1) #[1,L,feat_dim//2,2]
+        sinusoidal_embeddings = torch.flatten(sinusoidal_embeddings, -2) #[1,L,feat_dim]
+
+        return sinusoidal_embeddings
+    def apply_rotation(self,sinusoidal_embedding, inputs):
+        """
+        Implements the necessary steps to prepare the tensors for rotation as in Equation 34 in the paper https://arxiv.org/pdf/2104.09864
+        1) Split the hidden dimensions from the inputs (key and query) into chunks of 2
+
+        2) Rotation in 2D (x \in R^2 for the feature dimension)
+
+        W = [[W00,W01],       X = [X0,X1]  ----->  X' = W@X = [[W00.X0 + W01.X1], = [X0' , X1']
+             [W10,W11]]                                    [W10.X0 + W10.X1]]
+        R = [[cosm\theta, -sinm\theta], ------>  R@X' = [[cosm\theta1.X0', -sinm\theta1.X0'], ---------->Split up ----------> R@X' = [[cosm\theta1] *[[x0], + [[sinm\theta1] *[[-x1],
+             [sinm\theta, cosm\theta]]                 [sinm\theta1.X1', cosm\theta1.X1']]                                          [cosm\theta1]] [x1]]     [sinm\theta1]   [x0]]
+
+        3) Rotation in n-dimensions
+
+        R@X' = [[cosm\theta1], *[[x0], + [[sinm\theta1], *[[-x1],
+                [cosm\theta1],  [x1],     [sinm\theta1],   [x0],
+                [cosm\theta2],  [x2],     [sinm\theta2],   [x3],
+                [cosm\theta2]]  [x3]]     [sinm\theta2]]   [x2]]
+
+        Implements adjacent rope rank, similar to https://github.com/Tongjilibo/bert4torch/blob/ce644b9cefa72801a4a23366cb2cd9b895511951/bert4torch/layers/position_encoding.py#L170-L256C6
+        return
+            :param inputs of shape [N,L,...,feat_dim], where L is the max length. Inputs can be the keys and queries
+        """
+        ndim = inputs[0].ndim
+        sinusoidal_embedding = self.align(sinusoidal_embedding,[0, 1, -1], ndim) #[1,L,featdim]
+        cos_positions = torch.repeat_interleave(sinusoidal_embedding[...,1::2],2,-1) #We need to duplicate the frequencies so that we can perform the rotation in nD (\theta1,\theta1,\theta2,\theta2) #repeats the last dimension of the tensor such that [0,1,2,3,4,5] -> [0,0,1,1,2,2,3,3]
+        sine_positions = torch.repeat_interleave(sinusoidal_embedding[...,::2],2,-1)
+
+        #Highlight: from https://github.com/bojone/bert4keras/blob/master/bert4keras/backend.py#L359
+        rotated_outputs = []
+        for x in inputs:
+            tensor2 = torch.stack([-x[..., 1::2], x[..., ::2]], ndim) #Highlight: need to use ndim, no 2
+            tensor2 = torch.reshape(tensor2, x.shape) #these 2 lines turn -tensor2- into [-x2,x1,-x4,x3, ....]
+            # x1,x2 = x[...,:x.shape[-1]//2],x[...,x.shape[-1]//2:] #This comes from the bert2torch implementation and it is not correct in this setting perhaps it needs a different context
+            # tensor2 = torch.cat([-x2,x1], dim=x1.ndim - 1)
+            rotated_outputs.append(x * cos_positions + tensor2 * sine_positions) #Equation 34
+
+        return rotated_outputs
+    def apply(self,input):
+        sinusoidal_embeddings = self.sinusoidal_encodings()  # independent of the input content except for the maxlen and featdim
+
+        # key = self.query_fc(input)
+        # query = self.key_fc(input)
+        key = input
+        query = input
+        #values = input
+
+        kw, qw = self.apply_rotation(sinusoidal_embeddings, [key, query]) #TODO: WARNING : Switched qw,kw
+
+        return kw,qw
+
+class Transformer(nn.Module):
+    def __init__(self,input_dim,align_seq_len):
+        super(Transformer, self).__init__()
+        self.enable_flash = True
+        self.dropout_rate = 0
+        self.input_dim = input_dim
+        self.hidden_dim = input_dim #it is not a bug, in this case we keep it the same
+        self.align_seq_len = align_seq_len
+        self.num_heads = 2
+        self.use_bias = False
+        self.tril_mask = True
+        self.key_fc = nn.Linear(self.input_dim,self.align_seq_len * self.num_heads,
+                                  bias=self.use_bias,
+                                  )  # encoder hidden states
+        self.output_fc = nn.Linear(self.input_dim,self.input_dim * self.num_heads,
+                                  bias=self.use_bias,
+                                  )  # encoder hidden states
+    def sequence_masking(self,x, mask=None, value=0, axis=None, bias=None, return_mask=False):
+        """为序列条件mask的函数
+        mask: 形如(batch_size, seq_len)的bool矩阵；
+        value: mask部分要被替换成的值，可以是'-inf'或'inf'；
+        axis: 序列所在轴，默认为1；
+        bias: 额外的偏置项，或者附加的mask；
+        return_mask: 是否同时返回对齐后的mask。
+        """
+        xndim = x.ndim
+        if not (mask is None and bias is None):
+            if mask is None:
+                if bias.dtype == 'bool':
+                    mask = bias
+                    x = torch.where(mask, x, value)
+                else:
+                    x = x + bias
+            else:
+                if axis is None:
+                    axes = [1]
+                elif isinstance(axis, list):
+                    axes = axis
+                else:
+                    axes = [axis]
+                axes = [axis if axis >= 0 else xndim + axis for axis in axes]
+                if mask.dtype != 'bool':
+                    mask = mask.bool()
+
+                full_mask = self.align(mask, [0, axes[0]], xndim)
+                for axis in axes[1:]:
+                    full_mask = full_mask & self.align(mask, [0, axis], xndim)
+
+                mask = full_mask
+                if bias is None:
+                    x = torch.where(mask, x, value)
+                elif bias.dtype == 'bool':
+                    mask = mask & bias
+                    x = torch.where(mask, x, value)
+                else:
+                    x = torch.where(mask, x + bias, value)
+
+        if return_mask:
+            return x, mask
+        else:
+            return x
+    def attention_normalize(self, a:torch.Tensor, dim:float=-1, method:str='softmax'):
+        """ Normalize or bound the attention values between 0 and 1
+        methods:
+            softmax；
+            squared_relu: from the Gated Attention Unit with a GLU(Gated Linear Unit) https://arxiv.org/abs/2202.10447 ；
+            softmax_plus: Uses entropy invariance scaling for datasets using longer lengths  https://kexue.fm/archives/8823 。
+        """
+        if method == 'softmax':
+            return F.softmax(a, dim=dim)
+        else:
+            mask = (a > -1e11).float()
+            l = torch.maximum(torch.sum(mask, dim=dim, keepdims=True), torch.tensor(1).to(mask))
+            if method == 'squared_relu':
+                return F.relu(a) ** 2 / l
+            elif method == 'softmax_plus':
+                return F.softmax(a * torch.log(l) / torch.log(torch.tensor(512.0)).to(mask), dim=dim)
+        return a
+    def attention(self,query,keys,values,mask):
+        att_scores = torch.einsum('bmd,bnd->bmn', query, keys) / self.hidden_dim ** 0.5 #attention scores/logits(softmax)
+        att_scores = self.attention_normalize(att_scores,-1,method="softmax") #[nseqs,L,L]
+
+
+        #Original code is for seq2seq https://github.com/bojone/bert4keras/blob/2072f06dd410ea885a9c6850ba539effce50b22b/bert4keras/layers.py#L1485-L1487
+        # bias = self.query_fc(input) / 2
+        # att_scores = att_scores[:, None] + bias[:, ::2, None] + bias[:, 1::2, :, None] #in the original code the bias is divided in 2 parts because bias[:,::2,None] belongs to the query and bisas[:,1::2,:,None] belongs to the keys
+
+        #Method2: https://github.com/Tongjilibo/bert4torch/blob/ce644b9cefa72801a4a23366cb2cd9b895511951/bert4torch/layers/global_point.py#L90-L93
+        bias_input = self.key_fc(keys)  # [..., heads*feat_dim] #in the original the inputs are 1 big array?
+        bias2 = torch.stack(torch.chunk(bias_input, self.num_heads, dim=-1), dim=-2).transpose(1,2) / 2  # [btz, heads, seq_len, seq_len*num_heads]
+
+        logits = att_scores.unsqueeze(1) + bias2  # [batch_size, num_heads, seq_len, seq_len]
+
+        if self.tril_mask:
+            tril_mask = torch.triu(torch.ones_like(att_scores[0]), 0)
+            tril_mask = tril_mask.bool()
+        else:
+            tril_mask = None
+
+        att_scores = self.sequence_masking(att_scores, mask, -torch.inf, [2, 3], tril_mask) #TODO: understand and simplify?
+
+        print(att_scores.shape)
+        context_vector = torch.einsum('bij, bjd -> bid', att_scores, values) #[N,L,feat_dim/hidden_dim?]
+
+        context_vector = self.output_fc(context_vector) #https://github.com/Tongjilibo/bert4torch/blob/ce644b9cefa72801a4a23366cb2cd9b895511951/bert4torch/layers/attention.py#L725C9-L725C91
+        #TODO: What to do with the output when num_heads > 2
+
+        #TODO: Average? I need z_mean and z_scale for the encoder and logits for the decoder
+
+        return {"attention_scores":att_scores,
+                "context_vector":context_vector, #TODO: Can be used as logits? [nseqs, alignlen, feat_dim]
+                "attention_logits":logits}
+    def forward(self,query,key,values,mask):
+        return self.attention(query,key,values,mask)
+
 
 def masking(dataset):
     """Creating a mask for the gaps (0) in the data set"""

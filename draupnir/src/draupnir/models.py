@@ -14,6 +14,8 @@ from draupnir.models_utils import *
 import pyro
 import pyro.distributions as dist
 
+
+
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
 class DRAUPNIRModelClass(nn.Module):
@@ -407,7 +409,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
 
         return sampling_out
 
-class DRAUPNIRModel_classic_no_blosum_old(DRAUPNIRModelClass):
+class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
     def __init__(self,ModelLoad):
@@ -491,7 +493,7 @@ class DRAUPNIRModel_classic_no_blosum_old(DRAUPNIRModelClass):
 
         return sampling_out
 
-class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
+class DRAUPNIRModel_transformer(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings
     https://github.com/apapiu/transformer_latent_diffusion/tree/main
@@ -499,9 +501,11 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.rnn_input_size = self.z_dim
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = Transformer(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.positional_encodings = PositionalEncodings(self.max_seq_len,self.gru_hidden_dim,10000) #TODO: gru_hidden_size might be wrong
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
+        sinusoidal_embeddings = self.sinusoidal_encodings()  # independent of the input content except for the maxlen and featdim
 
         batch_nodes = datasets["int"][:, 0, 1]
         # Highlight: Register GRU module
