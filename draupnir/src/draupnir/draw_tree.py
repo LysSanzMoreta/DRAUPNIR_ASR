@@ -14,6 +14,15 @@ import matplotlib.pyplot as plt
 import matplotlib
 import pickle, os
 
+#highlight: these colormaps are already registered in draw_tree.py
+# color_map21 = matplotlib.colors.ListedColormap(
+#     ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
+#      "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
+#      "black"], name="21colormap")
+# plt.colormaps.register(cmap=color_map21)
+# color_map148 = matplotlib.colors.ListedColormap(list(matplotlib.colors.CSS4_COLORS.values()), name="148colormap")
+# plt.colormaps.register(cmap=color_map148)
+
 def renaming(tree):
     """Rename the internal nodes, unless the given newick file already has the names on it
     :param ete3-tree tree: ete3 tree in format 1"""
@@ -84,12 +93,11 @@ def colour_tree_by_clades_simple(name,clades_dict_all, tree, data_folder,rename_
     :param ete3-tree: Ete3 formatted tree
     :param str data_folder: folder where the files will be stores, such as the sequences fasta file or the alignment file
     :param bool rename_internal_nodes: If true, the internal nodes are assigned a letter in front of the number (the number is given by the tree file)"""
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'gist_rainbow'][0]
+    #color_map_name = color_map21 if len(clades_dict_all) <= 21 else 'gist_rainbow' #TODO: Old delete
+    color_map_name = "gist_rainbow" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
+
+
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     clrs = [matplotlib.colors.rgb2hex(clrs(i)) for i in range(clrs.N)]
     node_styles = []
@@ -133,12 +141,10 @@ def colour_tree_by_clades_complex(name,clades_dict_all, tree, data_folder,rename
     :param ete3-tree: Ete3 formatted tree
     :param str data_folder: folder where the files will be stores, such as the sequences fasta file or the alignment file
     :param bool rename_internal_nodes: If true, the internal nodes are assigned a letter in front of the number (the number is given by the tree file)"""
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+    #color_map_name = color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral' #TODO: Old delete
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
+
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     clrs = [matplotlib.colors.rgb2hex(clrs(i)) for i in range(clrs.N)]
     node_styles = []

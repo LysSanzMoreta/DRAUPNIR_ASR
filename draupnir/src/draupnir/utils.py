@@ -115,7 +115,7 @@ def create_blosum(aa_probs,subs_matrix_name):
     subs_matrix = Bio.Align.substitution_matrices.load(subs_matrix_name)
     aa_list = list(aminoacid_names_dict(aa_probs).keys())
     index_gap = aa_list.index("-")
-    aa_list[index_gap] = "*" #in the blosum matrix gaps are represanted as *
+    aa_list[index_gap] = "*" #in the blosum matrix gaps are represented as *
 
     subs_dict = defaultdict()
     subs_array = np.zeros((len(aa_list) , len(aa_list) ))
@@ -174,6 +174,9 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
                 clustering_condition = average_root_distance -2*std_root_distance
         elif name in ["Coral_all","Coral_Faviina","SH3_pf00018_larger_than_30aa"] or "calcitonin" in name:
             clustering_condition = average_root_distance - std_root_distance
+        elif name in ["ABO"]:
+            print("made it here")
+            clustering_condition = average_root_distance - 3*std_root_distance
         else:
             clustering_condition = average_root_distance
 

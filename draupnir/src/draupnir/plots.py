@@ -25,7 +25,13 @@ import umap
 from scipy import stats,spatial
 import matplotlib
 matplotlib.use('Agg')
-
+color_map21 = matplotlib.colors.ListedColormap(
+    ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
+     "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
+     "black"], name="21colormap")
+plt.colormaps.register(cmap=color_map21)
+color_map148 = matplotlib.colors.ListedColormap(list(matplotlib.colors.CSS4_COLORS.values()), name="148colormap")
+plt.colormaps.register(cmap=color_map148)
 def plot_ELBO(train_elbo,results_dict):
     """Plots the model's error loss
     :param list train_elbo: list of accumulated error losses
@@ -401,12 +407,7 @@ def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, result
         #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
 
         tsne_proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
-        color_map21 = matplotlib.colors.ListedColormap(
-            ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-             "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-             "black"])
-
-        color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0] #nipy_spectral, gist_rainbow
+        color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
         clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
         #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
 
@@ -428,12 +429,8 @@ def plot_latent_space_tsne_by_clade(latent_space, additional_load, epoch, result
         # n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
 
         tsne_proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
-        color_map21 = matplotlib.colors.ListedColormap(
-            ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-             "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-             "black"])
 
-        color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+        color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
         clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
         # n_cols = int(len(clades_dict_all.keys()) / 30) + 1
 
@@ -470,12 +467,8 @@ def plot_latent_space_tsne_by_clade_leaves(latent_space, additional_load, epoch,
     clades_dict_all = additional_load.clades_dict_all
     #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
     tsne_proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
     if stripped:
@@ -525,12 +518,8 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         #n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
         umap_proj = reducer.fit_transform(latent_space[:, 1:])
 
-        color_map21 = matplotlib.colors.ListedColormap(
-            ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-             "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-             "black"])
 
-        color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0] #nipy_spectral, gist_rainbow
+        color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
         clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
         #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
 
@@ -552,12 +541,9 @@ def plot_latent_space_umap_by_clade(latent_space, additional_load, epoch, result
         # n_cols = DraupnirUtils.Define_batch_size(latent_space.shape[0], batch_size=False,benchmarking=True)
 
         umap_proj = reducer.fit_transform(latent_space[:, 1:])
-        color_map21 = matplotlib.colors.ListedColormap(
-            ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-             "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-             "black"])
 
-        color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+
+        color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
         clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
         # n_cols = int(len(clades_dict_all.keys()) / 30) + 1
 
@@ -594,12 +580,9 @@ def plot_latent_space_umap_by_clade_leaves(latent_space, additional_load, epoch,
     reducer = umap.UMAP()
     umap_proj =  reducer.fit_transform(latent_space[:,1:])
     #tsne_proj = TSNE(n_components=2).fit_transform(latent_space[:, 1:])
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
     if stripped:
@@ -645,12 +628,9 @@ def plot_latent_space_pca_by_clade(latent_space,additional_load,num_epochs, resu
     pca = PCA(n_components=2)
     pca.fit(latent_space[:,1:])
     latent_space_pca = pca.transform(latent_space[:,1:])
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
     stripped = True
@@ -701,12 +681,9 @@ def plot_latent_space_pca_by_clade_leaves(latent_space,additional_load,num_epoch
     pca = PCA(n_components=2)
     pca.fit(latent_space[:,1:])
     latent_space_pca = pca.transform(latent_space[:,1:])
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
 
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
+
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     #n_cols = int(len(clades_dict_all.keys()) / 30) + 1
 
@@ -734,11 +711,8 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
     print("Plotting z distances vs branch lengths...")
     clades_dict_all = additional_load.clades_dict_all
 
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]  # nipy_spectral, gist_rainbow
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
+
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     linked_nodes_dict = additional_load.linked_nodes_dict
     patristic_matrix_full = additional_load.patristic_matrix_full
@@ -794,11 +768,8 @@ def plot_pairwise_distances_only_leaves(latent_space,additional_load,num_epochs,
     print("Plotting z distances vs branch lengths...")
     clades_dict_all = additional_load.clades_dict_all
 
-    color_map21 = matplotlib.colors.ListedColormap(
-        ["plum", "navy", "turquoise", "peachpuff", "palevioletred", "red", "darkorange", "yellow", "lime", "green",
-         "dodgerblue", "blue", "purple", "magenta", "grey", "maroon", "lightcoral", "olive", "teal", "goldenrod",
-         "black"])
-    color_map_name = [color_map21 if len(clades_dict_all) <= 21 else 'nipy_spectral'][0]  # nipy_spectral, gist_rainbow
+
+    color_map_name = "nipy_spectral" if len(clades_dict_all) > 148 else "148colormap" if len(clades_dict_all) > 21 else "21colormap"
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     patristic_matrix_train = patristic_matrix_train.detach().cpu()
     patristic_matrix_train_no_indexes = patristic_matrix_train[1:,1:]

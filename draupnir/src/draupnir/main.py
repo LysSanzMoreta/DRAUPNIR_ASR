@@ -48,10 +48,10 @@ TestLoad = namedtuple('TestLoad',
                        "position_test", "internal_nodes_indexes"])
 AdditionalLoad = namedtuple("AdditionalLoad",
                             ["patristic_matrix_full", "cladistic_matrix_full","children_array", "ancestor_info_numbers", "alignment_length",
-                             "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies",
-                             "correspondence_dict","special_nodes_dict","full_name"])
+                             "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict",
+                             "descendants_dict","aa_frequencies_train","aa_frequencies_test","correspondence_dict","special_nodes_dict","full_name"])
 SettingsConfig = namedtuple("SettingsConfig",["one_hot_encoding", "model_design","aligned_seq","data_folder","full_name"])
-ModelLoad = namedtuple("ModelLoad",["z_dim","align_seq_len","device","args","build_config","leaves_nodes","n_tree_levels","gru_hidden_dim","pretrained_params","aa_frequencies","blosum",
+ModelLoad = namedtuple("ModelLoad",["z_dim","align_seq_len","device","args","build_config","leaves_nodes","n_tree_levels","gru_hidden_dim","pretrained_params","aa_frequencies_train","blosum",
                                     "blosum_max","blosum_weighted","dataset_train_blosum","variable_score","internal_nodes","graph_coo","nodes_representations_array","dgl_graph","children_dict",
                                     "closest_leaves_dict","descendants_dict","clades_dict_all","leaves_testing","plate_unordered","one_hot_encoding"])
 BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test','build_graph',"aa_probs","triTSNE","align_seq_len",
@@ -84,9 +84,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     dataset = np.load("{}/{}_dataset_numpy_{}_{}.npy".format(settings_config.data_folder,name,aligned[0], one_hot[0]),allow_pickle=True)
 
     DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
-    #DraupnirUtils.folders(("{}/Tree_Alignment_Sampled/".format(ntpath.basename(results_dir))),script_dir)
-    #DraupnirUtils.folders(("{}/ReplacementPlots_Train/".format(ntpath.basename(results_dir))), script_dir)
-    #DraupnirUtils.folders(("{}/ReplacementPlots_Test/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
@@ -94,6 +91,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     DraupnirUtils.folders(("{}/Test2_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
     if args.infer_angles:
         DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
         #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
@@ -197,9 +195,10 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     patristic_matrix = pd.read_csv("{}/{}_patristic_distance_matrix.csv".format(settings_config.data_folder,name,name), low_memory=False)
     patristic_matrix = patristic_matrix.rename(columns={'Unnamed: 0': 'rows'})
     patristic_matrix.set_index('rows',inplace=True)
-    try:
-        cladistic_matrix = pd.read_csv("{}/{}_cladistic_distance_matrix.csv".format(settings_config.data_folder,name), index_col="rows",low_memory=False)
-    except: #Highlight: For larger datasets , I do not calculate the cladistic matrix, because there is not a fast method. So no cladistic matrix and consequently , no patrocladistic matrix = evolutionary matrix
+    cladistic_path = "{}/{}_cladistic_distance_matrix.csv".format(settings_config.data_folder,name)
+    if os.path.exists(cladistic_path):
+        cladistic_matrix = pd.read_csv(cladistic_path, index_col="rows",low_memory=False)
+    else: #Highlight: For larger datasets , I do not calculate the cladistic matrix, because there is not a fast method. So no cladistic matrix and consequently , no patrocladistic matrix = evolutionary matrix
         cladistic_matrix = None
     ancestor_info = pd.read_csv("{}/{}_tree_levelorder_info.csv".format(settings_config.data_folder,name), sep="\t",index_col=False,low_memory=False)
     ancestor_info["0"] = ancestor_info["0"].astype(str)
@@ -238,7 +237,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     descendants_dict = DraupnirLoadUtils.load_serialized(open('{}/{}_Descendants_dict.p'.format(settings_config.data_folder,name), "rb"))
     descendants_dict = DraupnirLoadUtils.convert_descendants(name,descendants_dict,internal_nodes_dict,leaves_nodes_dict)
     #Highlight: Load dictionary with the directly linked children nodes--> i only have it for one dataset
-    try:
+    try: #TODO: if os.path exists?
         linked_nodes_dict = DraupnirLoadUtils.load_serialized(open('{}/{}_Closest_children_dict.p'.format(settings_config.data_folder,name),"rb"))
         linked_nodes_dict = DraupnirLoadUtils.convert_only_linked_children(name, linked_nodes_dict, internal_nodes_dict, leaves_nodes_dict)
     except:
@@ -310,6 +309,9 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
              leaves_names_test=leaves_names_test,
              position_test=position_test,
              internal_nodes_indexes=internal_nodes_indexes)
+
+    #print(AdditionalLoad._fields)
+
     additional_load = AdditionalLoad(patristic_matrix_full=torch.from_numpy(patristic_matrix_full),
                     cladistic_matrix_full=cladistic_matrix_full,
                    children_array=children_array,
@@ -321,11 +323,15 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
                    linked_nodes_dict=linked_nodes_dict,
                    descendants_dict=descendants_dict,
                    alignment_length=alignment_length,
-                   aa_frequencies=None,
+                   aa_frequencies_train=None, #TODO: Transfer to to train_load
+                   aa_frequencies_test=None, #TODO: Transfer to test_load
                    correspondence_dict=None,
                    special_nodes_dict=None,
                    full_name=settings_config.full_name)
+
+
     return train_load,test_load,additional_load, build_config
+
 def save_checkpoint(Draupnir,save_directory, optimizer):
     """Saves the model and optimizer dict states to disk
     :param nn.module Draupnir: model
@@ -427,6 +433,17 @@ def visualize_latent_space(latent_space_train,latent_space_test,patristic_matrix
                                     additional_load,
                                     args.num_epochs,
                                     results_dir)
+def save_script(Draupnir,results_dir,script_name):
+    #Highlight: Saving the model function to a separate file
+    model_file = open("{}/Scripts/{}".format(results_dir,script_name), "a+")
+    draupnir_models_file = open("{}/{}".format(os.path.dirname(draupnir_path),script_name), "r+")
+    model_text = draupnir_models_file.readlines()
+    #line_start = model_text.index("class {}(DRAUPNIRModelClass):\n".format(Draupnir.get_class()))
+    #line_stop= [index if "class" in line else len(model_text[line_start+1:]) for index,line in enumerate(model_text[line_start+1:])][0]
+    #model_text = model_text[line_start:]
+    #model_text = model_text[:line_stop] #'class DRAUPNIRModel2b(DRAUPNIRModelClass):\n'
+    model_file.write("".join(model_text))
+    model_file.close()
 def save_and_select_model(args,build_config, model_load, patristic_matrix_train,patristic_matrix_full,script_dir,results_dir):
     """Selects the class of Draupnir derivation model to use. It saves the entire model's and guide's code to a file for debugging/reproducibility
     :param namedtuple args
@@ -458,18 +475,27 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_train
         else: #partial inference of the leaves latent space
             patristic_matrix_model = patristic_matrix_full
-    elif args.batch_size == 1:#Not batching, training on all leaves, testing on internal nodes & training on leaves but only using the latent space of the training leaves
+    elif args.batch_size == 1 and args.draupnir_version == "1":#Not batching, training on all leaves, testing on internal nodes & training on leaves but only using the latent space of the training leaves
         assert args.plating_size == None, "Please set to None the plate size. If you want to plate, use args.plate = True; if you want to batch, set batch_size to some number"
         if args.use_blosum:
             Draupnir = DraupnirModels.DRAUPNIRModel_classic(model_load)
         else:
             Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
-
+    elif args.draupnir_version == "2":
+        if args.use_blosum:
+            Draupnir = DraupnirModels.DRAUPNIRModel_transformer(model_load)
+        else:
+            Draupnir = DraupnirModels.DRAUPNIRModel_transformer_no_blosum(model_load)
+        patristic_matrix_model = patristic_matrix_train
     else:  # batching
         print("Batching! (currently batch_size == None or batch_size != 1)")
         assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
-        Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
+        if args.use_blosum:
+            Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
+        else:
+            print("Not using weighted blosum average")
+            Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
     #print(DraupnirUtils.get_method_arguments(Draupnir,"model"))
 
@@ -479,22 +505,25 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     text_file.write("Model Class:  {} \n".format(Draupnir.get_class()))
     text_file.close()
     #Highlight: Saving the model function to a separate file
-    model_file = open("{}/ModelFunction.py".format(results_dir), "a+")
-
-    draupnir_models_file = open("{}/models.py".format(os.path.dirname(draupnir_path)), "r+")
-    model_text = draupnir_models_file.readlines()
-    line_start = model_text.index("class {}(DRAUPNIRModelClass):\n".format(Draupnir.get_class()))
-    #line_stop= [index if "class" in line else len(model_text[line_start+1:]) for index,line in enumerate(model_text[line_start+1:])][0]
-    #model_text = model_text[line_start:]
-    #model_text = model_text[:line_stop] #'class DRAUPNIRModel2b(DRAUPNIRModelClass):\n'
-    model_file.write("".join(model_text))
-    model_file.close()
+    # model_file = open("{}/ModelFunction.py".format(results_dir), "a+")
+    # draupnir_models_file = open("{}/models.py".format(os.path.dirname(draupnir_path)), "r+")
+    # model_text = draupnir_models_file.readlines()
+    # line_start = model_text.index("class {}(DRAUPNIRModelClass):\n".format(Draupnir.get_class()))
+    # #line_stop= [index if "class" in line else len(model_text[line_start+1:]) for index,line in enumerate(model_text[line_start+1:])][0]
+    # #model_text = model_text[line_start:]
+    # #model_text = model_text[:line_stop] #'class DRAUPNIRModel2b(DRAUPNIRModelClass):\n'
+    # model_file.write("".join(model_text))
+    # model_file.close()
+    save_script(Draupnir, results_dir, "models.py")
+    save_script(Draupnir, results_dir, "models_utils.py")
+    save_script(Draupnir, results_dir, "guides.py")
     # Highlight: Saving the guide function to a separate file
     if args.select_guide.startswith("variational"):
-        guide_file = open("{}/GuideFunction.py".format(results_dir), "a+")
-        draupnir_guides_file = open("{}/guides.py".format(os.path.dirname(draupnir_path)), "r+")
-        guide_text = draupnir_guides_file.readlines()
-        guide_file.write("".join(guide_text))
+        # guide_file = open("{}/GuideFunction.py".format(results_dir), "a+")
+        # draupnir_guides_file = open("{}/guides.py".format(os.path.dirname(draupnir_path)), "r+")
+        # guide_text = draupnir_guides_file.readlines()
+        # guide_file.write("".join(guide_text))
+        save_script(Draupnir,results_dir,"guides.py")
     return Draupnir, patristic_matrix_model
 def transform_to_integers(sample_out,build_config):
     """Transform the one-hot encoded sequences embedded in a namedtuple back to integers
@@ -542,7 +571,7 @@ def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     average_pid = equal_aminoacids.mean().cpu().numpy()
     std_pid = equal_aminoacids.std().cpu().numpy()
     return average_pid,std_pid
-def plot_percent_id(average_pid_list,std_pid_list,results_dir):
+def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     """Plots percent id
     :param list average_pid_list
     :param list std_pid_list
@@ -554,7 +583,7 @@ def plot_percent_id(average_pid_list,std_pid_list,results_dir):
     plt.xlabel("Epochs")
     plt.ylabel("Average percent %ID")
     plt.title("Percent ID performance")
-    plt.savefig("{}/Percent_ID.png".format(results_dir))
+    plt.savefig("{}/Percent_ID{}.png".format(results_dir,suffix))
     plt.clf()
     plt.close()
 def draupnir_sample(train_load,
@@ -593,7 +622,7 @@ def draupnir_sample(train_load,
         correspondence_dict = additional_load.correspondence_dict
     device = torch.device("cuda" if args.use_cuda else "cpu") #TODO: Check that this works
     blosum = additional_info.blosum.to(device)
-    aa_frequencies = additional_load.aa_frequencies.to(device)
+    aa_frequencies_train = additional_load.aa_frequencies_train.to(device)
     dataset_train = train_load.dataset_train.to(device)
     patristic_matrix_train = train_load.patristic_matrix_train.to(device)
     patristic_matrix_full = additional_load.patristic_matrix_full.to(device)
@@ -610,9 +639,9 @@ def draupnir_sample(train_load,
     dgl_graph = additional_info.dgl_graph
 
 
-    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
+    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies_train, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies_train, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
                                                                   settings_config.one_hot_encoding)
 
@@ -644,7 +673,7 @@ def draupnir_sample(train_load,
                            n_tree_levels=len(additional_info.tree_by_levels_dict),
                            gru_hidden_dim=int(params_config["gru_hidden_dim"]),
                            pretrained_params=None,
-                           aa_frequencies=aa_frequencies,
+                           aa_frequencies_train=aa_frequencies_train,
                            blosum=blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,
@@ -972,7 +1001,7 @@ def draupnir_train(train_load,
         correspondence_dict = additional_load.correspondence_dict
     device = args.device
     blosum = additional_info.blosum.to(device)
-    aa_frequencies = additional_load.aa_frequencies.to(device)
+    aa_frequencies_train = additional_load.aa_frequencies_train.to(device)
     dataset_train = train_load.dataset_train.to(device)
     patristic_matrix_train = train_load.patristic_matrix_train.to(device)
     patristic_matrix_full = additional_load.patristic_matrix_full.to(device)
@@ -988,8 +1017,8 @@ def draupnir_train(train_load,
     nodes_representations_array = additional_info.nodes_representations_array.to(device)
     dgl_graph = additional_info.dgl_graph
 
-    blosum_max,blosum_weighted,variable_score = DraupnirUtils.process_blosum(blosum,aa_frequencies,align_seq_len,build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum,aa_frequencies,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
+    blosum_max,blosum_weighted,variable_score = DraupnirUtils.process_blosum(blosum,aa_frequencies_train,align_seq_len,build_config.aa_probs)
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum,aa_frequencies_train,align_seq_len,build_config.aa_probs,dataset_train,settings_config.one_hot_encoding)
     #Highlight: plot the amount of change per position in the alignment
     plt.plot(variable_score.cpu().detach().numpy())
     plt.savefig("{}/Variable_score.png".format(results_dir))
@@ -1006,7 +1035,7 @@ def draupnir_train(train_load,
                            n_tree_levels=len(additional_info.tree_by_levels_dict),
                            gru_hidden_dim=int(params_config["gru_hidden_dim"]),
                            pretrained_params=None,
-                           aa_frequencies=aa_frequencies,
+                           aa_frequencies_train=aa_frequencies_train,
                            blosum =blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,
@@ -1082,11 +1111,12 @@ def draupnir_train(train_load,
     map_estimates = None
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":cladistic_matrix_full,
+                   "cladistic_matrix_train":cladistic_matrix_train,
                    "dataset_train_blosum":dataset_train_blosum,
                    "train_loader":train_loader,
                    "args":args,
                    "map_estimates":map_estimates,
-                   "args":args}
+                   "guide":guide}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
 
@@ -1513,7 +1543,8 @@ def draupnir_train_batching(train_load,
         correspondence_dict = additional_load.correspondence_dict
     device = args.device
     blosum = additional_info.blosum.to(device)
-    aa_frequencies = additional_load.aa_frequencies.to(device)
+    aa_frequencies_train = additional_load.aa_frequencies_train.to(device)
+    aa_frequencies_test = additional_load.aa_frequencies_test.to(device)
     dataset_train = train_load.dataset_train.to(device)
     patristic_matrix_train = train_load.patristic_matrix_train.to(device)
     patristic_matrix_full = additional_load.patristic_matrix_full.to(device)
@@ -1531,10 +1562,14 @@ def draupnir_train_batching(train_load,
 
     # aa_prob = torch.unique(dataset_train[:, 2:, 0])
 
-    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
+    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies_train, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies_train, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
+                                                                  settings_config.one_hot_encoding)
+
+    dataset_test_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies_test, align_seq_len,
+                                                                  build_config.aa_probs, dataset_test,
                                                                   settings_config.one_hot_encoding)
 
     # Highlight: plot the amount of change per position in the alignment
@@ -1553,7 +1588,7 @@ def draupnir_train_batching(train_load,
                            n_tree_levels=len(additional_info.tree_by_levels_dict),
                            gru_hidden_dim=int(params_config["gru_hidden_dim"]),
                            pretrained_params=None,
-                           aa_frequencies=aa_frequencies,
+                           aa_frequencies_train=aa_frequencies_train,
                            blosum=blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,
@@ -1625,12 +1660,17 @@ def draupnir_train_batching(train_load,
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
-    n_train_seqs = dataset_train.shape[0]
+    n_train_seqs,n_test_seqs = dataset_train.shape[0], dataset_test.shape[0]
     datasets_train = {"blosum": dataset_train_blosum,
                 "int": dataset_train,
                 "onehot": torch.ones(n_train_seqs).to(args.device),  # Dummy
                 }
+    datasets_test = {"blosum": dataset_test_blosum,
+                "int": dataset_test,
+                "onehot": torch.ones(n_test_seqs).to(args.device),  # Dummy
+                }
     train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train, patristic_matrix_train,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
+    #test_loader = DraupnirLoadUtils.setup_data_loaders(datasets_test, patristic_matrix_test,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
     # map_estimates = None
     # training_function = DraupnirTrain.select_training_function(clades_dict, svi, patristic_matrix_model,
     #                                                            cladistic_matrix_full, dataset_train_blosum,
@@ -1644,6 +1684,14 @@ def draupnir_train_batching(train_load,
                    "map_estimates":map_estimates,
                    "guide":guide,
                    "args":args}
+    # test_function_input = {"patristic_matrix_model":patristic_matrix_model,
+    #                "cladistic_matrix_full":cladistic_matrix_full,
+    #                "cladistic_matrix_train":cladistic_matrix_test,
+    #                "dataset_train_blosum":dataset_test_blosum,
+    #                "train_loader":test_loader,
+    #                "map_estimates":map_estimates,
+    #                "guide":guide,
+    #                "args":args}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
     ######################
@@ -1653,17 +1701,22 @@ def draupnir_train_batching(train_load,
     blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs)
     train_loss = []
     entropy = []
+    average_pid_list = []
+    std_pid_list = []
     start_total = time.time()
     epoch = 0
     epoch_count = 0
     added_epochs = 0
     output_file = open("{}/output.log".format(results_dir), "w")
+    dataset_train_batch_0_nodes = dataset_train.cpu().long()[int(blocks_train[0][0]):int(blocks_train[0][1]), 0, 1]
+    dataset_train_batch_0 = dataset_train.cpu().long()[int(blocks_train[0][0]):int(blocks_train[0][1])]
 
 
     while epoch < args.num_epochs:
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            plot_percent_id(average_pid_list, std_pid_list, results_dir,"_batch_0") #only tracking one batch (otherwise too expensive
         start = time.time()
 
         total_epoch_loss_train, map_estimates = training_function(svi, training_function_input)
@@ -1686,15 +1739,27 @@ def draupnir_train_batching(train_load,
                                            batch_idx=blocks_train[0],#only perform testing on one of the batches
                                            use_argmax=True,
                                            use_test=False,
-                                           use_test2=False)
+                                           use_test2=False) #only for 1 batch?
         save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide, results_dir)
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),
-                                                                          dataset_train.cpu().long()[int(blocks_train[0][0]):int(blocks_train[0][1]), 0, 1])
+
+        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),dataset_train_batch_0_nodes)
         # percent_id_df, _, _ = extract_percent_id(dataset_train, sample_out_train.aa_sequences, n_samples_dict[folder], results_dir,correspondence_dict)
+        #Highlight: Plot percent id prediction performance for 1 batch
+
+        average_pid, std_pid = calculate_percent_id(dataset_train_batch_0, sample_out_train.aa_sequences.detach().cpu(),model_load.align_seq_len)
+        average_pid_list.append(average_pid)
+        std_pid_list.append(std_pid)
         if epoch % args.test_frequency == 0:  # every n epochs --- sample
             dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),
                       protocol=pickle.HIGHEST_PROTOCOL)
+
+            with torch.no_grad():
+                # _, map_estimates_test = training_function(svi, test_function_input)
+                # map_estimates["hidden_states"] = map_estimates_test["hidden_states"]  #replace the map estimates for the hidden states from the test, but the OU parameters from the train
+                map_estimates_test = guide(datasets_test, patristic_matrix_test, cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)
+                map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"]
+
             sample_out_test = Draupnir.sample_batched(map_estimates,
                                               n_samples,
                                               dataset_test,
@@ -1799,11 +1864,9 @@ def draupnir_train_batching(train_load,
     text_file.write("Total epochs (+added epochs): {}\n".format(args.num_epochs + added_epochs))
 
     if args.select_guide.startswith("variational"):
-        pytorch_total_params = sum([val.numel() for param_name, val in pyro.get_param_store().named_parameters() if
-                                    val.requires_grad and not param_name.startswith("DRAUPNIRGUIDES.draupnir")])
+        pytorch_total_params = sum([val.numel() for param_name, val in pyro.get_param_store().named_parameters() if val.requires_grad and not param_name.startswith("DRAUPNIRGUIDES.draupnir")])
     else:  # TODO: Investigate again, but seems correct
-        pytorch_total_params = sum(val.numel() for param_name, val in pyro.get_param_store().named_parameters() if
-                                   val.requires_grad and not param_name.startswith("decoder_attention"))
+        pytorch_total_params = sum(val.numel() for param_name, val in pyro.get_param_store().named_parameters() if val.requires_grad and not param_name.startswith("decoder_attention"))
 
     text_file.write("Number of parameters: {} \n".format(pytorch_total_params))
     text_file.close()
@@ -1819,8 +1882,8 @@ def draupnir_train_batching(train_load,
     latent_space_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], int(params_config["z_dim"]))).detach()
     logits_test_samples = torch.zeros((n_samples, patristic_matrix_test[1:].shape[0], dataset_train.shape[1] - 2,
                                       build_config.aa_probs)).detach()
-    n_train_seqs = dataset_train.shape[0]
-    n_test_seqs = dataset_test.shape[0]
+    # n_train_seqs = dataset_train.shape[0]
+    # n_test_seqs = dataset_test.shape[0]
     print("Sampling is also divided in batches")
     #blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs)
 
@@ -1831,6 +1894,8 @@ def draupnir_train_batching(train_load,
     for sample_idx, sample in enumerate(samples_names):
         # print("sample idx {}".format(sample_idx))
         map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
+        map_estimates_test = guide(datasets_test, patristic_matrix_test, cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)
+        map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"]
         map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
         for batch_idx,batch_idx_test in zip(blocks_train,blocks_test):
             batch_train_sample = Draupnir.sample_batched(map_estimates,
@@ -2013,7 +2078,7 @@ def draupnir_train_batch_by_clade(train_load,
         correspondence_dict = additional_load.correspondence_dict
     device = args.device
     blosum = additional_info.blosum.to(device)
-    aa_frequencies = additional_load.aa_frequencies.to(device)
+    aa_frequencies_train = additional_load.aa_frequencies_train.to(device)
     dataset_train = train_load.dataset_train.to(device)
     patristic_matrix_train = train_load.patristic_matrix_train.to(device)
     patristic_matrix_full = additional_load.patristic_matrix_full.to(device)
@@ -2031,9 +2096,9 @@ def draupnir_train_batch_by_clade(train_load,
 
     # aa_prob = torch.unique(dataset_train[:, 2:, 0])
 
-    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies, align_seq_len,
+    blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(blosum, aa_frequencies_train, align_seq_len,
                                                                                build_config.aa_probs)
-    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies, align_seq_len,
+    dataset_train_blosum = DraupnirUtils.blosum_encoding(blosum, aa_frequencies_train, align_seq_len,
                                                                   build_config.aa_probs, dataset_train,
                                                                   settings_config.one_hot_encoding)
 
@@ -2053,7 +2118,7 @@ def draupnir_train_batch_by_clade(train_load,
                            n_tree_levels=len(additional_info.tree_by_levels_dict),
                            gru_hidden_dim=int(params_config["gru_hidden_dim"]),
                            pretrained_params=None,
-                           aa_frequencies=aa_frequencies,
+                           aa_frequencies_train=aa_frequencies_train,
                            blosum=blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,

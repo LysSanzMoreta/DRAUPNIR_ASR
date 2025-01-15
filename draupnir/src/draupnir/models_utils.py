@@ -64,7 +64,7 @@ class RNNEncoder(nn.Module):
                  "rnn_hidden_states":rnn_hidden_states,
                  "rnn_final_hidden_state":rnn_final_hidden_state}
         #return output_means,output_std
-class RNNDecoder_Tiling_old(nn.Module):
+class RNNDecoder_Tiling(nn.Module): #Highlight: faster learning for some reason
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
@@ -97,9 +97,9 @@ class RNNDecoder_Tiling_old(nn.Module):
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
         return output_logits
-class RNNDecoder_Tiling(nn.Module):
+class RNNDecoder_Tiling_new(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNDecoder_Tiling, self).__init__()
+        super(RNNDecoder_Tiling_new, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.rnn_input_size = rnn_input_size
@@ -213,14 +213,6 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         output_means = self.tanh(self.fc2_means(self.fc1_means(output)))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas
-# class TransformerH(nn.Module):
-#     def __init__(self,align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers):
-#         super(TransformerH, self).__init__()
-#         self.aa_prob = aa_prob
-#         self.fc = nn.Linear(gru_hidden_dim,aa_prob)
-#     def forward(self,input):
-#         out = self.fc(input)
-#         return  out
 class Embed(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(Embed, self).__init__()
@@ -419,7 +411,6 @@ class PositionalEncodings():
         for i in axes:
             indices[i] = slice(None)
         return tensor[indices]
-
     def sinusoidal_encodings(self):
         """
         Implements trigonometric or sinusoidal positional encodings
@@ -532,23 +523,33 @@ class PositionalEncodings():
 
         return kw,qw
 
-class Transformer(nn.Module):
-    def __init__(self,input_dim,align_seq_len):
-        super(Transformer, self).__init__()
+class TransformerEncoder(nn.Module):
+    def __init__(self,input_dim,align_seq_len,output_dim):
+        super(TransformerEncoder, self).__init__()
         self.enable_flash = True
         self.dropout_rate = 0
         self.input_dim = input_dim
-        self.hidden_dim = input_dim #it is not a bug, in this case we keep it the same
+        self.output_dim = output_dim #it is not a bug, in this case we keep it the same at the
         self.align_seq_len = align_seq_len
-        self.num_heads = 2
+        self.num_heads = 1
         self.use_bias = False
         self.tril_mask = True
+        self.softplus = nn.Softplus()
         self.key_fc = nn.Linear(self.input_dim,self.align_seq_len * self.num_heads,
                                   bias=self.use_bias,
-                                  )  # encoder hidden states
-        self.output_fc = nn.Linear(self.input_dim,self.input_dim * self.num_heads,
+                                  )
+        self.context_fc = nn.Linear(self.input_dim, self.output_dim * self.num_heads,
+                                        bias=self.use_bias,
+                                        )
+        self.output_fc = nn.Linear(self.output_dim * self.num_heads, self.output_dim * self.num_heads,
+                                        bias=self.use_bias,
+                                        )
+        self.output_fc_loc = nn.Linear(self.output_dim * self.num_heads,self.output_dim * self.num_heads,
                                   bias=self.use_bias,
-                                  )  # encoder hidden states
+                                  )
+        self.output_fc_scale = nn.Linear(self.output_dim * self.num_heads, self.output_dim * self.num_heads,
+                                        bias=self.use_bias,
+                                        )
     def sequence_masking(self,x, mask=None, value=0, axis=None, bias=None, return_mask=False):
         """为序列条件mask的函数
         mask: 形如(batch_size, seq_len)的bool矩阵；
@@ -611,7 +612,7 @@ class Transformer(nn.Module):
                 return F.softmax(a * torch.log(l) / torch.log(torch.tensor(512.0)).to(mask), dim=dim)
         return a
     def attention(self,query,keys,values,mask):
-        att_scores = torch.einsum('bmd,bnd->bmn', query, keys) / self.hidden_dim ** 0.5 #attention scores/logits(softmax)
+        att_scores = torch.einsum('bmd,bnd->bmn', query, keys) / self.output_dim ** 0.5 #attention scores/logits(softmax)
         att_scores = self.attention_normalize(att_scores,-1,method="softmax") #[nseqs,L,L]
 
 
@@ -633,19 +634,107 @@ class Transformer(nn.Module):
 
         att_scores = self.sequence_masking(att_scores, mask, -torch.inf, [2, 3], tril_mask) #TODO: understand and simplify?
 
-        print(att_scores.shape)
-        context_vector = torch.einsum('bij, bjd -> bid', att_scores, values) #[N,L,feat_dim/hidden_dim?]
+        hidden_states = torch.einsum('bij, bjd -> bid', att_scores, values) #[N,L,feat_dim/hidden_dim?]
 
-        context_vector = self.output_fc(context_vector) #https://github.com/Tongjilibo/bert4torch/blob/ce644b9cefa72801a4a23366cb2cd9b895511951/bert4torch/layers/attention.py#L725C9-L725C91
+
+        hidden_states = self.context_fc(hidden_states) #https://github.com/Tongjilibo/bert4torch/blob/ce644b9cefa72801a4a23366cb2cd9b895511951/bert4torch/layers/attention.py#L725C9-L725C91
         #TODO: What to do with the output when num_heads > 2
 
-        #TODO: Average? I need z_mean and z_scale for the encoder and logits for the decoder
+        #TODO: Average? I need z_mean and z_scale for the encoder and logits for the decoder? wft
+        context_vector = hidden_states.mean(1)
+        context_vector = self.output_fc(context_vector)
+        z_loc = self.output_fc_loc(context_vector)
+        z_scale = self.softplus(self.output_fc_scale(context_vector))
 
         return {"attention_scores":att_scores,
+                "hidden_states": hidden_states,
                 "context_vector":context_vector, #TODO: Can be used as logits? [nseqs, alignlen, feat_dim]
-                "attention_logits":logits}
+                "attention_logits":logits,
+                "z_loc":z_loc, #TODO: One loc and scale per position!!! requires changing the distribution
+                "z_scale":z_scale}
     def forward(self,query,key,values,mask):
         return self.attention(query,key,values,mask)
+
+class TransformerEncoder2(nn.Module):
+    def __init__(self,input_dim,align_seq_len,output_dim):
+        super(TransformerEncoder2, self).__init__()
+        self.enable_flash = True
+        self.dropout_rate = 0
+        self.input_dim = input_dim
+        self.output_dim = output_dim #it is not a bug, in this case we keep it the same at the
+        self.align_seq_len = align_seq_len
+        self.num_heads = 1
+        self.use_bias = True
+        self.softplus = nn.Softplus()
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.input_dim, nhead=2)
+        self.norm_layer = nn.LayerNorm(self.input_dim)
+        self.encoder = nn.TransformerEncoder(self.encoder_layer,num_layers=1, norm=self.norm_layer)
+        self.hidden_states_fc = nn.Linear(self.input_dim, self.output_dim,
+                                        bias=self.use_bias,
+                                        )
+
+        self.output_fc = nn.Linear(self.output_dim, self.output_dim,
+                                        bias=self.use_bias,
+                                        )
+        self.output_fc_loc = nn.Linear(self.output_dim ,self.output_dim ,
+                                  bias=self.use_bias,
+                                  )
+        self.output_fc_scale = nn.Linear(self.output_dim, self.output_dim,
+                                        bias=self.use_bias,
+                                        )
+    def forward(self,input,mask):
+
+        hidden_states = self.encoder(input)
+        hidden_states = self.hidden_states_fc(hidden_states)
+        context_vector = hidden_states.mean(axis=1)
+
+        context_vector = self.output_fc(context_vector)
+        z_loc = self.output_fc_loc(context_vector)
+        z_scale = self.softplus(self.output_fc_scale(context_vector))
+
+
+        return {"context_vector":context_vector,
+                "hidden_states":hidden_states, #TODO: Can be used as logits? [nseqs, alignlen, feat_dim]
+                "z_loc":z_loc,
+                "z_scale":z_scale}
+
+
+
+
+
+
+class TransformerDecoder(nn.Module):
+    def __init__(self,input_dim,align_seq_len,hidden_dim,output_dim):
+        super(TransformerDecoder, self).__init__()
+        self.num_heads = 1
+        self.num_decoder_layers = 1
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        print(self.input_dim)
+        self.latent_fc = nn.Linear(self.input_dim,self.hidden_dim)
+        self.input_fc = nn.Linear(self.input_dim,self.hidden_dim)
+        self.decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(d_model=self.hidden_dim, nhead=self.num_heads),
+            num_layers= self.num_decoder_layers
+        )
+
+        self.output_fc = nn.Linear(self.hidden_dim,self.output_dim)
+        self.logsoftmax = nn.LogSoftmax()
+    def forward(self,input,latent):
+        """
+        :param torch.tensor tgt_seq : [nseq,L,featdim]
+        :param torch.tensor latent: [nseq,L,zdim]
+        """
+
+
+        latent = self.latent_fc(latent)
+        input = self.input_fc(input)
+
+        decoded = self.decoder(tgt=input, memory=latent)
+        logits = self.logsoftmax(self.output_fc(decoded))
+
+        return logits
 
 
 def masking(dataset):

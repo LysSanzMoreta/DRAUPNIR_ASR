@@ -41,7 +41,7 @@ class DRAUPNIRGUIDES(EasyGuide):
             # )
             #self.encoder = Transformer(self.draupnir.align_seq_len,self.draupnir.aa_probs,self.draupnir.gru_hidden_dim, self.draupnir.z_dim,self.encoder_rnn_input_size, self.draupnir.kappa_addition,self.draupnir.num_layers)
             out_dim = self.draupnir.aa_probs if self.draupnir.aa_probs%2 == 0 else self.draupnir.aa_probs + 1
-            self.encoder = Transformer(out_dim,self.draupnir.align_seq_len)
+            self.encoder = TransformerEncoder2(out_dim,self.draupnir.align_seq_len,self.draupnir.z_dim)
             self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,out_dim)
             self.positional_encodings = PositionalEncodings(self.draupnir.align_seq_len, out_dim, 10000)
         else:
@@ -173,13 +173,17 @@ class DRAUPNIRGUIDES(EasyGuide):
             lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
             # Highlight: embed the amino acids represented by their respective blosum scores
             aminoacid_sequences = self.embeddingencoder(aa_sequences)  # Highlight: i) Makes linear projection ii) Makes the feature dimensions even to be able to apply the rotational embeddings
-            queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            #with pyro.plate("plate_guide", aminoacid_sequences.shape[0], dim=-1):
-            encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Z ?
+            #queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
+            sinusoidal_encodings = self.positional_encodings.sinusoidal_encodings() #[1, L, feat_dim]
+            aminoacid_sequences = aminoacid_sequences+ sinusoidal_encodings #sum because independent set of vectors with high likelihood
+
+            #encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
+            encoder_output = self.encoder.forward(aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
             z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
             latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+
             assert latent_z.shape == (self.draupnir.z_dim, nseqs)
+
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -188,9 +192,10 @@ class DRAUPNIRGUIDES(EasyGuide):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
-                "rnn_final_bidirectional":encoder_output["rnn_final_bidirectional"],
-                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
-                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "hidden_states": encoder_output["hidden_states"].detach(),
+                # "attention_scores" : encoder_output["attention_scores"].detach(),
+                "context_vector": encoder_output["context_vector"].detach(),
+                # "attention_logits": encoder_output["attention_logits"].detach()
                 }
 
 

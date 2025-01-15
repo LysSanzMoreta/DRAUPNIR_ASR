@@ -27,7 +27,7 @@ TestLoad = namedtuple('TestLoad',
                        "position_test", "internal_nodes_indexes"])
 AdditionalLoad = namedtuple("AdditionalLoad",
                             ["patristic_matrix_full", "cladistic_matrix_full","children_array", "ancestor_info_numbers", "alignment_length",
-                             "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies",
+                             "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies_train","aa_frequencies_test",
                              "correspondence_dict","special_nodes_dict","full_name"])
 def convert_clades_dict(name,clades_dict,leave_nodes_dict,internal_nodes_dict, only_leaves):
     """Transforms the names of the nodes to their tree transversal level order number
@@ -475,6 +475,8 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
 
     return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
+
+
 def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,cladistic_matrix,test_nodes_observed,device,inferred=True,original_naming=True):
     if inferred:
         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,25]  # numbers in the benchmark dataset paper/original names
@@ -546,6 +548,7 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
+
 def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
     """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
     :param str name: dataset_name
@@ -689,7 +692,10 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     patristic_matrix_train,\
     cladistic_matrix_full,\
     cladistic_matrix_train,\
-    aa_frequencies = pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
+    aa_frequencies_train = pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
+
+    aa_frequencies_test = DraupnirUtils.calculate_aa_frequencies(dataset_test[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
+    aa_frequencies_test = torch.from_numpy(aa_frequencies_test)
 
 
     test_load = TestLoad(dataset_test=dataset_test,
@@ -714,12 +720,14 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                                      linked_nodes_dict = additional_load.linked_nodes_dict,
                                      descendants_dict= additional_load.descendants_dict,
                                      alignment_length=additional_load.alignment_length,
-                                     aa_frequencies=aa_frequencies,
+                                     aa_frequencies_train=aa_frequencies_train,
+                                     aa_frequencies_test=aa_frequencies_test,
                                      correspondence_dict = correspondence_dict,
                                      special_nodes_dict=special_nodes_dict,
                                      full_name=additional_load.full_name)
 
     return train_load,test_load,additional_load
+
 def check_if_exists(a, b, key):
     "Deals with datasets that were trained before the current configuration of namedtuples"
     try:
@@ -845,7 +853,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                         x.to('cuda', non_blocking=True)
                 #train_loader = [x.to('cuda', non_blocking=True) for x in train_loader]
         else: #split the dataset for batching
-
+            
             blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
             batch_datasets = []
