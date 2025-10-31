@@ -106,7 +106,7 @@ def Run_PAML(alignment_file_fasta,tree_file_newick6,palm_out_dir,working_dir,use
         #Highlight: Output files of interest are : .mlc (contains information on evolutionary rates); .rst (contains ancestral states for sites and for nodes)
         #Highlight: PAML and FASTML do not predict gaps, they either ignore those columns or simply put the most likely aa (which is the most frequent aa found in the column)
         print("Go to {} and run codeml ctl_filename".format(path))
-        exit()
+        return
         cml.run("{}/control_file_{}.ctl".format(path,name),verbose=True) #Does not work when running it from python script, therefore just run directly on terminal
     elif use_codeml_codons:
         cml = codeml.Codeml(
@@ -158,7 +158,7 @@ def Run_PAML(alignment_file_fasta,tree_file_newick6,palm_out_dir,working_dir,use
         # Highlight: PAML and FASTML do not predict gaps, they either ignore those columns or simply put the most likely aa (which is the most frequent aa found in the column)
         print("Go to {} and run codeml ctl_filename".format(path))
         print("{}/control_file_{}.ctl".format(path, name))
-        exit()
+        return
         cml.run("{}/control_file_{}.ctl".format(path, name), verbose=True)
 
 def Convert_to_Format(alignment_file_fasta,mol_type,out_format):

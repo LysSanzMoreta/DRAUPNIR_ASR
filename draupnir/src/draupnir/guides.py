@@ -34,6 +34,9 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+        print("Done")
+
+        exit()
         if self.args.draupnir_version == "2":
             # self.encoder = nn.TransformerEncoder(
             #     nn.TransformerEncoderLayer(d_model=self.draupnir.aa_probs, nhead=1,dim_feedforward = self.draupnir.gru_hidden_dim),

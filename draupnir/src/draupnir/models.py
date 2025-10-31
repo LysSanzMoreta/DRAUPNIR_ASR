@@ -1144,7 +1144,6 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
 
         return sampling_out
 
-
 class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
     It uses batched Blosum weighted average embeddings."""
@@ -1301,7 +1300,6 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
 
 class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
     """Perform inference by dividing the tree into batches that correspond to the clade in the tree, with its corresponent batched latent space.

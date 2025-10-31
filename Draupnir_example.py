@@ -153,6 +153,7 @@ if __name__ == "__main__":
     if args.use_cuda:
         #torch.set_default_tensor_type(torch.cuda.DoubleTensor)
         torch.set_default_dtype(torch.float64)
+
         if torch.cuda.is_available():
             device = "cuda"
         else:

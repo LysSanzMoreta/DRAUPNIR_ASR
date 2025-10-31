@@ -17,7 +17,7 @@ import bz2
 os.environ['QT_QPA_PLATFORM']='offscreen' #TODO: remove?
 #Ete 3
 from ete3 import Tree as TreeEte3
-import dgl
+#import dgl
 try:
     from ete3 import Tree, faces, AttrFace, TreeStyle,NodeStyle
 except:
@@ -46,7 +46,6 @@ from Bio import BiopythonWarning
 from Bio import AlignIO, SeqIO
 from Bio.PDB.PDBList import PDBList
 import Bio.Align
-from Bio.Align.Applications import MafftCommandline
 from Bio.Phylo.TreeConstruction import *
 from Bio import Phylo
 #Numpy
@@ -464,11 +463,12 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
         return dict_alignment, alignment
     else:
         print("Using mafft to align...")
-        mafft_cline = MafftCommandline(input=input_name_file)
-        stdout, stderr = mafft_cline()
-        with open(output_name_file, "w") as handle:
-            handle.write(stdout)
-        handle.close()
+        mafft_command = f"mafft --auto {input_name_file} > {output_name_file}"
+        mafft_cline = subprocess.call(mafft_command, shell=True)
+        # stdout, stderr = mafft_cline()
+        # with open(output_name_file, "w") as handle:
+        #     handle.write(stdout)
+        # handle.close()
 
         # Read the aligned sequences
         alignment = AlignIO.read(output_name_file, "fasta")
@@ -1556,30 +1556,32 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
             #edge_weight_matrix[children_idx, ancestor_idx] = patristic_matrix[children_idx, ancestor_idx] #Highlight: Not use to avoid creating a self looped graph or bidirectional graphs
         #Create a coordinates matrix, basically points out which regions from the matrix do not have 0 values and therefore are connected
         weights_coo = coo_matrix(edge_weight_matrix[1:,1:])
-        try:
-            #The graph connectivity (edge index) should be confined with the COO format,
-            # i.e. the first list contains the index of the source nodes, while the index of target nodes is specified in the second list.
-            #Note that the order of the edge index is irrelevant to the Data object you create since such information is only for computing the adjacency matrix.
-            from torch_geometric.utils.convert import from_scipy_sparse_matrix
-            edge_index,edge_weight = from_scipy_sparse_matrix(weights_coo)
-            # dgl_graph = dgl.DGLGraph() #graph for TreeLSTM
-            # dgl_graph = dgl.DGLHeteroGraph()
-            # dgl_graph.add_nodes(patristic_matrix[1:, 1:].shape[0])
-            # dgl_graph.add_edges(edge_index[0].cuda(), edge_index[1].cuda())
-            # dgl_graph.edata['y'] = edge_weight.cuda()
-            if args.use_cuda:
-                graph_coo = (edge_index.cuda(), edge_weight.cuda())  # graph for pytorch geometric for GNN
-                dgl_graph = dgl.convert.from_scipy(weights_coo).to("cuda")
-                dgl_graph.edata['y'] = edge_weight.to("cuda")
-            else:
-                graph_coo = (edge_index.cpu(), edge_weight.cpu())  # graph for pytorch geometric for GNN
-                dgl_graph = dgl.convert.from_scipy(weights_coo).to("cpu")
-                dgl_graph.edata['y'] = edge_weight.cpu()
-            print("tree-graph finished")
-
-        except:
-            graph_coo = None
-            dgl_graph = None
+        # try:
+        #     #The graph connectivity (edge index) should be confined with the COO format,
+        #     # i.e. the first list contains the index of the source nodes, while the index of target nodes is specified in the second list.
+        #     #Note that the order of the edge index is irrelevant to the Data object you create since such information is only for computing the adjacency matrix.
+        #     from torch_geometric.utils.convert import from_scipy_sparse_matrix
+        #     edge_index,edge_weight = from_scipy_sparse_matrix(weights_coo)
+        #     # dgl_graph = dgl.DGLGraph() #graph for TreeLSTM
+        #     # dgl_graph = dgl.DGLHeteroGraph()
+        #     # dgl_graph.add_nodes(patristic_matrix[1:, 1:].shape[0])
+        #     # dgl_graph.add_edges(edge_index[0].cuda(), edge_index[1].cuda())
+        #     # dgl_graph.edata['y'] = edge_weight.cuda()
+        #     if args.use_cuda:
+        #         graph_coo = (edge_index.cuda(), edge_weight.cuda())  # graph for pytorch geometric for GNN
+        #         dgl_graph = dgl.convert.from_scipy(weights_coo).to("cuda")
+        #         dgl_graph.edata['y'] = edge_weight.to("cuda")
+        #     else:
+        #         graph_coo = (edge_index.cpu(), edge_weight.cpu())  # graph for pytorch geometric for GNN
+        #         dgl_graph = dgl.convert.from_scipy(weights_coo).to("cpu")
+        #         dgl_graph.edata['y'] = edge_weight.cpu()
+        #     print("tree-graph finished")
+        #
+        # except:
+        #     graph_coo = None
+        #     dgl_graph = None
+        graph_coo = None
+        dgl_graph = None
 
     else:
         graph_coo=None

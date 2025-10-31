@@ -331,7 +331,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
 
     return train_load,test_load,additional_load, build_config
-
 def save_checkpoint(Draupnir,save_directory, optimizer):
     """Saves the model and optimizer dict states to disk
     :param nn.module Draupnir: model
@@ -1072,7 +1071,6 @@ def draupnir_train(train_load,
         optim = torch.optim.Adam #Highlight: For the scheduler we need to use TORCH.optim not PYRO.optim, and there is no clipped adam in torch
         #Highlight: "Reduce LR on plateau: Scheduler: Reduce learning rate when a metric has stopped improving."
         optim = pyro.optim.ReduceLROnPlateau({'optimizer': optim, 'optim_args': adam_args})
-
     else:
         clippedadam_args = {"lr": params_config["lr"], "betas": (params_config["beta1"], params_config["beta2"]), "eps": params_config["eps"],
                      "weight_decay": params_config["weight_decay"], "clip_norm": params_config["clip_norm"], "lrd": params_config["lrd"]}
@@ -1119,7 +1117,6 @@ def draupnir_train(train_load,
                    "guide":guide}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
 
-
     ######################
     ####Training Loop#####
     ######################
@@ -1140,9 +1137,6 @@ def draupnir_train(train_load,
             DraupnirPlots.plot_entropy(entropy, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
-
-
-
         map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train, dataset_train_blosum,
                               None,
                               None)
