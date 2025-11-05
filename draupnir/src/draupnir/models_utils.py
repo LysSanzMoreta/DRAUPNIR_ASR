@@ -392,15 +392,19 @@ class VSGP(TorchDistribution):
         """
         return self.support()
 
-class PositionalEncodings():
-    def __init__(self,max_seq_len,feat_dim,base):
+class PositionalEncodings(nn.Module):
+    def __init__(self,max_seq_len,feat_dim,base=1000, type="sinusoidal"):
+        super(PositionalEncodings, self).__init__()
+        self.dropout = nn.Dropout(0.1)
         self.max_seq_len = max_seq_len
         self.feat_dim = feat_dim
         self.base = base
         self.positions_idx = torch.arange(0, self.max_seq_len)[None, :]  # [1,L]
         self.dimensions_idx = torch.arange(0, self.feat_dim // 2 )
+        self.type = type
+
     def align(self,tensor, axes, ndim=None): #TODO: Do I need this? Does not seem to do anything
-        """Exapnd dimensions?
+        """Expand dimensions
         axes：
         ndim：
         """
@@ -413,7 +417,7 @@ class PositionalEncodings():
         return tensor[indices]
     def sinusoidal_encodings(self):
         """
-        Implements trigonometric or sinusoidal positional encodings
+        Implements trigonometric or sinusoidal positional encodings. Identical results to those in the annotated transformer
 
         1) Calculation of frequencies: feat_dim=10, base=10000
         MethodA : torch.pow(self.base , -2 * torch.arange(0,self.feat_dim//2) / self.feat_dim)
@@ -425,7 +429,7 @@ class PositionalEncodings():
 
         y = a1x1 + a2x2 + ... + anxn ->    y = sum(aixi) -> ii
 
-        #Example1: Selects the diagonal values (00,11,22) and sums them so the result is 15 (2 + 5 + 8)
+        #Example1: Selects the diagonal values (00,11,22) (the trace) and sums them so the result is 15 (1 + 5 + 9)
         # >>> torch.einsum("ii",torch.tensor([[1,2,3],[4,5,6],[7,8,9]]))
         # 15
         #Example2: 1D vector multiplication: c00 = a0*b0; c01 = a0*b1 ....
@@ -458,12 +462,9 @@ class PositionalEncodings():
         returns:
             :param sinusoidal_embeddings of shape [L,feat_dim*2]
 
-
-
         """
 
         frequencies= torch.pow(self.base , -2 * self.dimensions_idx / self.feat_dim) #frequencies or angle rates #[feat_dim]
-
         #frequencies = 1/ (self.base**(torch.arange(0,self.feat_dim,2)/self.feat_dim)) #equivalent code, but needs one more operation
         frequencies = torch.einsum('...,d->...d', self.positions_idx,frequencies) #1D vector multiplication [L,feat_dim] #equivalent to torch.einsum('i,j->ij') or torch.matmul(a[:,None],b[None,:])
         #Highlight: The upcoming code is a bit of a cumbersome one and I am not sure why they do not just keep the cosine and sine values separated always,
@@ -472,6 +473,9 @@ class PositionalEncodings():
         sinusoidal_embeddings = torch.flatten(sinusoidal_embeddings, -2) #[1,L,feat_dim]
 
         return sinusoidal_embeddings
+
+
+
     def apply_rotation(self,sinusoidal_embedding, inputs):
         """
         Implements the necessary steps to prepare the tensors for rotation as in Equation 34 in the paper https://arxiv.org/pdf/2104.09864
@@ -510,18 +514,26 @@ class PositionalEncodings():
             rotated_outputs.append(x * cos_positions + tensor2 * sine_positions) #Equation 34
 
         return rotated_outputs
-    def apply(self,input):
+    def forward(self,input):
+
         sinusoidal_embeddings = self.sinusoidal_encodings()  # independent of the input content except for the maxlen and featdim
+        if self.type == "sinusoidal":
 
-        # key = self.query_fc(input)
-        # query = self.key_fc(input)
-        key = input
-        query = input
-        #values = input
+            self.register_buffer("positional_encoding", sinusoidal_embeddings)
+            input = input + sinusoidal_embeddings[:, : input.size(1)].requires_grad_(False) #todo: shapes might be way off
 
-        kw, qw = self.apply_rotation(sinusoidal_embeddings, [key, query]) #TODO: WARNING : Switched qw,kw
+            return input
 
-        return kw,qw
+        elif self.type == "rotary":
+            # key = self.query_fc(input)
+            # query = self.key_fc(input)
+            key = input
+            query = input
+            #values = input
+
+            kw, qw = self.apply_rotation(sinusoidal_embeddings, [key, query]) #TODO: WARNING : Switched qw,kw
+
+            return kw,qw
 
 class TransformerEncoder(nn.Module):
     def __init__(self,input_dim,align_seq_len,output_dim):
@@ -699,21 +711,83 @@ class TransformerEncoder2(nn.Module):
                 "z_scale":z_scale}
 
 
+class TransformerEncoder3(nn.Module):
+    def __init__(self,input_dim,adapted_input_dim, align_seq_len,output_dim):
+        """
+        input_dim is the embedding size (i.e aa probs)
+        adapted_input_dim is the corrected input size for when the number is odd
+
+        """
+        super(TransformerEncoder3, self).__init__()
+
+        self.dropout_rate = 0
+        self.input_dim = input_dim
+        self.adapted_input_dim = adapted_input_dim
+        self.output_dim = output_dim
+
+        self.align_seq_len = align_seq_len
+        self.num_heads = 1
+        self.use_bias = True
+        self.softplus = nn.Softplus()
+        self.positional_embeddings = PositionalEncodings(self.align_seq_len,self.adapted_input_dim,base=1000, type="sinusoidal")
+        self.layernorm = nn.LayerNorm(self.adapted_input_dim)  # todo: not sure yet
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.adapted_input_dim, nhead=2)
+        self.encoder = nn.TransformerEncoder(self.encoder_layer,num_layers=1, norm=self.layernorm)
+        self.hidden_states_fc = nn.Linear(self.adapted_input_dim, self.output_dim,
+                                        bias=self.use_bias,
+                                        )
+        self.augmented_output_dim = int(self.output_dim*2)
+        self.output_fc = nn.Linear(self.output_dim, self.augmented_output_dim,
+                                        bias=self.use_bias,
+                                        )
+        self.output_fc_loc = nn.Linear(self.augmented_output_dim ,self.output_dim,
+                                  bias=self.use_bias,
+                                  )
+        self.output_fc_scale = nn.Linear(self.augmented_output_dim, self.output_dim,
+                                        bias=self.use_bias,
+                                        )
+    def forward(self,input,mask):
+
+        print("input encoder modellll", input.shape)
+
+        input = self.positional_embeddings(input) # simple summation, this returns 21 + 1 dimensions, otherwise the transformer does not work
+        hidden_states = self.encoder(input)
+        hidden_states = self.layernorm(hidden_states)
+        hidden_states = self.hidden_states_fc(hidden_states) # i have projected them to 30 perhaps project to 30)
+
+        print("hidden statessssssssss", hidden_states.shape)
+        #context_vector = hidden_states.mean(axis=1) # mean pooling
+
+        context_vector = hidden_states[:,0,:] # get the CLS token (the one with most information)
+
+        context_vector = self.output_fc(context_vector)
+        z_loc = self.output_fc_loc(context_vector)
+        z_scale = self.softplus(self.output_fc_scale(context_vector))
+
+
+
+
+        return {"context_vector":context_vector,
+                "hidden_states":hidden_states,
+                "z_loc":z_loc,
+                "z_scale":z_scale}
+
+
 
 
 
 
 class TransformerDecoder(nn.Module):
-    def __init__(self,input_dim,align_seq_len,hidden_dim,output_dim):
+    def __init__(self,input_dim_l, input_dim_r,align_seq_len,hidden_dim,output_dim):
         super(TransformerDecoder, self).__init__()
         self.num_heads = 1
         self.num_decoder_layers = 1
-        self.input_dim = input_dim
+        self.input_dim_l = input_dim_l
+        self.input_dim_r = input_dim_r
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        print(self.input_dim)
-        self.latent_fc = nn.Linear(self.input_dim,self.hidden_dim)
-        self.input_fc = nn.Linear(self.input_dim,self.hidden_dim)
+        self.input_fc = nn.Linear(self.input_dim_l,self.hidden_dim)
+        self.latent_fc = nn.Linear(self.input_dim_r,self.hidden_dim)
         self.decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(d_model=self.hidden_dim, nhead=self.num_heads),
             num_layers= self.num_decoder_layers
@@ -726,8 +800,6 @@ class TransformerDecoder(nn.Module):
         :param torch.tensor tgt_seq : [nseq,L,featdim]
         :param torch.tensor latent: [nseq,L,zdim]
         """
-
-
         latent = self.latent_fc(latent)
         input = self.input_fc(input)
 

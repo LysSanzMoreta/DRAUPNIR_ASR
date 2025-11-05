@@ -63,14 +63,14 @@ if __name__ == "__main__":
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
                         #default="simulations_blactamase_1",
-                        #default="simulations_src_sh3_3",
-                        default="ABO", #TODO: fix fasta and tree file to have same names?
+                        default="simulations_src_sh3_3",
+                        #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
-                        default=True,
+                        default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=1000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=4, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -79,25 +79,27 @@ if __name__ == "__main__":
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_manual5_mafft_trimmed.fasta.treefile",
-                        #default=None,
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_manual5_mafft_trimmed.fasta.treefile",
+                        default=None,
                         help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True).'
-                             'PLEASE make sure that the fasta header names and the names in the tree are the same')
+                             'PLEASE make sure that the fasta header names and the names in the tree are the same'
+                             'Set to None for the -default- datasets')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/unaligned_wo_slash.fa",
                         default=None,
                         help='Path to fasta file (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
-                             'PLEASE make sure that the fasta header names and the names in the tree are the same')
+                             'PLEASE make sure that the fasta header names and the names in the tree are the same'
+                             'Set to None for the -default- datasets')
 
 
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from a given alignment file/tree or the unaligned sequences;'
                              'False: Use previously stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
-                             'Once you have built once the dataset you do not have to do it again (if everything went fine)'
+                             'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=70, type=str2None,nargs='?',help='set batch size.\n '
-                                                                'Set to 1 to NOT batch (batch_size == 1 batch == entire dataset).\n '
+    parser.add_argument('-bsize','--batch-size', default=60, type=str2None,nargs='?',help='set batch size.\n '
+                                                                'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
                                                                 'Else set the batchsize to the given number, it will check if it makes sense')
@@ -106,7 +108,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('-n-samples','-n_samples', default=60, type=int, help='Number of samples (sequences sampled) per node')
-    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average embedding')
+    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
@@ -119,7 +121,7 @@ if __name__ == "__main__":
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
     parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
-    #Highlight: EXPERIMENTAL FEATURES
+    #Highlight: EXPERIMENTAL FEATURES, do not use unless you know what you are doing
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
@@ -146,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument('-activate-elbo-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the elbo loss is met')
     parser.add_argument('-activate-entropy-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the sequence entropy is met')
 
-    #TODO: Ray HPO? Would need to do for each protein family
+
     parser.add_argument('-d', '--config-dict', default=None,type=str, help="Used with parameter search")
     parser.add_argument('--parameter-search', type=str2bool, default=False, help="Activates a mini grid search for parameter search. TODO: Improve") #TODO: Change to something that makes more sense
     args = parser.parse_args()

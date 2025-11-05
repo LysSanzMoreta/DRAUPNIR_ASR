@@ -475,8 +475,6 @@ def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
 
     return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
-
-
 def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,cladistic_matrix,test_nodes_observed,device,inferred=True,original_naming=True):
     if inferred:
         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,25]  # numbers in the benchmark dataset paper/original names
@@ -548,7 +546,6 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
-
 def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
     """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
     :param str name: dataset_name
@@ -727,7 +724,6 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                                      full_name=additional_load.full_name)
 
     return train_load,test_load,additional_load
-
 def check_if_exists(a, b, key):
     "Deals with datasets that were trained before the current configuration of namedtuples"
     try:
@@ -761,6 +757,7 @@ def load_dict_to_namedtuple(load_dict):
                                 kappa_psi=tryexcept(load_dict, "kappa_psi"))
 
     return sample_out
+
 class CladesDataset(Dataset):
     def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum):
         self.clades_names = clades_names
@@ -782,7 +779,6 @@ class CladesDataset(Dataset):
                 'clade_data_blosum':clade_data_blosum}
     def __len__(self):
         return len(self.clades_names)
-
 class SplittedDataset(Dataset):
     def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums):
         self.batches_names = batches_names
@@ -805,8 +801,6 @@ class SplittedDataset(Dataset):
 
     def __len__(self):
         return len(self.batches_names)
-
-
 class CustomDataset(Dataset):
     def __init__(self, data_array_blosum,data_array_int,data_array_onehot):
         self.batch_data_blosum = data_array_blosum
@@ -899,7 +893,8 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                     batch_blosum_weighted.to('cuda', non_blocking=True)
                     batch_data_blosum.to('cuda', non_blocking=True)
 
-    elif method == "batch_by_clade":
+
+    elif method == "batch_by_clade": #todo: remove
         clades_labels = []
         clades_datasets = []
         clades_patristic = []
@@ -940,7 +935,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                     clade_dataset.to('cuda:0', non_blocking=True)
                     clade_patristic.to('cuda:0', non_blocking=True)
                     clade_blosum.to('cuda:0', non_blocking=True)
-                    clade_data_blosum.to('cuda:0', non_blocking=True)
+                    clade_data_blosum.to('cuda:0', non_blocking=True)#TODO: remo
     print(' Train_loader size: ', len(train_loader), 'batches')
 
     return train_loader

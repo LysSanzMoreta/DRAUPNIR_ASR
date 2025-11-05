@@ -15,6 +15,9 @@ import torch.distributions.constraints as constraints
 import pyro.distributions as dist
 from draupnir.models_utils import *
 import draupnir.models_utils as DraupnirModelsUtils
+
+
+
 class DRAUPNIRGUIDES(EasyGuide):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         super(DRAUPNIRGUIDES, self).__init__(draupnir_model)
@@ -25,6 +28,8 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.dataset_train_blosum = self.draupnir.dataset_train_blosum
         self.batch_size = self.draupnir.batch_size
         self.batch_by_clade = self.draupnir.batch_by_clade
+        self.layernorm = nn.LayerNorm(self.draupnir.z_dim) #todo: should be embedding dim
+
         if self.draupnir.pretrained_params is not None:
             self.h_0_GUIDE = nn.Parameter(self.draupnir.pretrained_params["h_0_GUIDE"], requires_grad=True).to(self.draupnir.device)
         else:
@@ -34,19 +39,18 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
-        print("Done")
 
-        exit()
         if self.args.draupnir_version == "2":
             # self.encoder = nn.TransformerEncoder(
             #     nn.TransformerEncoderLayer(d_model=self.draupnir.aa_probs, nhead=1,dim_feedforward = self.draupnir.gru_hidden_dim),
             #     num_layers=1
             # )
             #self.encoder = Transformer(self.draupnir.align_seq_len,self.draupnir.aa_probs,self.draupnir.gru_hidden_dim, self.draupnir.z_dim,self.encoder_rnn_input_size, self.draupnir.kappa_addition,self.draupnir.num_layers)
-            out_dim = self.draupnir.aa_probs if self.draupnir.aa_probs%2 == 0 else self.draupnir.aa_probs + 1
-            self.encoder = TransformerEncoder2(out_dim,self.draupnir.align_seq_len,self.draupnir.z_dim)
-            self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,out_dim)
-            self.positional_encodings = PositionalEncodings(self.draupnir.align_seq_len, out_dim, 10000)
+
+            adapted_input_dim = self.draupnir.aa_probs if self.draupnir.aa_probs%2 == 0 else self.draupnir.aa_probs + 1 #this is necessary for MHA
+            self.encoder = TransformerEncoder3(self.draupnir.aa_probs,adapted_input_dim,self.draupnir.align_seq_len,self.draupnir.z_dim)
+            self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,adapted_input_dim)
+            self.positional_encodings = PositionalEncodings(self.draupnir.align_seq_len, self.draupnir.aa_probs, adapted_input_dim, 10000)
         else:
             self.encoder = RNNEncoder(self.draupnir.align_seq_len, self.draupnir.aa_probs,self.draupnir.n_leaves, self.draupnir.gru_hidden_dim, self.draupnir.z_dim, self.encoder_rnn_input_size,self.draupnir.kappa_addition,self.draupnir.num_layers,self.draupnir.pretrained_params)
             self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,self.draupnir.aa_probs)
@@ -160,10 +164,12 @@ class DRAUPNIRGUIDES(EasyGuide):
         """
         #pyro.module("encoder", self.encoder) #the transformer is only the scaled dot attention
         pyro.module("embeddingsencoder", self.embeddingencoder)
+        pyro.module("encoder", self.encoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
         aa_sequences = datasets["blosum"]
 
         nseqs = aa_sequences.shape[0]
+        print("nseqs", nseqs)
         with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
             # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
             # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
@@ -177,16 +183,20 @@ class DRAUPNIRGUIDES(EasyGuide):
             # Highlight: embed the amino acids represented by their respective blosum scores
             aminoacid_sequences = self.embeddingencoder(aa_sequences)  # Highlight: i) Makes linear projection ii) Makes the feature dimensions even to be able to apply the rotational embeddings
             #queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
-            sinusoidal_encodings = self.positional_encodings.sinusoidal_encodings() #[1, L, feat_dim]
-            aminoacid_sequences = aminoacid_sequences+ sinusoidal_encodings #sum because independent set of vectors with high likelihood
+            # sinusoidal_encodings = self.positional_encodings.sinusoidal_encodings() #[1, L, feat_dim]
+            # aminoacid_sequences = aminoacid_sequences+ sinusoidal_encodings #sum because independent set of vectors with high likelihood
 
             #encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
             encoder_output = self.encoder.forward(aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
             z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
             latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            print("nseqs guide",nseqs)
 
-            assert latent_z.shape == (self.draupnir.z_dim, nseqs)
+            print("latent space guide", latent_z.shape)
 
+            print("hidden states guide", encoder_output["hidden_states"].shape)
+
+            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,

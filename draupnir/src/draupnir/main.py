@@ -1724,7 +1724,9 @@ def draupnir_train_batching(train_load,
         epoch_count, total_epoch_loss_train, stop - start, memory_usage_mib), file=output_file)
         print("Current total time : {}".format(str(datetime.timedelta(seconds=stop - start_total))), file=output_file)
 
-        map_estimates = {val: key.detach() for val, key in map_estimates.items()}
+        map_estimates = {val: key.detach() for val, key in map_estimates.items()} if map_estimates is not None else None
+
+
         sample_out_train = Draupnir.sample_batched(map_estimates,
                                            n_samples,
                                            dataset_train,
@@ -1752,7 +1754,7 @@ def draupnir_train_batching(train_load,
                 # _, map_estimates_test = training_function(svi, test_function_input)
                 # map_estimates["hidden_states"] = map_estimates_test["hidden_states"]  #replace the map estimates for the hidden states from the test, but the OU parameters from the train
                 map_estimates_test = guide(datasets_test, patristic_matrix_test, cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)
-                map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"]
+                map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"] if "hidden_states" in map_estimates_test.keys() else None
 
             sample_out_test = Draupnir.sample_batched(map_estimates,
                                               n_samples,
@@ -1889,8 +1891,8 @@ def draupnir_train_batching(train_load,
         # print("sample idx {}".format(sample_idx))
         map_estimates = guide(datasets_train, patristic_matrix_train, cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
         map_estimates_test = guide(datasets_test, patristic_matrix_test, cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)
-        map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"]
-        map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
+        map_estimates["hidden_states_test"] = map_estimates_test["hidden_states"] if "hidden_states" in map_estimates_test.keys() else None
+        map_estimates_dict[sample] = {val: key.detach()  for val, key in map_estimates.items() if key is not None}
         for batch_idx,batch_idx_test in zip(blocks_train,blocks_test):
             batch_train_sample = Draupnir.sample_batched(map_estimates,
                                                  1,

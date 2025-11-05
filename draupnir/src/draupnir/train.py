@@ -34,24 +34,34 @@ def fill_estimates(guide_map_estimates,map_estimates):
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                map_estimates[key] = val
         elif key in ["alpha", "sigma_n", "sigma_f", "lambd"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
             map_estimates[key] = val
-        elif key in ["rnn_final_hidden_state", "rnn_hidden_states", "z_scale", "z_loc"]:
+        elif key in ["rnn_final_hidden_state", "rnn_hidden_states"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+                #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+                map_estimates[key] = val
+        elif key in ["z_scale","z_loc"]:
+            map_estimates[key] = val
+
         elif key in ["rnn_final_bidirectional"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                map_estimates[key] = val
         elif key in ["context_vector","attention_scores","attention_logits","hidden_states"]:
+            print(f"{key}", val.shape)
+
+
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
+                map_estimates[key] = val
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
     return  guide_map_estimates, map_estimates
 
@@ -88,7 +98,8 @@ def train_batch(svi,training_function_input):
 
             batch_datasets = {"int":batch_dataset,
                               "blosum":batch_data_blosum,
-                              "onehot":torch.ones(batch_dataset.shape[0])}
+                              "onehot":torch.ones(batch_dataset.shape[0]),
+                              "mask":torch.ones_like(batch_dataset)} #todo: investigate mask
             seq_lens += batch_dataset[:, 0, 0].tolist()
             guide_map_estimates = guide(batch_datasets,
                                   batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
@@ -97,28 +108,11 @@ def train_batch(svi,training_function_input):
                                   batch_blosum=None,
                                   map_estimates=None)  # only saving 1 sample
 
-            # for key,val in guide_map_estimates.items():
-            #     if key in ["latent_z"]:
-            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2,tensor=val)
-            #         if key not in map_estimates:
-            #             map_estimates[key] = val
-            #         else:
-            #             map_estimates[key] = torch.concat([map_estimates[key],guide_map_estimates[key]],dim=1)
-            #     elif key in ["alpha","sigma_n","sigma_f","lambd"]:
-            #         guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
-            #         map_estimates[key] = val
-            #     elif key in ["rnn_final_hidden_state","rnn_hidden_states","z_scale","z_loc"]:
-            #         if key not in map_estimates:
-            #             map_estimates[key] = val
-            #         else:
-            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
-            #     elif key in ["rnn_final_bidirectional"]:
-            #         if key not in map_estimates:
-            #             map_estimates[key] = val
-            #         else:
-            #             map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+            #YOU ARE IN THE WRONG FUNCTION
+
 
             guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates)
+
 
 
             train_loss += svi.step(batch_datasets,
@@ -126,7 +120,8 @@ def train_batch(svi,training_function_input):
                                    cladistic_matrix_full,
                                    batch_data_blosum,
                                    batch_blosum_weighted,
-                                   map_estimates) #TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
+                                   map_estimates)
+
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
@@ -256,6 +251,8 @@ def train_transformer(svi,training_function_input):
             batch_datasets = {"int": batch_dataset,
                               "blosum": batch_data_blosum,
                               "onehot": torch.ones(batch_dataset.shape[0])}
+
+
             seq_lens += batch_dataset[:, 0, 0].tolist()
             guide_map_estimates = guide(batch_datasets,
                                         batch_patristic,
@@ -266,7 +263,10 @@ def train_transformer(svi,training_function_input):
                                         map_estimates=None)  # only saving 1 sample
 
 
-            guide_map_estimates, map_estimates = fill_estimates(guide_map_estimates, map_estimates)
+
+            #guide_map_estimates, map_estimates = fill_estimates(guide_map_estimates, map_estimates) #todo: why did i do this? remove? #todo : try without the guide estimates to fix the shapes
+            #todo: the error is in the guide or in the guide_map estimates or in the fill_estimates
+            map_estimates = None
 
             train_loss += svi.step(batch_datasets,
                                    batch_patristic,
@@ -274,6 +274,8 @@ def train_transformer(svi,training_function_input):
                                    batch_data_blosum,
                                    batch_blosum_weighted,
                                    map_estimates)  # TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
+
+
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
