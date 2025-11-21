@@ -12,16 +12,18 @@ import torch
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio import SeqIO
-
 import draupnir.utils as DraupnirUtils
 import draupnir.models_utils as DraupnirModelUtils
 import draupnir.datasets as DraupnirDatasets
-
 from collections import namedtuple
 from torch.utils.data import Dataset, DataLoader
 from dill import Unpickler
+import ntpath
+from typing import Union
+
+
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
-TrainLoad = namedtuple('TrainLoad', ['dataset_train', 'evolutionary_matrix_train', 'patristic_matrix_train','cladistic_matrix_train'])
+TrainLoad = namedtuple('TrainLoad', ['dataset_train', 'evolutionary_matrix_train', 'patristic_matrix_train','cladistic_matrix_train','embeddings_train'])
 TestLoad = namedtuple('TestLoad',
                       ['dataset_test', 'evolutionary_matrix_test', 'patristic_matrix_test','cladistic_matrix_test',"leaves_names_test",
                        "position_test", "internal_nodes_indexes"])
@@ -231,7 +233,6 @@ def validate_aa_probs(alignment,build_config):
     different_elements = "".join(np.unique(align_array).tolist())
     aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements.lower())
     return aa_probs_updated
-
 def pairwise_distance_matrix(name,script_dir):
     """Reads any of the available pairwise distances file and sorts them in pairs in ascending order
     :param str name
@@ -280,7 +281,25 @@ def remove_nan(dataset):
     aa_angles = np.apply_along_axis(lambda r: np.zeros_like(r) if np.isnan(r).any() else r, 2, aa_angles)
     dataset[:, 3:, 0:3] = aa_angles
     return dataset
-def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_distance_matrix,n_seq_train,n_seq_test,now,name,aa_probs,leaves_names_list,one_hot_encoding,nodes=[],ancestral =True):
+def processing(args:namedtuple,
+               settings_config,
+               results_dir:str,
+               dataset:np.ndarray,
+               patristic_matrix,
+               cladistic_matrix,
+               sorted_distance_matrix,
+               n_seq_train,
+               n_seq_test,
+               now,
+               name:str,
+               aa_probs:Union[int | float],
+               leaves_names_list:list,
+               one_hot_encoding: bool,
+               embeddings : Union[np.ndarray | None],
+               sequence_representations: Union[np.ndarray | None],
+               nodes:list=[],
+               ancestral:bool =True,
+               ):
     """Divides the dataset into train and test, also the evolutionary/patristic matrices.
     :param str results_dir
     :param pandas-array dataset
@@ -293,18 +312,22 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
     :param name: data project name
     :param aa_probs: amino acid probabilities
     :param leaves_nodes: list of the names of the leaves nodes
-    :param one_hot_encoding
+    :param one_hot_encoding: bool
     :param nodes: tree level order names of the nodes
     :param ancestral : Keeps(true) or discard (false) the ancestral nodes from the dataset. We use False when we are performing leaf testing"""
+
+
     if n_seq_test == 0:
         dataset_train = dataset
+        embeddings_train = embeddings
+        sequence_representations_train = sequence_representations
+
         # Write the train sequences to a fasta file
         with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle,open("{}/{}_training_aligned.fasta".format(results_dir, name), "w") as output_handle2:
             records = []
             records_aligned = []
             for sequence in dataset_train:
                 if one_hot_encoding:
-                    #print(sequence[3:,0:21])
                     sequence_to_translate = np.argmax(sequence[3:,0:21],axis=1)
                 else:
                     sequence_to_translate = sequence[3:,0] #TODO: is this correct?
@@ -316,13 +339,15 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
                 record_aligned = SeqRecord(Seq(''.join(train_sequence)),
                                    annotations={"molecule_type": "protein"},
                                    id=str(sequence[0, 0]),
-                                   description="")  # TODO: There is an error here for the one-hot encoded version!!!
+                                   description="")  # TODO: There is an error here for the one-hot encoded version!!! we are not using it anyways
                 records_aligned.append(record_aligned)
+
             SeqIO.write(records, output_handle, "fasta")
             SeqIO.write(records_aligned, output_handle2, "fasta")
-        # Eliminate the name part in the row, so that not everything needs to be changed
-        dataset_train = dataset_train[:, 1:].astype('float64')
+        dataset_train = dataset_train[:, 1:].astype('float64') # Eliminate the str name part in the row, so that not everything needs to be changed
+        embeddings_train = embeddings_train[:,1:].astype("float64") if embeddings_train is not None else None
         dataset_test = None
+        embeddings_test = None
         patristic_matrix_train = DraupnirUtils.symmetrize_and_clean(patristic_matrix,ancestral=ancestral)  # Highlight: if ancestral is true, patristic_matrix_train = patristic_matrix_full
         patristic_matrix_train = DraupnirUtils.rename_axis(patristic_matrix_train, nodes, name_file=name)
         if cladistic_matrix is not None:
@@ -351,8 +376,6 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
         n_75 = int((n_train*75)/100)
         test_indexes = np.random.choice(np.arange(n_25,n_75),n_test,replace=False)
         leaves_names_test = [leaves_names_list[index] for index in test_indexes]
-        #leaves_names_test = ["5vei","2m0y","1wdx","6pbc","1gbr","3uat","4a65","2cud","7d7s","1x2p","1x27"]
-
 
         # rank = 100  # Higher rank, more pairwise distance
         # sequence_0 = sorted_distance_matrix.loc[rank].Sequence_0
@@ -363,8 +386,15 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
         file_hyperparams.write('Test sequences names: {} \n'.format(leaves_names_test))
         file_hyperparams.close()
 
-        dataset_test = dataset[np.isin(dataset[:, 0, 0], leaves_names_test)]
-        dataset_train = dataset[np.logical_not(np.isin(dataset[:, 0, 0], leaves_names_test))]
+
+        test_idx = np.isin(dataset[:, 0, 0], leaves_names_test)
+        dataset_test = dataset[test_idx]
+        dataset_train = dataset[np.logical_not(test_idx)]
+
+        embeddings_train = embeddings[~test_idx] if embeddings is not None else None
+        embeddings_test = embeddings[test_idx] if embeddings is not None else None
+
+        sequence_representations_train = sequence_representations[~test_idx]
 
         # Write the train sequences to a fasta file
         with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle:
@@ -436,46 +466,114 @@ def processing(results_dir,dataset,patristic_matrix,cladistic_matrix,sorted_dist
     else:
         cladistic_matrix_full = cladistic_matrix
 
-    return dataset_train,dataset_test,evolutionary_matrix_train,evolutionary_matrix_test,patristic_matrix_train,patristic_matrix_test,patristic_matrix_full, cladistic_matrix_train,cladistic_matrix_test,cladistic_matrix_full,position_test,leaves_names_test
-def pretreatment(dataset_train,patristic_matrix_full,cladistic_matrix_full,build_config,settings_config):
+
+    if dataset_test is not None:#Highlight: Dataset_test != None only when the test dataset is extracted from the train (part of the leaves are test )
+        DraupnirUtils.ramachandran_plot(dataset_test[:, 2:], "{}/TEST_OBSERVED_angles".format(results_dir+"/Test_Plots"),"Test Angles", one_hot_encoded=settings_config.one_hot_encoding)
+        dataset_test = torch.from_numpy(dataset_test)
+        patristic_matrix_test = torch.from_numpy(patristic_matrix_test)
+        if cladistic_matrix_test is not None:
+            cladistic_matrix_test = torch.from_numpy(cladistic_matrix_test)
+    if cladistic_matrix_train is not None :
+        cladistic_matrix_train = torch.from_numpy(cladistic_matrix_train)
+        cladistic_matrix_full = torch.from_numpy(cladistic_matrix_full)
+    #Highlight: Normalize the patristic distances/patrocladistic==evolutionary matrix
+    normalize_patristic = False
+    text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
+    text_file.write("Normalize patristic: {}\n".format(str(normalize_patristic)))
+    if normalize_patristic:
+        print("Normalizing patristic matrix!")
+        patristic_matrix_full[1:, 1:] = patristic_matrix_full[1:, 1:] / np.linalg.norm(patristic_matrix_full[1:, 1:])
+        if evolutionary_matrix_train is not None:
+            evolutionary_matrix_train[1:, 1:] = evolutionary_matrix_train[1:, 1:] / np.linalg.norm(evolutionary_matrix_train[1:, 1:])
+        evolutionary_matrix_train = [torch.from_numpy(evolutionary_matrix_train) if evolutionary_matrix_train is not None else evolutionary_matrix_train][0]
+    else:
+        evolutionary_matrix_train = [torch.from_numpy(evolutionary_matrix_train) if evolutionary_matrix_train is not None else evolutionary_matrix_train][0]
+
+    results_dict = {"dataset_train":dataset_train,
+                   "dataset_test":dataset_test,
+                   "evolutionary_matrix_train":evolutionary_matrix_train,
+                   "evolutionary_matrix_test":evolutionary_matrix_test,
+                   "patristic_matrix_train":patristic_matrix_train,
+                   "patristic_matrix_test":patristic_matrix_test,
+                   "patristic_matrix_full":patristic_matrix_full,
+                   "cladistic_matrix_train":cladistic_matrix_train,
+                   "cladistic_matrix_test":cladistic_matrix_test,
+                   "cladistic_matrix_full":cladistic_matrix_full,
+                   "position_test":position_test,
+                   "leaves_names_test":leaves_names_test,
+                    "embeddings_train":embeddings_train,
+                    "embeddings_test":embeddings_test,
+                    "sequences_representations_train": sequence_representations_train,
+                    }
+
+
+    #return dataset_train,dataset_test,evolutionary_matrix_train,evolutionary_matrix_test,patristic_matrix_train,patristic_matrix_test,patristic_matrix_full, cladistic_matrix_train,cladistic_matrix_test,cladistic_matrix_full,position_test,leaves_names_test
+    return results_dict
+
+def matrix_sort(dataset_train,matrix,trim=False):
+    """Sorts the input matrix by the nodes indexes in ascending order"""
+    # Highlight: Sort by descent the patristic distances by node id
+    matrix_sorted, matrix_sorted_idx = torch.sort(matrix[:, 0])
+    matrix_sorted = matrix[matrix_sorted_idx]  # sorted rows
+    matrix_sorted = matrix_sorted[:, matrix_sorted_idx]  # sorted columns
+    if trim: #remove the ancestors info
+        # Highlight: Find only the observed/train/leaves nodes indexes on the patristic matrix
+        obs_indx = (matrix_sorted[:, 0][..., None] == dataset_train[:, 0, 1]).any(-1)
+        obs_indx[0] = True  # To re-add the node names
+        matrix_sorted = matrix_sorted[obs_indx]
+        matrix_sorted = matrix_sorted[:, obs_indx]
+    return matrix_sorted
+
+def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_config,settings_config):
     """ALigns the order of the nodes in the dataset and the patristic and cladistic matrices. Calculates the amino acid frequencies.
     :param tensor dataset_train
     :param tensor patristic_matrix_full
     :param tensor cladistic_matrix_full
     :param namedtuple build_config
     """
+    dataset_train = train_load.dataset_train
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
-    aa_frequencies = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
-    aa_frequencies = torch.from_numpy(aa_frequencies)
+    aa_frequencies_train = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
+    aa_frequencies_train = torch.from_numpy(aa_frequencies_train)
     aa_properties = DraupnirUtils.aa_properties(build_config.aa_probs,settings_config.data_folder)
 
-    def matrix_sort(matrix,trim=False):
-        """Sorts the input matrix by the nodes indexes in ascending order"""
-        # Highlight: Sort by descent the patristic distances by node id
-        matrix_sorted, matrix_sorted_idx = torch.sort(matrix[:, 0])
-        matrix_sorted = matrix[matrix_sorted_idx]  # sorted rows
-        matrix_sorted = matrix_sorted[:, matrix_sorted_idx]  # sorted columns
-        if trim: #remove the ancestors info
-            # Highlight: Find only the observed/train/leaves nodes indexes on the patristic matrix
-            obs_indx = (matrix_sorted[:, 0][..., None] == dataset_train[:, 0, 1]).any(-1)
-            obs_indx[0] = True  # To re-add the node names
-            matrix_sorted = matrix_sorted[obs_indx]
-            matrix_sorted = matrix_sorted[:, obs_indx]
-        return matrix_sorted
-    patristic_matrix_train = matrix_sort(patristic_matrix_full,trim=True)
-    patristic_matrix_full = matrix_sort(patristic_matrix_full)
+
+    patristic_matrix_train = matrix_sort(dataset_train,patristic_matrix_full,trim=True)
+    patristic_matrix_full = matrix_sort(dataset_train,patristic_matrix_full)
     if cladistic_matrix_full is not None:
-        cladistic_matrix_train = matrix_sort(cladistic_matrix_full,trim=True)
-        cladistic_matrix_full = matrix_sort(cladistic_matrix_full)
+        cladistic_matrix_train = matrix_sort(dataset_train,cladistic_matrix_full,trim=True)
+        cladistic_matrix_full = matrix_sort(dataset_train,cladistic_matrix_full)
     else:
         cladistic_matrix_train = None
 
     # Highlight: Sort by descent the family data by node id, so that the order of the patristic distances and the sequences are matching
     dataset_train_sorted_vals, dataset_train_sorted_idx = torch.sort(dataset_train[:, 0, 1])
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
+    embeddings_train_sorted = train_load.embeddings_train[dataset_train_sorted_idx] if train_load.embeddings_train is not None else None
+    sequences_representations_train_sorted = train_load.sequences_representations_train[dataset_train_sorted_idx] if train_load.sequences_representations_train is not None else None
 
-    return dataset_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
-def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,cladistic_matrix,test_nodes_observed,device,inferred=True,original_naming=True):
+    results_dict = {"dataset_train_sorted": dataset_train_sorted,
+                    "embeddings_train_sorted":embeddings_train_sorted,
+                    "sequences_representations_train_sorted":sequences_representations_train_sorted,
+                    "patristic_matrix_full": patristic_matrix_full,
+                    "patristic_matrix_train": patristic_matrix_train,
+                    "cladistic_matrix_full": cladistic_matrix_full,
+                    "cladistic_matrix_train":cladistic_matrix_train,
+                    "aa_frequencies_train": aa_frequencies_train
+                    }
+
+
+    #return dataset_train_sorted, embeddings_train_sorted,patristic_matrix_full,patristic_matrix_train,cladistic_matrix_full,cladistic_matrix_train,aa_frequencies
+    return results_dict
+
+def pretreatment_benchmark_randall(dataset_test,
+                                   dataset_train,
+                                   patristic_matrix_full,
+                                   cladistic_matrix_full,
+                                   test_nodes_observed,
+                                   device,
+                                   inferred=True,
+                                   original_naming=True):
     if inferred:
         test_nodes_observed_correspondence = [21, 30, 32, 31, 22, 33, 34, 35, 28, 23, 36, 29, 27, 24, 26,25]  # numbers in the benchmark dataset paper/original names
         test_nodes_inferred_list = [19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32, 33, 34, 35]  # iqtree correspondence/see Tree_Pictures/return_becnhmark.png
@@ -496,58 +594,65 @@ def pretreatment_benchmark_randall(Dataset_test,Dataset_train,patristic_matrix,c
     test_nodes_inferred_list_correspondence = [correspondence_dict[val] for val in test_nodes_observed]
 
     # Highlight: Keep only the ancestral nodes, because , some of the ancestral nodes have the same number as the leaves, so we cannot just do ==
-    n_obs = Dataset_train.shape[0]
-    patristic_matrix_test = patristic_matrix[:n_obs-1] #removed n_obs-1 ---> could mess up the problem with the inferred tree
+    n_obs = dataset_train.shape[0]
+    patristic_matrix_test = patristic_matrix_full[:n_obs-1] #removed n_obs-1 ---> could mess up the problem with the inferred tree
     patristic_matrix_test = patristic_matrix_test[:, :n_obs-1]
-    if cladistic_matrix is not None:
-        cladistic_matrix_test = cladistic_matrix[:n_obs - 1]  # removed n_obs-1 ---> could mess up the problem with the inferred tree
-        cladistic_matrix_test = cladistic_matrix_test[:, :n_obs - 1]
+    # if cladistic_matrix_full is not None:
+    #     cladistic_matrix_test = cladistic_matrix_full[:n_obs - 1]  # removed n_obs-1 ---> could mess up the problem with the inferred tree
+    #     cladistic_matrix_test = cladistic_matrix_test[:, :n_obs - 1]
 
     test_nodes = torch.tensor(test_nodes_inferred_list_correspondence).cpu()
     #Highlight: replace also in the original dataset with the correspondent node names
-    Dataset_test[:,0,1] = test_nodes
+    dataset_test[:,0,1] = test_nodes
     vals, idx = torch.sort(test_nodes)
     test_nodes = test_nodes[idx]
-    Dataset_test = Dataset_test[idx] #also order! same as the patristic!
+    dataset_test = dataset_test[idx] #also order! same as the patristic!
     test_indx_patristic = (patristic_matrix_test[:, 0][..., None] == test_nodes).any(-1)
     test_indx_patristic[0] = True  # To re-add the node names
     patristic_matrix_test = patristic_matrix_test[test_indx_patristic]
     patristic_matrix_test = patristic_matrix_test[:, test_indx_patristic]
-    if cladistic_matrix is not None: #TODO: I do not think is necessary, the benchmark has cladistic
-        cladistic_matrix_test = cladistic_matrix_test[test_indx_patristic]
-        cladistic_matrix_test = cladistic_matrix_test[:, test_indx_patristic]
+    # if cladistic_matrix is not None: #TODO: I do not think is necessary, the benchmark has cladistic
+    #     cladistic_matrix_test = cladistic_matrix_full[:n_obs - 1]  # removed n_obs-1 ---> could mess up the problem with the inferred tree
+    #     cladistic_matrix_test = cladistic_matrix_test[:, :n_obs - 1]
+    #     cladistic_matrix_test = cladistic_matrix_test[test_indx_patristic]
+    #     cladistic_matrix_test = cladistic_matrix_test[:, test_indx_patristic]
     #Highlight:  Sort by descent the patristic distances by node id ( for the train sequences is done in Draupnir.preprocessing)
     vals_test_sorted, idx_test_sorted = torch.sort(patristic_matrix_test[:, 0])
     patristic_matrix_test= patristic_matrix_test[idx_test_sorted]  # sorted rows
     patristic_matrix_test = patristic_matrix_test[:, idx_test_sorted]  # sorted columns
-    assert patristic_matrix_test[1:, 0].tolist() == Dataset_test[:, 0, 1].tolist()
-    if cladistic_matrix is not None:
+    assert patristic_matrix_test[1:, 0].tolist() == dataset_test[:, 0, 1].tolist()
+    if cladistic_matrix_full is not None:
+        cladistic_matrix_test = cladistic_matrix_full[:n_obs - 1]  # removed n_obs-1 ---> could mess up the problem with the inferred tree
+        cladistic_matrix_test = cladistic_matrix_test[:, :n_obs - 1]
+        cladistic_matrix_test = cladistic_matrix_test[test_indx_patristic]
+        cladistic_matrix_test = cladistic_matrix_test[:, test_indx_patristic]
         vals_test_sorted, idx_test_sorted = torch.sort(cladistic_matrix_test[:, 0])
         cladistic_matrix_test= cladistic_matrix_test[idx_test_sorted]  # sorted rows
         cladistic_matrix_test = cladistic_matrix_test[:, idx_test_sorted]  # sorted columns
     #Highlight : Training matrix
 
-    obs_node_names = Dataset_train[:,0,1]
-    train_indx_patristic = (patristic_matrix[:, 0][..., None] == obs_node_names).any(-1)
+    obs_node_names = dataset_train[:,0,1]
+    train_indx_patristic = (patristic_matrix_full[:, 0][..., None] == obs_node_names).any(-1)
     train_indx_patristic[0] = True
 
     # Highlight: Skip ancestral number 19 (repeated!!!)
     if not original_naming:
         train_indx_patristic[1] = False
-    patristic_matrix_train = patristic_matrix[train_indx_patristic]
+    patristic_matrix_train = patristic_matrix_full[train_indx_patristic]
     patristic_matrix_train = patristic_matrix_train[:, train_indx_patristic]
     vals,idx = torch.sort(patristic_matrix_train[:,0]) #sort just in case
     patristic_matrix_train = patristic_matrix_train[idx]
-    if cladistic_matrix is not None:
-        cladistic_matrix_train = cladistic_matrix[train_indx_patristic]
+    if cladistic_matrix_full is not None:
+        cladistic_matrix_train = cladistic_matrix_full[train_indx_patristic]
         cladistic_matrix_train = cladistic_matrix_train[:, train_indx_patristic]
         cladistic_matrix_train = cladistic_matrix_train[idx]
-    assert Dataset_train[:,0,1].tolist() == patristic_matrix_train[1:,0].tolist()
+    assert dataset_train[:,0,1].tolist() == patristic_matrix_train[1:,0].tolist()
     #Highlight: Need to invert the dict mapping for later
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
-    return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,Dataset_test,Dataset_train,correspondence_dict
+    return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,dataset_test,dataset_train,correspondence_dict
+
 def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
-    """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered equally
+    """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered accordingly.
     :param str name: dataset_name
     :param str root_sequence_name: for the default simulated datasets, we need an additional name string to retrieve the ancestral sequences
     :param namedtuple train_load: namedtuple with all tensors concerning the leaves
@@ -684,30 +789,72 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
             dataset_test = torch.zeros((patristic_matrix_test.shape[0] - 1, train_load.dataset_train.shape[1], 30))
             dataset_test[:, 0, 1] = patristic_matrix_test[1:, 0]
 
-    dataset_train,\
-    patristic_matrix_full,\
-    patristic_matrix_train,\
-    cladistic_matrix_full,\
-    cladistic_matrix_train,\
-    aa_frequencies_train = pretreatment(train_load.dataset_train, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
+    # dataset_train,\
+    # embeddings_train, \
+    # patristic_matrix_full,\
+    # patristic_matrix_train,\
+    # cladistic_matrix_full,\
+    # cladistic_matrix_train,\
+    # aa_frequencies_train = pretreatment(train_load, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
+
+    results_dict = pretreatment(train_load, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
 
     aa_frequencies_test = DraupnirUtils.calculate_aa_frequencies(dataset_test[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
     aa_frequencies_test = torch.from_numpy(aa_frequencies_test)
 
 
-    test_load = TestLoad(dataset_test=dataset_test,
+    # test_load = TestLoad(dataset_test=dataset_test,
+    #                      evolutionary_matrix_test=test_load.evolutionary_matrix_test,
+    #                      patristic_matrix_test=patristic_matrix_test,
+    #                      cladistic_matrix_test=cladistic_matrix_test,
+    #                      leaves_names_test=test_load.leaves_names_test,
+    #                      position_test=test_load.position_test,
+    #                      internal_nodes_indexes=test_load.internal_nodes_indexes)
+
+    test_load = test_load._replace(dataset_test=dataset_test,
                          evolutionary_matrix_test=test_load.evolutionary_matrix_test,
                          patristic_matrix_test=patristic_matrix_test,
                          cladistic_matrix_test=cladistic_matrix_test,
                          leaves_names_test=test_load.leaves_names_test,
                          position_test=test_load.position_test,
                          internal_nodes_indexes=test_load.internal_nodes_indexes)
-    train_load = TrainLoad(dataset_train=dataset_train,
+
+    # train_load = TrainLoad(dataset_train=results_dict["dataset_train"],
+    #                        embeddings_train = results_dict["embeddings_train"],
+    #                        evolutionary_matrix_train=train_load.evolutionary_matrix_train,
+    #                        patristic_matrix_train=results_dict["patristic_matrix_train"],
+    #                        cladistic_matrix_train=results_dict["cladistic_matrix_train"])
+
+    train_load = train_load._replace(dataset_train=results_dict["dataset_train_sorted"],
+                           embeddings_train = results_dict["embeddings_train_sorted"],
                            evolutionary_matrix_train=train_load.evolutionary_matrix_train,
-                           patristic_matrix_train=patristic_matrix_train,
-                           cladistic_matrix_train=cladistic_matrix_train)
-    additional_load = AdditionalLoad(patristic_matrix_full=patristic_matrix_full,
-                                     cladistic_matrix_full=cladistic_matrix_full,
+                           patristic_matrix_train=results_dict["patristic_matrix_train"],
+                           cladistic_matrix_train=results_dict["cladistic_matrix_train"])
+    # train_load = train_load._replace(embeddings_train=results_dict["embeddings_train"])
+    # train_load = train_load._replace(evolutionary_matrix_train=results_dict["evolutionary_matrix_train"])
+    # train_load = train_load._replace(patristic_matrix_train=results_dict["patristic_matrix_train"])
+    # train_load = train_load._replace(cladistic_matrix_train=results_dict["cladistic_matrix_train"])
+
+    # additional_load = AdditionalLoad(patristic_matrix_full=results_dict["patristic_matrix_full"],
+    #                                  cladistic_matrix_full=results_dict["cladistic_matrix_full"],
+    #                                  children_array=additional_load.children_array,
+    #                                  ancestor_info_numbers=additional_load.ancestor_info_numbers,
+    #                                  tree_levelorder_names=additional_load.tree_levelorder_names,
+    #                                  clades_dict_leaves =additional_load.clades_dict_leaves,
+    #                                  closest_leaves_dict=additional_load.closest_leaves_dict,
+    #                                  clades_dict_all=additional_load.clades_dict_all,
+    #                                  linked_nodes_dict = additional_load.linked_nodes_dict,
+    #                                  descendants_dict= additional_load.descendants_dict,
+    #                                  alignment_length=additional_load.alignment_length,
+    #                                  aa_frequencies_train=results_dict["aa_frequencies_train"],
+    #                                  aa_frequencies_test=aa_frequencies_test,
+    #                                  correspondence_dict = correspondence_dict,
+    #                                  special_nodes_dict=special_nodes_dict,
+    #                                  full_name=additional_load.full_name)
+
+
+    additional_load = additional_load._replace(patristic_matrix_full=results_dict["patristic_matrix_full"],
+                                     cladistic_matrix_full=results_dict["cladistic_matrix_full"],
                                      children_array=additional_load.children_array,
                                      ancestor_info_numbers=additional_load.ancestor_info_numbers,
                                      tree_levelorder_names=additional_load.tree_levelorder_names,
@@ -717,11 +864,13 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                                      linked_nodes_dict = additional_load.linked_nodes_dict,
                                      descendants_dict= additional_load.descendants_dict,
                                      alignment_length=additional_load.alignment_length,
-                                     aa_frequencies_train=aa_frequencies_train,
+                                     aa_frequencies_train=results_dict["aa_frequencies_train"],
                                      aa_frequencies_test=aa_frequencies_test,
                                      correspondence_dict = correspondence_dict,
                                      special_nodes_dict=special_nodes_dict,
                                      full_name=additional_load.full_name)
+
+
 
     return train_load,test_load,additional_load
 def check_if_exists(a, b, key):
@@ -759,12 +908,14 @@ def load_dict_to_namedtuple(load_dict):
     return sample_out
 
 class CladesDataset(Dataset):
-    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum):
+    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum,clades_embeddings):
         self.clades_names = clades_names
         self.clades_data = clades_data
         self.clades_patristic = clades_patristic
         self.clades_blosum_weighted = clades_blosum_weighted
         self.clades_data_blosum = clades_data_blosum
+        self.clade_embeddings = clades_embeddings
+
 
     def __getitem__(self, index): #sets a[i]
         clade_name = self.clades_names[index]
@@ -772,20 +923,26 @@ class CladesDataset(Dataset):
         clade_patristic = self.clades_patristic[index]
         clade_blosum_weighted = self.clades_blosum_weighted[index]
         clade_data_blosum = self.clades_data_blosum[index]
+        clade_embedding = self.clade_embeddings[index]
+
         return {'clade_name': clade_name,
                 'clade_data': clade_data,
                 'clade_patristic': clade_patristic ,
                 'clade_blosum_weighted':clade_blosum_weighted,
-                'clade_data_blosum':clade_data_blosum}
+                'clade_data_blosum':clade_data_blosum,
+                'clade_embedding':clade_embedding}
+
     def __len__(self):
         return len(self.clades_names)
+
 class SplittedDataset(Dataset):
-    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums):
+    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums,batches_embeddings):
         self.batches_names = batches_names
         self.batches_data = batches_data
         self.batches_patristic = batches_patristic
         self.batches_blosum_weighted = batches_blosum_weighted
         self.batches_data_blosum = batches_data_blosums
+        self.batches_embeddings = batches_embeddings
 
     def __getitem__(self, index):  # sets a[i]
         batch_name = self.batches_names[index]
@@ -793,27 +950,34 @@ class SplittedDataset(Dataset):
         batch_patristic = self.batches_patristic[index]
         batch_blosum_weighted = self.batches_blosum_weighted[index]
         batch_data_blosum = self.batches_data_blosum[index]
+        batch_embedding = self.batches_embeddings[index]
         return {'batch_name': batch_name,
                 'batch_data': batch_data,
                 'batch_patristic': batch_patristic,
                 'batch_blosum_weighted': batch_blosum_weighted,
-                'batch_data_blosum':batch_data_blosum}
-
+                'batch_data_blosum':batch_data_blosum,
+                'batch_embedding':batch_embedding
+                }
     def __len__(self):
         return len(self.batches_names)
+
 class CustomDataset(Dataset):
-    def __init__(self, data_array_blosum,data_array_int,data_array_onehot):
+    def __init__(self, data_array_blosum,data_array_int,data_array_onehot,data_array_embedding):
         self.batch_data_blosum = data_array_blosum
         self.batch_data_int = data_array_int
         self.batch_data_onehot = data_array_onehot
+        self.data_array_embedding = data_array_embedding
+
 
     def __getitem__(self, index):  # sets a[i]
         batch_data_blosum = self.batch_data_blosum[index]
         batch_data_int = self.batch_data_int[index] if self.batch_data_int is not None else None
         batch_data_onehot = self.batch_data_onehot[index] if self.batch_data_onehot is not None else None
+        batch_data_embedding = self.data_array_embedding[index] if self.data_array_embedding is not None else None
         return {'blosum': batch_data_blosum,
                 'int':batch_data_int,
                 'onehot':batch_data_onehot,
+                'embedding':batch_data_embedding,
                 }
     def __len__(self):
         return len(self.batch_data_blosum)
@@ -839,7 +1003,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
     if method == "batch_dim_0":
         if args.batch_size == 1 : #only 1 batch // plating
             #train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
-            train_loader = CustomDataset(datasets["blosum"].cpu(),datasets["int"].cpu(),datasets["onehot"].cpu())
+            train_loader = CustomDataset(datasets["blosum"].cpu(),datasets["int"].cpu(),datasets["onehot"].cpu(),datasets["embedding"].cpu())
             train_loader = DataLoader(train_loader,batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
                 for dataset in train_loader:
@@ -850,6 +1014,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
             
             blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
+            batch_embeddings = []
             batch_datasets = []
             batch_patristics = []
             batch_aa_freqs = []
@@ -865,7 +1030,8 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                 batch_patristic = patristic_matrix_train[patristic_indexes]
                 batch_patristic = batch_patristic[:, patristic_indexes]
                 batch_patristics.append(batch_patristic)
-
+                batch_embedding = datasets["embedding"][int(block_idx[0]):int(block_idx[1])]
+                batch_embeddings.append(batch_embedding.cpu())
 
                 batch_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(batch_data[:, 2:, 0].cpu().numpy(),
                                                                 build_config.aa_probs)
@@ -876,22 +1042,21 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                                                                build_config.aa_probs)
                 batch_blosums_max.append(batch_blosum_max)
                 batch_blosums_weighted.append(batch_blosum_weighted)
-                batch_data_blosum = DraupnirUtils.blosum_encoding(blosum, batch_aa_frequencies, build_config.align_seq_len,
-                                                             build_config.aa_probs, batch_data, False)
+                batch_data_blosum = DraupnirUtils.blosum_encoding(blosum, batch_aa_frequencies, build_config.align_seq_len,build_config.aa_probs, batch_data, False)
                 batch_data_blosums.append(batch_data_blosum.cpu())
 
-            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted,
-                                                batch_data_blosums)
+            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted,batch_data_blosums,batch_embeddings)
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
             for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
                 #train_loader = [ x.to('cuda', non_blocking=True) if isinstance(x,torch.Tensor) else x for x in dataset.values()]
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum in zip(
+                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum, batch_embedding in zip(
                         dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
-                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"]):
+                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"], dataset["batch_embedding"]):
                     batch_dataset.to('cuda', non_blocking=True)
                     batch_patristic.to('cuda', non_blocking=True)
                     batch_blosum_weighted.to('cuda', non_blocking=True)
                     batch_data_blosum.to('cuda', non_blocking=True)
+                    batch_embedding.to('cuda', non_blocking=True)
 
 
     elif method == "batch_by_clade": #todo: remove
@@ -900,6 +1065,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
         clades_patristic = []
         clades_blosums_weighted = []  # this is where the weighted average goes
         clades_data_blosums = []  # this is the dataset in blosum-encoding goes
+        clades_embeddings = []
         for key, values in clades_dict.items():
             clades_labels.append(key)
             if isinstance(values, list) and len(values) > 1:
@@ -911,6 +1077,9 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
 
             clade_dataset = datasets["int"][clades_indexes]
             clades_datasets.append(clade_dataset.cpu())
+            clade_embedding = datasets["embedding"][clades_indexes]
+            clades_embeddings.append(clade_embedding)
+
             patristic_indexes[0] = True  # To re-add the node names
             clade_patristic = patristic_matrix_train[patristic_indexes]
             clade_patristic = clade_patristic[:, patristic_indexes]
@@ -925,17 +1094,19 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                          build_config.aa_probs, clade_dataset, False)
             clades_data_blosums.append(clade_data_blosum.cpu())
         Clades_Datasets = CladesDataset(clades_labels, clades_datasets, clades_patristic, clades_blosums_weighted,
-                                        clades_data_blosums)
+                                        clades_data_blosums,clades_embeddings)
         train_loader = DataLoader(Clades_Datasets, **kwargs)
         if use_cuda:
             for batch_number, dataset in enumerate(train_loader):
-                for clade_name, clade_dataset, clade_patristic, clade_blosum, clade_data_blosum in zip(
+                for clade_name, clade_dataset, clade_patristic, clade_blosum, clade_data_blosum, clade_embedding in zip(
                         dataset["clade_name"], dataset["clade_data"], dataset["clade_patristic"],
-                        dataset["clade_blosum_weighted"], dataset["clade_data_blosum"]):
+                        dataset["clade_blosum_weighted"], dataset["clade_data_blosum"],dataset["clade_embedding"]):
                     clade_dataset.to('cuda:0', non_blocking=True)
                     clade_patristic.to('cuda:0', non_blocking=True)
                     clade_blosum.to('cuda:0', non_blocking=True)
-                    clade_data_blosum.to('cuda:0', non_blocking=True)#TODO: remo
+                    clade_data_blosum.to('cuda:0', non_blocking=True)
+                    clade_embedding.to('cuda:0', non_blocking=True)
+
     print(' Train_loader size: ', len(train_loader), 'batches')
 
     return train_loader

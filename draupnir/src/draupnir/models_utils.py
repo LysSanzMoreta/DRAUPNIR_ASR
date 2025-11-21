@@ -38,7 +38,7 @@ class RNNEncoder(nn.Module):
         self.fc1 = nn.Linear(self.gru_hidden_dim, self.nndim)
         self.linear_means = nn.Linear(self.nndim, self.z_dim)
         self.linear_std = nn.Linear(self.nndim, self.z_dim)
-
+        self.layernorm = nn.LayerNorm(self.rnn_input_size)
         self.softplus = nn.Softplus()
 
         self.rnn = nn.GRU(input_size=self.rnn_input_size,
@@ -48,23 +48,41 @@ class RNNEncoder(nn.Module):
                           num_layers=self.num_layers,
                           dropout=0.0)
 
+        #todo: necessary? maybe
+        #self.init_gru_bias()
+    def init_gru_bias(self):
+        for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
+            if "bias_ih_l0" in name:
+                param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
+
 
     def forward(self, input, hidden):
 
-        rnn_hidden_states, rnn_final_bidirectional = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        input = self.layernorm(input)
+
+        #todo: try Autoregressive Decoder with Residual Latent Transitions
+
+        rnn_hidden_states, rnn_final_bidirectional = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim*2] | [num_layers*2,n_nodes,gru_dim]
+        # print("Encoder rnn states")
+        # print(rnn_final_bidirectional.var(dim=0).mean())  # should not be tiny
+        # print(rnn_hidden_states.var(dim=0).mean())  # should not be tiny
         forward_out_r,backward_out_r = rnn_hidden_states[:,:,:self.gru_hidden_dim],rnn_hidden_states[:,:,self.gru_hidden_dim:]
-        rnn_hidden_states = forward_out_r + backward_out_r
-        rnn_final_hidden_state = self.fc1(rnn_hidden_states[:,-1]) #pick the last state of the sequence given by the GRU
+        # rnn_hidden_states = forward_out_r + backward_out_r #original
+        # rnn_final_forward_backward_sum = rnn_hidden_states[:,-1] #original
+        rnn_final_forward_backward_sum = forward_out_r[:,-1] + backward_out_r[:,0] #pick the last state forward and the first state from backwards
+        rnn_final_hidden_state = self.fc1(rnn_final_forward_backward_sum)
         z_loc = self.linear_means(rnn_final_hidden_state)
         z_scale = self.softplus(self.linear_std(rnn_final_hidden_state))
 
         return  {"z_loc":z_loc,
                  "z_scale":z_scale,
                  "rnn_final_bidirectional":rnn_final_bidirectional,
+                 "rnn_final_forward_backward_sum":rnn_final_forward_backward_sum.unsqueeze(0), #not transformed
                  "rnn_hidden_states":rnn_hidden_states,
                  "rnn_final_hidden_state":rnn_final_hidden_state}
+
         #return output_means,output_std
-class RNNDecoder_Tiling(nn.Module): #Highlight: faster learning for some reason
+class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
@@ -78,7 +96,7 @@ class RNNDecoder_Tiling(nn.Module): #Highlight: faster learning for some reason
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
-
+        self.layernorm = nn.LayerNorm(self.rnn_input_size)
         self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
         self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
         self.rnn = nn.GRU(input_size=self.rnn_input_size,
@@ -87,53 +105,45 @@ class RNNDecoder_Tiling(nn.Module): #Highlight: faster learning for some reason
                           bidirectional=True,
                           num_layers=self.num_layers,
                           dropout=0.0)
-            #rnn.state_dict()
+        #todo: necessary? does not seem to hurt
 
+        #self.init_gru_bias()
+
+    def init_gru_bias(self):
+        for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
+            if "bias_ih_l0" in name:
+                param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
+
+
+    # def forward(self, input, hidden):
+    #     rnn_hidden_states, rnn_final_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+    #     forward_hidden_states = rnn_hidden_states[:, :, :self.gru_hidden_dim]
+    #     backward_hidden_states = rnn_hidden_states[:, :, self.gru_hidden_dim:]
+    #     rnn_hidden_states = forward_hidden_states + backward_hidden_states
+    #     #rnn_final_hidden = rnn_hidden_states[:,-1]
+    #
+    #     rnn_final_hidden = self.fc1(rnn_hidden_states)
+    #     output_logits = self.logsoftmax(self.linear_probs(rnn_final_hidden))  # [n_nodes,align_seq_len,aa_probs]
+    #     #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
+    #     return output_logits
 
     def forward(self, input, hidden):
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+        """One-shot, non-autoregressive sequence generation"""
+        input = self.layernorm(input) #added extra
+
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
+
+        # print("Decoder rnn states")
+        # print(rnn_output.var(dim=0).mean())  # should not be tiny
+        # print(rnn_hidden.var(dim=0).mean())  # should not be tiny
         #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
+        #rnn_output = self.layernorm(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
+
         return output_logits
-class RNNDecoder_Tiling_new(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
-        super(RNNDecoder_Tiling_new, self).__init__()
-        self.gru_hidden_dim = gru_hidden_dim
-        self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
-        self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
-        self.num_layers = num_layers
-        self.kappa_addition = kappa_addition
-        self.softmax = nn.Softmax()
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.relu = nn.ReLU()
-        self.tanh = nn.Tanh()
 
-        self.fc1 = nn.Linear(self.gru_hidden_dim, int(self.gru_hidden_dim/2))
-        self.linear_probs = nn.Linear(int(self.gru_hidden_dim/2), self.aa_prob)
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
-                          hidden_size=self.gru_hidden_dim,
-                          batch_first=True,
-                          bidirectional=True,
-                          num_layers=self.num_layers,
-                          dropout=0.0)
-            #rnn.state_dict()
-
-
-    def forward(self, input, hidden):
-        rnn_hidden_states, rnn_final_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-        forward_hidden_states = rnn_hidden_states[:, :, :self.gru_hidden_dim]
-        backward_hidden_states = rnn_hidden_states[:, :, self.gru_hidden_dim:]
-        rnn_hidden_states = forward_hidden_states + backward_hidden_states
-        #rnn_final_hidden = rnn_hidden_states[:,-1]
-
-        rnn_final_hidden = self.fc1(rnn_hidden_states)
-        output_logits = self.logsoftmax(self.linear_probs(rnn_final_hidden))  # [n_nodes,align_seq_len,aa_probs]
-        #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
-        return output_logits
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
@@ -213,6 +223,122 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         output_means = self.tanh(self.fc2_means(self.fc1_means(output)))*math.pi
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas
+class RNNDecoder_TeacherForcing(nn.Module): #Highlight: faster learning for some reason
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+        super(RNNDecoder_TeacherForcing, self).__init__()
+        self.gru_hidden_dim = gru_hidden_dim
+        self.z_dim = z_dim
+        self.rnn_input_size = rnn_input_size
+        self.align_seq_len = align_seq_len
+        self.aa_prob = aa_prob
+        self.num_layers = num_layers
+        self.kappa_addition = kappa_addition
+        self.softmax = nn.Softmax()
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+        self.method = "normal"
+        if self.method == "tf":
+            self.layernorm = nn.LayerNorm(self.gru_hidden_dim)
+            self.fc1 = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim)
+            self.fc2 = nn.Linear(self.gru_hidden_dim,self.rnn_input_size)
+            self.linear_probs = nn.Linear(self.rnn_input_size, self.aa_prob)
+        else:
+            #self.layernorm = nn.LayerNorm(self.gru_hidden_dim)
+
+            self.fc1 = nn.Linear( self.gru_hidden_dim, self.rnn_input_size ) #+ 2*self.gru_hidden_dim
+            self.fc2 = nn.Linear(self.rnn_input_size , self.gru_hidden_dim)
+            self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
+        #self.fc_hidden = nn.Linear(2*self.rnn_input_size,2*self.rnn_input_size)
+
+
+        self.rnn = nn.GRU(input_size=self.rnn_input_size, # + 2*self.gru_hidden_dim,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=False,
+                          num_layers=self.num_layers)
+
+
+    def forward_teacher_forcing(self, input, hidden): #todo: delete, apparently, teacher forcing is only used during sampling, not training
+
+        """
+        :param hidden: encoder hidden states (except in the first round)
+
+        :return
+
+        output_logits: [N,L,feat_dim], where feat_dim == aa_probs
+        """
+        #hidden = torch.tanh(self.fc_hidden(hidden)) # need to scale the encoder hidden state
+
+        if hidden.ndim < 3:
+            hidden = hidden.unsqueeze(0)
+        token = input[:,0].unsqueeze(1)
+        Bs, L = input.shape[0], input.shape[1]
+        output_logits = torch.zeros((Bs,L,self.aa_prob))
+        for t in range(L):
+            rnn_out_t, rnn_hidden = self.rnn(token, hidden)  # [n_seqs,1, 2* gru_dim] | [n_directions, n_seqs, gru_dim]
+            rnn_out_t = self.fc2(self.fc1(rnn_out_t))
+            rnn_out_t = self.layernorm(rnn_out_t)
+            output_logit_t = self.logsoftmax(self.linear_probs(rnn_out_t))
+            output_logits[:,t] = output_logit_t.squeeze(1)
+            if t+1 < L:
+                token = input[:, t + 1].unsqueeze(1)  # todo: try teacher forcing
+                #token = input[:,t].unsqueeze(1) if torch.rand(1) < self.teacher_forcing_ratio else rnn_out_t
+        #output_logits = self.layernorm(output_logits) # [n_nodes,align_seq_len,aa_probs]
+        return output_logits
+
+    def forward_normal(self,input,hidden,mode="train"):
+        """
+        :input: embeddings, not direct tokens
+        """
+
+        if mode == "train":
+            #hidden = torch.tanh(self.fc_hidden(hidden))
+
+            encoder_hidden_states, decoder_hidden = hidden["encoder_hidden_states"], hidden["decoder"]
+            #input = torch.cat([encoder_hidden_states,input],dim=-1)
+            rnn_output, rnn_hidden = self.rnn(input, decoder_hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+            #rnn_output = self.layernorm(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
+            rnn_output = self.fc1(rnn_output)
+            output_logits = self.logsoftmax(self.linear_probs(self.fc2(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
+
+        elif mode == "sample":
+            encoder_hidden_states, decoder_hidden = hidden["encoder_hidden_states"], hidden["decoder"]
+            input = torch.cat([encoder_hidden_states, input], dim=-1)
+            Bs, L, feat_dim = input.shape
+
+            #input_t = input[:, 0].unsqueeze(1) # "first token"
+            input_t = torch.zeros([Bs,1, feat_dim]) # "start token"
+
+            output_logits = torch.zeros((Bs, L, self.aa_prob))
+            for t in range(L):
+                rnn_output_t, rnn_hidden_t = self.rnn(input_t, decoder_hidden)
+                # #rnn_output_t = self.layernorm(rnn_output_t)
+                rnn_output_t = self.fc1(rnn_output_t)
+
+                if 0 < t  < L :
+                    input_t = rnn_output_t + input[:,t].unsqueeze(1)# just the rnn_output_t is not working
+
+                else:
+                    input_t = rnn_output_t
+                output_logit_t = self.logsoftmax(self.linear_probs(self.fc2(rnn_output_t)))
+                output_logits[:, t] = output_logit_t.squeeze(1)
+
+
+
+            #output_logits = output_logits[:,1:]
+
+
+
+        return output_logits
+
+    def forward(self,input,hidden,mode="train"):
+        if self.method == "tf":
+            return self.forward_teacher_forcing(input,hidden)
+
+        else:
+            return self.forward_normal(input,hidden,mode)
+
 class Embed(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(Embed, self).__init__()
@@ -473,9 +599,6 @@ class PositionalEncodings(nn.Module):
         sinusoidal_embeddings = torch.flatten(sinusoidal_embeddings, -2) #[1,L,feat_dim]
 
         return sinusoidal_embeddings
-
-
-
     def apply_rotation(self,sinusoidal_embedding, inputs):
         """
         Implements the necessary steps to prepare the tensors for rotation as in Equation 34 in the paper https://arxiv.org/pdf/2104.09864
@@ -520,7 +643,7 @@ class PositionalEncodings(nn.Module):
         if self.type == "sinusoidal":
 
             self.register_buffer("positional_encoding", sinusoidal_embeddings)
-            input = input + sinusoidal_embeddings[:, : input.size(1)].requires_grad_(False) #todo: shapes might be way off
+            input = input + sinusoidal_embeddings[:, : input.size(1)].requires_grad_(False)
 
             return input
 
@@ -710,7 +833,6 @@ class TransformerEncoder2(nn.Module):
                 "z_loc":z_loc,
                 "z_scale":z_scale}
 
-
 class TransformerEncoder3(nn.Module):
     def __init__(self,input_dim,adapted_input_dim, align_seq_len,output_dim):
         """
@@ -731,7 +853,7 @@ class TransformerEncoder3(nn.Module):
         self.softplus = nn.Softplus()
         self.positional_embeddings = PositionalEncodings(self.align_seq_len,self.adapted_input_dim,base=1000, type="sinusoidal")
         self.layernorm = nn.LayerNorm(self.adapted_input_dim)  # todo: not sure yet
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.adapted_input_dim, nhead=2)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.adapted_input_dim, nhead=2) #includes residual connections
         self.encoder = nn.TransformerEncoder(self.encoder_layer,num_layers=1, norm=self.layernorm)
         self.hidden_states_fc = nn.Linear(self.adapted_input_dim, self.output_dim,
                                         bias=self.use_bias,
@@ -748,14 +870,13 @@ class TransformerEncoder3(nn.Module):
                                         )
     def forward(self,input,mask):
 
-        print("input encoder modellll", input.shape)
+        #todo: masking & more heads?
 
         input = self.positional_embeddings(input) # simple summation, this returns 21 + 1 dimensions, otherwise the transformer does not work
         hidden_states = self.encoder(input)
         hidden_states = self.layernorm(hidden_states)
         hidden_states = self.hidden_states_fc(hidden_states) # i have projected them to 30 perhaps project to 30)
 
-        print("hidden statessssssssss", hidden_states.shape)
         #context_vector = hidden_states.mean(axis=1) # mean pooling
 
         context_vector = hidden_states[:,0,:] # get the CLS token (the one with most information)
@@ -772,11 +893,6 @@ class TransformerEncoder3(nn.Module):
                 "z_loc":z_loc,
                 "z_scale":z_scale}
 
-
-
-
-
-
 class TransformerDecoder(nn.Module):
     def __init__(self,input_dim_l, input_dim_r,align_seq_len,hidden_dim,output_dim):
         super(TransformerDecoder, self).__init__()
@@ -786,8 +902,12 @@ class TransformerDecoder(nn.Module):
         self.input_dim_r = input_dim_r
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.align_seq_len = align_seq_len
+        self.positional_embeddings = PositionalEncodings(self.align_seq_len, self.hidden_dim, base=1000,
+                                                         type="sinusoidal")
         self.input_fc = nn.Linear(self.input_dim_l,self.hidden_dim)
         self.latent_fc = nn.Linear(self.input_dim_r,self.hidden_dim)
+        self.layernorm = nn.LayerNorm(self.hidden_dim)  # todo: not sure yet
         self.decoder = nn.TransformerDecoder(
             nn.TransformerDecoderLayer(d_model=self.hidden_dim, nhead=self.num_heads),
             num_layers= self.num_decoder_layers
@@ -801,7 +921,13 @@ class TransformerDecoder(nn.Module):
         :param torch.tensor latent: [nseq,L,zdim]
         """
         latent = self.latent_fc(latent)
+        latent = self.positional_embeddings(latent)
+        latent = self.layernorm(latent)
         input = self.input_fc(input)
+        input = self.positional_embeddings(input)
+        input = self.layernorm(input)
+
+
 
         decoded = self.decoder(tgt=input, memory=latent)
         logits = self.logsoftmax(self.output_fc(decoded))

@@ -609,9 +609,8 @@ def plot_latent_space_umap_by_clade_leaves(latent_space, additional_load, epoch,
                     for name, point in zip(sequences, umap_proj[indexes]):
                         ax.annotate(name, xy=(point[0], point[1]), size=7)  # xytext=(1,1)
         plt.legend(title='Clades', bbox_to_anchor=(1.01, 1), loc='upper left', prop={'size': 10},ncol=1, shadow=True,fontsize=10)
-        plt.title("UMAP projection of the tree's latent space; \n" + "{}".format(additional_load.full_name),fontsize=20)
+        plt.title("UMAP projection of the tree's latent space; \n {}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/UMAP_z_space_by_clade__only_leaves_epoch_{}.png".format(results_dir, epoch))
-    #plt.savefig("{}/Tree latent space representation (T-SNE projection); SH3 domain 200 leaves simulation".format(results_dir))
 def plot_latent_space_pca_by_clade(latent_space,additional_load,num_epochs, results_dir):
     """PCA projection of a z-dimensional latent space onto a 2D space. The latent space represents the sequences in the tree. The latent space is coloured according to
     the clade membership
@@ -700,7 +699,7 @@ def plot_latent_space_pca_by_clade_leaves(latent_space,additional_load,num_epoch
     plt.xlabel("PC 1", fontsize = 20)
     plt.ylabel("PC 2", fontsize = 20)
     plt.legend(title='Clades', bbox_to_anchor=(1.01, 1), loc='upper left', prop={'size': 10},ncol=1,shadow=True,fontsize=10)
-    plt.title("PCA projection of the tree's latent space;\n" + r"{}".format(additional_load.full_name),fontsize=20)
+    plt.title("PCA projection of the tree's latent space;\n {}".format(additional_load.full_name),fontsize=20)
     plt.savefig("{}/PCA_z_space_epoch_{}.png".format(results_dir, num_epochs))
 def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir):
     """Plots the pairwise distance between the latent space vectors of 2 nodes in the tree vs the branch length/patristic distance between them
@@ -715,7 +714,7 @@ def plot_pairwise_distances(latent_space,additional_load,num_epochs, results_dir
 
     clrs = plt.get_cmap(color_map_name, len(clades_dict_all))
     linked_nodes_dict = additional_load.linked_nodes_dict
-    patristic_matrix_full = additional_load.patristic_matrix_full
+    patristic_matrix_full = additional_load.patristic_matrix_full.cpu()
     patristic_matrix_full_no_indexes = patristic_matrix_full[1:,1:]
     latent_space_no_indexes = latent_space[:,1:]
     use_cosine_similarity = True

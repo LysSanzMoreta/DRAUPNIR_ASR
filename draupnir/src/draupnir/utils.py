@@ -53,6 +53,13 @@ import numpy as np
 import numpy.random as npr
 import pandas as pd
 import matplotlib
+local_repository=True
+if local_repository:
+    sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/esm-main")
+    import esm
+else:#pip installed module
+    import esm
+from esm import pretrained
 matplotlib.use('Agg')
 def aa_properties(aa_probs,data_folder):
     """ Creates a dictionary with amino acid properties, extracted from
@@ -69,7 +76,6 @@ def aa_properties(aa_probs,data_folder):
             aa_number = aa_types.index(aa["Abbr."])
             aa_info[aa_number] = [float(aa["Molecular_Weight"]),float(aa["pKa1"]),float(aa["pl4"])]
     return aa_info
-
 def validate_sequence_alphabet(seq):
     """
     Checks that the sequences from an alignment only contains values from one of the protein alphabets (protein21 or protein21plus). Reject DNA or RNA sequences
@@ -89,14 +95,13 @@ def validate_sequence_alphabet(seq):
         return aa_probs
     else:
         raise ValueError("Your sequences contain not allowed characters. Available alphabets are: {protein21}: -acdefghiklmnpqrstvwy or {protein21plus} -*acdefghiklmnpqrstvwybzx. If your sequence contains stop codons perhaps you can trim them.")
-
 def aminoacid_names_dict(aa_probs):
     """ Returns an aminoacid associated to a integer value
     :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
         aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_names
-    if aa_probs == 22: #includes stop codons---> fix in Create blosum
+    elif aa_probs == 22: #includes stop codons---> fix in Create blosum
         aminoacid_names = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_names
     elif aa_probs > 22:
@@ -360,6 +365,73 @@ def convert_to_pandas(distance_matrix):
     b = b + b_transpose
     df = pd.DataFrame(b, index=distance_matrix.names, columns=distance_matrix.names)
     return  df
+def generate_esm2_embeddings(dict_alignment,embeddings_file,sequence_representations_file,overwrite=False):
+    """Generate ESM-2 embeddings for a list of sequences.
+    """
+
+    print("Generating ESM2 embeddings ...")
+
+    if not os.path.exists(embeddings_file) or overwrite:
+        sequences = [(node, str(seq).replace("-", "")) for node, seq in dict_alignment.items()]
+        # Load the model
+        model_name = "esm2_t33_650M_UR50D"
+        #model_name = "esm2_t36_3B_UR50D"
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if model_name == "esm2_t33_650M_UR50D":
+            model, alphabet = pretrained.esm2_t33_650M_UR50D() #esm1b_t33_650M_UR50S #esm2_t36_3B_UR50D()
+        elif model_name == "esm2_t36_3B_UR50D":
+            model, alphabet = pretrained.esm2_t36_3B_UR50D()
+        device = "cpu"
+        batch_converter = alphabet.get_batch_converter()
+        model.eval()
+        node_names = np.array(list(zip(*sequences))[0])
+
+        #max_len = max([len(seq) for i,seq in sequences])
+        batch_labels, batch_strs, batch_tokens = batch_converter(sequences)
+
+        batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
+
+
+
+        # Run the model
+        # Extract per-residue representations
+        model = model.to(device)
+        batch_tokens = batch_tokens.to(device)
+
+        with torch.no_grad(): #todo: return contacts is very expensive, do not return unless necessary
+            results = model(batch_tokens, repr_layers=[33], return_contacts=False,need_head_weights=False)
+
+        token_representations = results["representations"][33].detach().cpu().numpy().astype(object) #[N,L+2,1280]
+
+        embeddings = token_representations[:,1:-1] #[N, max_len, 1280], we remove the start token from all the sequences and the -last-/stop token from the longest sequence (the other ones still have the stop toke, but gets chopped of later on)
+
+        embeddings = np.pad(embeddings, pad_width=((0, 0), (1, 0), (0, 0)), mode='constant') #adds padding of zeroes to get [N, max_len +1, feat_dim]
+        embeddings[:,0,0] = node_names
+
+
+        # Generate per-sequence embeddings (mean pooling): the sequence representations average across the length dimension
+        # NOTE: token 0 is always a beginning-of-sequence token, so the first residue is token 1.
+        sequence_representations = []
+        for i, tokens_len in enumerate(batch_lens):
+            average = token_representations[i, 1: tokens_len - 1].mean(0)
+            average = np.hstack([node_names[i], average])
+            sequence_representations.append(average)
+
+        np.save(embeddings_file,embeddings)
+        np.save(sequence_representations_file,sequence_representations)
+
+        return embeddings, sequence_representations
+
+
+    else:
+        embeddings = np.load(embeddings_file,allow_pickle=True)
+        sequence_representations = np.load(sequence_representations_file,allow_pickle=True)
+
+        return embeddings, sequence_representations
+
+
+
+
 def infer_tree(alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
     """ Performs tree inference or reads an input given tree, returns an ete3 tree formated tree
     :param biopython alignment alignment: biopython alignment class
@@ -745,7 +817,8 @@ def create_dataset(name_file,
                    method="iqtree",
                    aa_probs=21,
                    rename_internal_nodes=False,
-                   storage_folder=""):
+                   storage_folder="",
+                   ):
     """ Combination function to create the dataset and additional files (i.e dictionaries) that Draupnir uses for inference
     in:
         :param str name_file : dataset name
@@ -774,9 +847,8 @@ def create_dataset(name_file,
 
     warnings.simplefilter('ignore', BiopythonWarning)
     one_hot_label= ["onehot" if one_hot_encoding else "integers"]
-
     prot_info_dict = {}
-    prot_aa_dict = {}
+    prot_aa_dict = {} #will contain the not aligned sequences for the sequences derived from the pdb files
     if PDB_folder:# and not alignment_file:---> We allow to have sequences that have and don't have 3D structure
         print("Creating dataset from PDB files...")
         prot_aa_dict,prot_info_dict = process_pdb_files(PDB_folder,aa_probs,pfam_dict,one_hot_encoding,min_len)
@@ -794,8 +866,16 @@ def create_dataset(name_file,
                 pdb_records.append(pdb_record)
             SeqIO.write(pdb_records, output_handle, "fasta")
         output_handle.close()
-    # Highlight: Align the polypeptides/sequences and write to a fasta angles_list file
+
+
+    # highlight: Align the polypeptides/sequences and write to a fasta angles_list file
     dict_alignment,alignment = infer_alignment(alignment_file,input_name_file=fasta_file,output_name_file="{}/{}/{}.mafft".format(storage_folder,name_file,name_file))
+
+    embeddings_file = f"{storage_folder}/{name_file}/{name_file}_esm2_t33_650M_UR50D_embeddings.npy" #todo: allow different embeddings from other models?
+    sequence_representations_file = f"{storage_folder}/{name_file}/{name_file}_esm2_t33_650M_UR50D_sequence_representations.npy" #todo: allow different embeddings from other models?
+
+    pretrained_embeddings, pretrained_seq_repr = generate_esm2_embeddings(dict_alignment,embeddings_file, sequence_representations_file,overwrite=False)
+
     #calculate_pairwise_distance(name_file,alignment)
     alignment_file = [alignment_file if alignment_file else "{}/{}/{}.mafft".format(storage_folder,name_file,name_file)][0]
     #Highlight: checking that the selected number of probabilities is correct
@@ -844,7 +924,6 @@ def create_dataset(name_file,
     else:
         Combined_dict = not_aligned_seqs_from_alignment_file
 
-
     if rename_internal_nodes:
         if name_file.startswith("simulations"):
            tree = rename_tree_internal_nodes_simulations(tree,with_indexes=False)
@@ -864,33 +943,67 @@ def create_dataset(name_file,
         ancestors_all.append(ancestors_node)
     length = max(map(len, ancestors_all))
     ancestors_info = np.array([xi + [None] * (length - len(xi)) for xi in ancestors_all])
-
     tree_levelorder_names = np.asarray([node.name.replace("'","") for node in tree.traverse()])
-
     tree_levelorder_dist =np.asarray([node.dist for node in tree.traverse()])
+
     #Add the index of the sequence in the tree to the seq length array info
-    Dataset = np.zeros((len(Combined_dict), max_lenght + 1 + 1 +1, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +3 (to include git, seqlen and row/protein name)
+    Dataset = np.zeros((len(Combined_dict), max_lenght + 3, 30),dtype=object)  # 30 dim to accomodate git vectors. Careful with the +3 (to include git, seqlen and row/protein name)
+    # Pretrained_embeddings_aligned = Dataset[:,3:] #[N,L,30]
+    # pad_extension = pretrained_emb.shape[2] - Dataset.shape[2]
+    # Pretrained_embeddings_aligned = np.pad(Pretrained_embeddings_aligned, pad_width=((0, 0), (0, 0), (0, pad_extension)), mode='constant') #[N,L,feat_dim]
+
+    #Highlight: order by the order of the nodes-> we do this because things can go wrong otherwise, but might be unnecessary
+    nodes =list(Combined_dict.keys())
+    embeddings_nodes = pretrained_embeddings[:,0, 0]
+
+    assert len(set(nodes).intersection(set(embeddings_nodes))) == len(nodes), "The embeddings are missing some sequences"
+
+    sort_idx = [nodes.index(val) for idx, val in enumerate(embeddings_nodes)]
+    pretrained_emb = pretrained_embeddings[sort_idx]
+    pretrained_seq_repr = pretrained_seq_repr[sort_idx]
+    Pretrained_embeddings_aligned =  np.zeros((len(Combined_dict), max_lenght + 3, pretrained_emb.shape[2]),dtype=object) #max length is the max alignment length
+
     for i, (key,val) in enumerate(Combined_dict.items()):
         aligned_seq = list(dict_alignment[key].strip(","))
-        no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 3  # plus 3 in order to make the indexes fit in the final dataframe
+        no_gap_indexes = np.where(np.array(aligned_seq) != "-")[0] + 3  # Highlight: plus 3 in order to make the indexes fit in the final dataframe
         Dataset[i,0,0] = key.replace("'","") #row name/sequence name
         Dataset[i, 1:3] = Combined_dict[key][:2] #Insert seq len and git vector
+        Pretrained_embeddings_aligned[i,0,0] = key.replace("'","")
+        Pretrained_embeddings_aligned[i, 1:3, :30] = Combined_dict[key][:2]
+
         if name_file in ["benchmark_randall","benchmark_randall_original","benchmark_randall_original_naming"]:#their leaves have number names, so we keep them instead of changing them for the tree level order ones
-            Dataset[i, 1, 1] = int(key.replace("'", ""))
+            key_name = int(key.replace("'", ""))
+            Dataset[i, 1, 1] = key_name
+            Pretrained_embeddings_aligned[i,1,1] = key_name
+
         elif name_file in ["PF01038_lipcti_msa_fungi"]:
-            Dataset[i, 1, 1] = np.where(tree_levelorder_names == key.replace(":","_"))[0][0]  # the node name will be its position in the tree
+            key_name = np.where(tree_levelorder_names == key.replace(":","_"))[0][0]  # the node name will be its position in the tree
+            Dataset[i, 1, 1] = key_name
+            Pretrained_embeddings_aligned[i,1,1] = key_name
+
         else:
-            Dataset[i,1,1] = np.where(tree_levelorder_names == key.replace("'",""))[0][0] #the node name will be its position in the tree
-        Dataset[i, 1, 2] =  tree_levelorder_dist[Dataset[i,1,1]] #distance to the root? that's according to the documentation yes, but is different from the patristic distances
-        Dataset[i, no_gap_indexes] = Combined_dict[key][2:]  # Assign the aa info (including angles) to those positions where there is not a gap
-        if one_hot_encoding:
+            key_name =  np.where(tree_levelorder_names == key.replace("'",""))[0][0] #the node name will be its position in the tree
+            Dataset[i,1,1] = key_name
+            Pretrained_embeddings_aligned[i, 1, 1] = key_name
+
+
+        tree_distance = tree_levelorder_dist[Dataset[i,1,1]] #distance to the root? that's according to the documentation yes, but is different from the patristic distances
+        Dataset[i, 1, 2] =  tree_distance
+        Pretrained_embeddings_aligned[i,1,2] = tree_distance
+
+        Dataset[i, no_gap_indexes] = Combined_dict[key][2:]  # Assign the aa info (including angles) to those positions where there is not a gap (the no_gap indexes already have the + 3)
+        seq_len_i = int(Dataset[i,1,0])
+        Pretrained_embeddings_aligned[i,no_gap_indexes] = pretrained_emb[i,1:seq_len_i+1] #the no_gap indexes already have the + 3
+
+        if one_hot_encoding:  #todo. this might be off, but it is very unlikely that we will use one hot encodings
             #Highlight: no_gap indexes is not a boolean, we have to convert it
             gaps_mask = np.ones(max_lenght+3,np.bool)
             gaps_mask[no_gap_indexes] = False #do not keep the positions where there is not a gap
-            gaps_mask[0] = False #not the first two rows
+            gaps_mask[0] = False #neither the first three rows
             gaps_mask[1] = False
             gaps_mask[2] = False
             Dataset[i,gaps_mask,0] = 1. #if one hot encoding the gaps with be assigned the first position in one hot encoding
+
 
     #  Reconstruct the tree from the distance matrix
     print("Building patristic and cladistic matrices ...")
@@ -905,30 +1018,51 @@ def create_dataset(name_file,
 
     print("Ready and saved!")
     warnings.warn("Building clades (Collapses the original tree into monophyletic clades!)")
-    divide_into_monophyletic_clades(tree,"{}/{}".format(storage_folder,name_file),name_file)
+    divide_into_monophyletic_clades(tree,"{}/{}".format(storage_folder,name_file),name_file) #todo : save as simple json files
     np.save("{}/{}/{}_dataset_numpy_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset)
+    np.save("{}/{}/{}_dataset_numpy_aligned_embeddings.npy".format(storage_folder,name_file,name_file), Pretrained_embeddings_aligned)
+
+
     max_lenght_not_aligned = max([int(sequence[0][0]) for idx,sequence in Combined_dict.items()]) #Find the largest sequence without being aligned
     print("Creating not aligned dataset...")
-    Dataset_not_aligned = np.zeros((len(Combined_dict), max_lenght_not_aligned +3, 30), dtype=object)  # 30 for future git vectors. Careful with the +3
-    for i,(key,value) in enumerate(Combined_dict.items()):
-        Dataset_not_aligned[i,0,0] = key
+    Dataset_not_aligned = np.zeros((len(Combined_dict), max_lenght_not_aligned + 3, 30), dtype=object)  # 30 for future git vectors. Careful with the +3
+    Pretrained_embeddings_not_aligned = np.zeros((len(Combined_dict), max_lenght_not_aligned +3, pretrained_emb.shape[2]), dtype=object)  # 30 for future git vectors. Careful with the +3
+
+
+    for i,(key,value) in enumerate(Combined_dict.items()): #todo. why do i loop twice? unite, even though is more cumbersome?-> try and merge or at least reuse the same function
+        Dataset_not_aligned[i,0,0] = key.replace("'","") #node name
         Dataset_not_aligned[i, 1:3] = Combined_dict[key][:2] #Fill in the sequence lenght and the git vector
-        if name_file in ["benchmark_randall_original_naming"]:
-            Dataset[i, 1, 1] = int(key.replace("'", ""))
+        Pretrained_embeddings_not_aligned[i,0,0] = key.replace("'","")
+        Pretrained_embeddings_not_aligned[i, 1:3, :30] = Combined_dict[key][:2]
+
+        if name_file in ["benchmark_randall","benchmark_randall_original","benchmark_randall_original_naming"]:
+            Dataset_not_aligned[i, 1, 1] = int(key.replace("'", ""))
+            Pretrained_embeddings_not_aligned[i, 1, 1] = int(key.replace("'", ""))
+
+        elif name_file in ["PF01038_lipcti_msa_fungi"]:
+            match = np.where(tree_levelorder_names == key.replace(":","_"))[0][0]
+            Dataset_not_aligned[i, 1, 1] = match  # the node name will be its position in the tree
+            Pretrained_embeddings_not_aligned[i,1,1] = match
         else:
-            Dataset[i,1,1] = np.where(tree_levelorder_names == key.replace("'",""))[0][0] #position in the tree
-        Dataset_not_aligned[i, 1, 2] =  tree_levelorder_dist[Dataset[i,1,1]]
-        Dataset_not_aligned[i, 3:int(Combined_dict[key][0][0]) +3] = Combined_dict[key][2:] #Fill in the amino acids "letters"/"numbers" and their angles
+            match = np.where(tree_levelorder_names == key.replace("'",""))[0][0] #position in the tree
+            Dataset_not_aligned[i,1,1] = match
+            Pretrained_embeddings_not_aligned[i, 1, 1] = match
+
+        tree_dist = tree_levelorder_dist[Dataset[i,1,1]]
+        Dataset_not_aligned[i, 1, 2] =  tree_dist
+        Pretrained_embeddings_not_aligned[i,1,2] = tree_dist
+        seq_len_i = int(Combined_dict[key][0][0])
+
+        Dataset_not_aligned[i, 3:seq_len_i+3] = Combined_dict[key][2:] #Fill in the amino acids "letters"/"numbers" and their angles
+        Pretrained_embeddings_not_aligned[i, 3:seq_len_i +3] = pretrained_emb[i,1:seq_len_i+1] #Fill in the amino acids "letters"/"numbers" and their angles
+
         if one_hot_encoding:
-            # #Highlight: no_gap indexes is not a boolean, we have to convert it
-            # gaps_mask = np.ones(max_lenght+3,np.bool)
-            # gaps_mask[no_gap_indexes] = False #do not keep the positions where there is not a gap
-            # gaps_mask[0] = False #not the first two rows
-            # gaps_mask[1] = False
-            # gaps_mask[2] = False
-            # Dataset[i,gaps_mask,0] = 1. #if one hot encoding the gaps with be assigned the first position in one hot encoding
             Dataset_not_aligned[i, (int(Combined_dict[key][0][0]) + 3):,0] = 1.
+
+
+
     np.save("{}/{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset_not_aligned)
+    np.save("{}/{}/{}_dataset_numpy_NOT_aligned_embeddings.npy".format(storage_folder, name_file, name_file),Pretrained_embeddings_not_aligned)
 
     return tree_file
 
@@ -1851,11 +1985,18 @@ def blosum_encoding(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_ho
     if one_hot_encoding:
         dataset_train = convert_to_integers(dataset_train,aa_probs,axis=2)
     aminoacids_seqs = dataset_train[:,2:,0].repeat(aa_probs,1,1).permute(1,2,0) #[N,max_len,aa repeated aa_probs times]--seems correct
+
     blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_probs,aa_probs]
+
+    #
+    # #todo: fix internal nodes
+
+    warnings.warn("Fix test dataset not aligned")
+
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
 
-
     return aa_train_blosum
+
 def str2bool(v):
     """Converts a string into a boolean, useful for boolean arguments
     :param str v"""
@@ -1874,6 +2015,9 @@ def str2None(v):
     if v.lower() in ('None','none'):
         return None
     elif isinstance(v,str):
+        c = re.compile("(\d+)").match(v) #finds integers
+        if c is not None:
+            v = int(c.group())
         return v
     else:
         v = ast.literal_eval(v)

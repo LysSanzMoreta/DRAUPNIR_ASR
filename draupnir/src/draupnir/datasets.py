@@ -377,10 +377,11 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
 
     settings_config = SettingsConfig(one_hot_encoding=args.one_hot_encoded,
                              model_design="GP_VAE",
-                             aligned_seq=True,
+                             aligned_seq=args.use_align_seq,
                              data_folder="{}/{}".format(storage_folder,name), #["{}".format(storage_folder) if use_custom else "{}/{}".format(storage_folder,name)][0]
                              full_name=full_name,
                              tree_file=tree_file)
+
     return build_config,settings_config, root_sequence_name
 
 def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):

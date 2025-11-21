@@ -6,7 +6,6 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 =======================
 """
 import warnings
-
 import pyro
 import torch
 import argparse
@@ -62,15 +61,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
+                        default="simulations_src_sh3_3", #200
+                        #default="simulations_src_sh3_1", #100
+                        #default="simulations_src_sh3_2", #800
+                        #default="simulations_calcitonin_1",
                         #default="simulations_blactamase_1",
-                        default="simulations_src_sh3_3",
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=4, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=2000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -91,6 +93,12 @@ if __name__ == "__main__":
                              'PLEASE make sure that the fasta header names and the names in the tree are the same'
                              'Set to None for the -default- datasets')
 
+    parser.add_argument('--embeddings', type=str2None, nargs='?',
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/unaligned_wo_slash.fa",
+                        default=None,
+                        help='Path to numpy array containing precomputed embeddings with shape [Nseqs, max_len + 1, feat_dim] (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
+                             'In position data[:,0,0] place the node names of the leaves as specified in the fasta file and the tree') #todo: experimental
+
 
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the dataset from a given alignment file/tree or the unaligned sequences;'
@@ -98,7 +106,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=60, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -114,6 +122,9 @@ if __name__ == "__main__":
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
                         help='True: Use GPU; False: Use CPU')
     parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
+    parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
+                        help='reduce_on_plateau \n'
+                             'noam ')
     parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
     parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     #Highlight: Sample from a pre-trained model
@@ -125,12 +136,15 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="2", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.')
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '
                              'so this is not needed for Draupnir inference at the moment')
+    parser.add_argument('-use-align-seq','--use-align-seq', type=str2bool, nargs='?',
+                        default=True,
+                        help='Use aligned sequences or not. The evaluation metrics change. Not aligned not implemented atm')
     parser.add_argument('-bbc','--batch-by-clade', type=str2bool, nargs='?', default=False, help='Experimental. Use the leaves divided by their corresponding clades into batches. Do not use with leaf-testing')
     parser.add_argument('-pdb_folder', default=None, type=str,
                         help='Path to folder of PDB structures. The engine can read them and parse them into a dataset that the model can use.')
