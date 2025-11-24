@@ -422,7 +422,12 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
-        batch_nodes = datasets["int"][:, 0, 1]
+        nodes_idx = datasets["int"][:, 0, 1]
+
+        patristic_nodes = patristic_matrix_sorted[1:,0]
+
+        assert torch.equal(nodes_idx,patristic_nodes), "Patristic matrix is disordered or the dataset, node indices must coincide"
+
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
         with pyro.plate("plate_batch", dim=-1, device=self.device):

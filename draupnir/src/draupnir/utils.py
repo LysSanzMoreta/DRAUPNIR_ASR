@@ -428,10 +428,6 @@ def generate_esm2_embeddings(dict_alignment,embeddings_file,sequence_representat
         sequence_representations = np.load(sequence_representations_file,allow_pickle=True)
 
         return embeddings, sequence_representations
-
-
-
-
 def infer_tree(alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""):
     """ Performs tree inference or reads an input given tree, returns an ete3 tree formated tree
     :param biopython alignment alignment: biopython alignment class
@@ -955,9 +951,7 @@ def create_dataset(name_file,
     #Highlight: order by the order of the nodes-> we do this because things can go wrong otherwise, but might be unnecessary
     nodes =list(Combined_dict.keys())
     embeddings_nodes = pretrained_embeddings[:,0, 0]
-
     assert len(set(nodes).intersection(set(embeddings_nodes))) == len(nodes), "The embeddings are missing some sequences"
-
     sort_idx = [nodes.index(val) for idx, val in enumerate(embeddings_nodes)]
     pretrained_emb = pretrained_embeddings[sort_idx]
     pretrained_seq_repr = pretrained_seq_repr[sort_idx]
@@ -982,7 +976,7 @@ def create_dataset(name_file,
             Pretrained_embeddings_aligned[i,1,1] = key_name
 
         else:
-            key_name =  np.where(tree_levelorder_names == key.replace("'",""))[0][0] #the node name will be its position in the tree
+            key_name = np.where(tree_levelorder_names == key.replace("'",""))[0][0]  #the node name will be its position in the tree
             Dataset[i,1,1] = key_name
             Pretrained_embeddings_aligned[i, 1, 1] = key_name
 
@@ -1996,7 +1990,6 @@ def blosum_encoding(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_ho
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
 
     return aa_train_blosum
-
 def str2bool(v):
     """Converts a string into a boolean, useful for boolean arguments
     :param str v"""
@@ -2051,8 +2044,6 @@ def squeeze_tensor(required_ndims,tensor):
         return tensor
     else:
         return tensor
-
-
 def get_method_arguments(cls, method_name):
     """Retrieves the arguments for a function/method inside a class instance
     :param class cls : class

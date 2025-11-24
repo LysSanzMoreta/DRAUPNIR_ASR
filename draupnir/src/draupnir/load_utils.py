@@ -273,14 +273,17 @@ def remove_nan2(dataset): #TODO: remove if its not been used anywhere
     #simply update the angles inside dataset
     dataset[:, 3:, 0:3] = aa_angles
     return dataset
-def remove_nan(dataset):
+def remove_nan(dataset:Union[np.ndarray |None]):
     """Detect and remove nan angle pair, where either phi or psi are nan, due mostly to nh3 or coo terminals.
     To solve it, we assign the aminoacid where there are any nan values to gap
     :param numpy-array dataset: [N_leaves, align_len,30]"""
-    aa_angles = dataset[:,3:,0:3].astype(float) #[n_seq,len_seq,[phi,psi]]
-    aa_angles = np.apply_along_axis(lambda r: np.zeros_like(r) if np.isnan(r).any() else r, 2, aa_angles)
-    dataset[:, 3:, 0:3] = aa_angles
-    return dataset
+    if dataset is not None:
+        aa_angles = dataset[:,3:,0:3].astype(float) #[n_seq,len_seq,[phi,psi]]
+        aa_angles = np.apply_along_axis(lambda r: np.zeros_like(r) if np.isnan(r).any() else r, 2, aa_angles)
+        dataset[:, 3:, 0:3] = aa_angles
+        return dataset
+    else:
+        return dataset
 def processing(args:namedtuple,
                settings_config,
                results_dir:str,
@@ -536,7 +539,6 @@ def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_co
     aa_frequencies_train = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
     aa_frequencies_train = torch.from_numpy(aa_frequencies_train)
     aa_properties = DraupnirUtils.aa_properties(build_config.aa_probs,settings_config.data_folder)
-
 
     patristic_matrix_train = matrix_sort(dataset_train,patristic_matrix_full,trim=True)
     patristic_matrix_full = matrix_sort(dataset_train,patristic_matrix_full)
@@ -825,11 +827,14 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     #                        patristic_matrix_train=results_dict["patristic_matrix_train"],
     #                        cladistic_matrix_train=results_dict["cladistic_matrix_train"])
 
+
     train_load = train_load._replace(dataset_train=results_dict["dataset_train_sorted"],
                            embeddings_train = results_dict["embeddings_train_sorted"],
-                           evolutionary_matrix_train=train_load.evolutionary_matrix_train,
+                           evolutionary_matrix_train=train_load.evolutionary_matrix_train, #contains both leafs and internal nodes, do not remember why
                            patristic_matrix_train=results_dict["patristic_matrix_train"],
                            cladistic_matrix_train=results_dict["cladistic_matrix_train"])
+
+
     # train_load = train_load._replace(embeddings_train=results_dict["embeddings_train"])
     # train_load = train_load._replace(evolutionary_matrix_train=results_dict["evolutionary_matrix_train"])
     # train_load = train_load._replace(patristic_matrix_train=results_dict["patristic_matrix_train"])

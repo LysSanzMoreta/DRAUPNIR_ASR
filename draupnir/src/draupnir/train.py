@@ -152,6 +152,7 @@ def train(svi,training_function_input):
     args = training_function_input["args"]
     train_loss = 0.0
     seq_lens = []
+    map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
 
     for batch_number, datasets in enumerate(train_loader):
             data_int = datasets["int"]
