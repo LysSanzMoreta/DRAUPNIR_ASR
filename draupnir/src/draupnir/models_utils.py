@@ -46,7 +46,7 @@ class RNNEncoder(nn.Module):
         self.linear_means = nn.Linear(self.nndim, self.z_dim)
         self.linear_std = nn.Linear(self.nndim, self.z_dim)
 
-        self.layernorm = nn.LayerNorm(self.rnn_input_size)
+        #self.layernorm = nn.LayerNorm(self.rnn_input_size)
         self.softplus = nn.Softplus()
 
         self.rnn = nn.GRU(input_size=self.rnn_input_size,
@@ -66,7 +66,7 @@ class RNNEncoder(nn.Module):
 
     def forward(self, input, hidden):
 
-        input = self.layernorm(input)
+        #input = self.layernorm(input)
 
         #todo: try Autoregressive Decoder with Residual Latent Transitions
 
@@ -189,7 +189,7 @@ class RNNDecoder_Tiling(nn.Module):
 
     def forward(self, input, hidden):
         """One-shot, non-autoregressive sequence generation"""
-        input = self.layernorm(input) #added extra
+        #input = self.layernorm(input) #added extra
 
         rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
 
