@@ -160,6 +160,11 @@ dict_urls = {
   year={2021}
 }
 ```
+** Extra comments **
+
+The computational times reported in the paper are no longer correct, the model runs in minutes, not hours. So please take that into account.
+
+
 
 **This software is not for commercial use.**
 
