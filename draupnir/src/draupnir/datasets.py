@@ -383,7 +383,6 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                              tree_file=tree_file)
 
     return build_config,settings_config, root_sequence_name
-
 def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):
     """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name

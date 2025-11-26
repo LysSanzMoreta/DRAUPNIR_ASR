@@ -294,7 +294,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
              leaves_names_test=results_dict["leaves_names_test"],
              position_test=results_dict["position_test"],
              internal_nodes_indexes=internal_nodes_indexes,
-             embeddings_test=results_dict["embeddings_test"] #todo: probably drop these ones out, we will not use them
+             embeddings_test=results_dict["embeddings_test"] #todo: probably drop these ones out, we will not use them in principle
             )
 
     additional_load = AdditionalLoad(patristic_matrix_full=torch.from_numpy(results_dict["patristic_matrix_full"]),
@@ -308,11 +308,18 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
                    linked_nodes_dict=linked_nodes_dict,
                    descendants_dict=descendants_dict,
                    alignment_length=alignment_length,
-                   aa_frequencies_train=None, #TODO: Transfer to to train_load
-                   aa_frequencies_test=None, #TODO: Transfer to test_load
+                   aa_frequencies_train=None, #TODO: Transfer to to train_load?
+                   aa_frequencies_test=None, #TODO: Transfer to test_load?
                    correspondence_dict=None,
                    special_nodes_dict=None,
                    full_name=settings_config.full_name)
+
+
+
+    args.__dict__["embedding_dim"] = results_dict["sequences_representations_train"].shape[-1] - 1 #we remove the indexes (first column)
+
+
+
 
     return train_load,test_load,additional_load, build_config
 
@@ -483,6 +490,9 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         else:
             Draupnir = DraupnirModels.DRAUPNIRModel_transformer_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
+    elif args.draupnir_version == "3":
+        Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
+        patristic_matrix_model = patristic_matrix_train
     else:  # batching
         print("Batching! (currently batch_size == None or batch_size != 1)")
         assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
@@ -502,15 +512,6 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     text_file.write("Model Class:  {} \n".format(Draupnir.get_class()))
     text_file.close()
     #Highlight: Saving the model function to a separate file
-    # model_file = open("{}/ModelFunction.py".format(results_dir), "a+")
-    # draupnir_models_file = open("{}/models.py".format(os.path.dirname(draupnir_path)), "r+")
-    # model_text = draupnir_models_file.readlines()
-    # line_start = model_text.index("class {}(DRAUPNIRModelClass):\n".format(Draupnir.get_class()))
-    # #line_stop= [index if "class" in line else len(model_text[line_start+1:]) for index,line in enumerate(model_text[line_start+1:])][0]
-    # #model_text = model_text[line_start:]
-    # #model_text = model_text[:line_stop] #'class DRAUPNIRModel2b(DRAUPNIRModelClass):\n'
-    # model_file.write("".join(model_text))
-    # model_file.close()
     save_script(Draupnir, results_dir, "models.py")
     save_script(Draupnir, results_dir, "models_utils.py")
     save_script(Draupnir, results_dir, "guides.py")
@@ -543,7 +544,7 @@ def select_optimizer(args,params_config):
             # Highlight: "Reduce LR on plateau: Scheduler: Reduce learning rate when a metric has stopped improving."
             optim = pyro.optim.ReduceLROnPlateau({'optimizer': optim, 'optim_args': adam_args})
 
-        elif args.scheduler_type == "noam": #lambda is similar to noam
+        elif args.scheduler_type == "noam": #lambda takes a function and turns it into a scheduler
 
             # settings_dict = {"lr_lambda": DraupnirTrainUtils.NoamOpt(params_config["gru_hidden_dim"]).rate}
             # adam_args = {**adam_args,**settings_dict}
@@ -2179,6 +2180,8 @@ def draupnir_train_batching(train_load,
     #                settings_config,
     #                results_dir) #todo: replace as much as possible in the named tuple
 
+
+
     (train_load,
      test_load,
      additional_load,
@@ -2190,6 +2193,7 @@ def draupnir_train_batching(train_load,
                    additional_info,
                    settings_config,
                    results_dir)
+
 
     model_load = ModelLoad(z_dim=int(params_config["z_dim"]),
                            align_seq_len=align_seq_len,
@@ -2248,6 +2252,7 @@ def draupnir_train_batching(train_load,
                 "embedding": train_load.embeddings_train,
                 "sequences_representations": train_load.sequences_representations_train
                 }
+
     datasets_test = {"blosum": dataset_test_blosum,
                 "int": test_load.dataset_test,
                 "onehot": torch.ones(n_test_seqs).to(args.device),  # Dummy
@@ -2278,6 +2283,8 @@ def draupnir_train_batching(train_load,
                    "map_estimates":map_estimates,
                    "guide":guide,
                    "args":args}
+
+
     # test_function_input = {"patristic_matrix_model":patristic_matrix_model,
     #                "cladistic_matrix_full":cladistic_matrix_full,
     #                "cladistic_matrix_train":cladistic_matrix_test,
@@ -2353,9 +2360,10 @@ def draupnir_train_batching(train_load,
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None) # we need the
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # need to be sliced for batching
-                map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
-                map_estimates["test"] = map_estimates_test
+
+                # map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # # i extracted the "test" estimates here for some experiment
+                # map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
+                # map_estimates["test"] = map_estimates_test
 
             sample_out_test = Draupnir.sample_batched(map_estimates,
                                               n_samples,
@@ -2490,9 +2498,9 @@ def draupnir_train_batching(train_load,
         # print("sample idx {}".format(sample_idx))
         map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None)
         map_estimates =  {val: key.detach()  for val, key in map_estimates.items() if key is not None}
-        map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)
-        map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
-        map_estimates_dict[sample] = map_estimates
+        # map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None) # i extracted the "test" estimates here for some experiment
+        # map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
+        # map_estimates_dict[sample] = map_estimates
         for batch_idx,batch_idx_test in zip(blocks_train,blocks_test):
             batch_train_sample = Draupnir.sample_batched(map_estimates,
                                                  1,
@@ -3488,8 +3496,13 @@ def run(name,root_sequence_name,args,settings_config,build_config,script_dir):
     print("Loading datasets....")
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
+
+
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
+
     train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
+
+
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))
     if args.one_hot_encoded:
         raise ValueError("Please set one_hot_encoding to False")

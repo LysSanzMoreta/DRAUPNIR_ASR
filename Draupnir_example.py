@@ -38,7 +38,7 @@ def main():
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
 
-    #Highlight: Creates image of the estimated tree coloured by clades
+    #Highlight: Creates image of the estimated tree coloured by clades (clades are also estimated)
     draw_tree = False
     if draw_tree:
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
@@ -72,11 +72,11 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=1000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=3000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
-                        #default=None,
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
+                        default=None,
                         help='Path to alignment in fasta format (use with args.use_custom = True), with ALIGNED sequences. '
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
     parser.add_argument('--tree-file', type=str2None, nargs='?',
@@ -106,7 +106,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -137,7 +137,10 @@ if __name__ == "__main__":
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
     parser.add_argument('-draupnir-version', default="1", type=str,
-                        help='Draupnir version.')
+                        help='Draupnir version.'
+                             '1: first version as published and the batched version'
+                             '2: transformer attempt'
+                             '3: pre-computed latent')
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '

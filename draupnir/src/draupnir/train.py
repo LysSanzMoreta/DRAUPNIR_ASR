@@ -88,31 +88,48 @@ def train_batch(svi,training_function_input):
     train_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
-    for batch_number, dataset in enumerate(train_loader):
-        for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_data_embedding in zip(
-                dataset["batch_name"],
-                dataset["batch_data"],
-                dataset["batch_patristic"],
-                dataset["batch_blosum_weighted"],
-                dataset["batch_data_blosum"],
-                dataset["batch_embedding"]
-        ):
-            if args.use_cuda:
-                batch_dataset = batch_dataset.cuda()
-                batch_blosum_weighted = batch_blosum_weighted.cuda()
-                batch_patristic = batch_patristic.cuda()
-                batch_data_blosum = batch_data_blosum.cuda()
-                batch_data_embedding = batch_data_embedding.cuda()
 
-            batch_datasets = {"int":batch_dataset,
-                              "blosum":batch_data_blosum,
-                              "onehot":torch.ones(batch_dataset.shape[0]),
-                              "mask":torch.ones_like(batch_dataset),
-                              "embedding": batch_data_embedding
+
+
+
+    for batch_number, dataset in enumerate(train_loader):
+
+        if args.use_cuda:
+            dataset_batch = defaultdict()
+            for batch_name, *extra  in zip(*dataset.values()) : #we have to this trick to unpack, otherwise one extra dimension is added
+                for key, val in zip(list(dataset.keys())[1:],extra): #we skip the batch_name key
+                    dataset_batch[key] = val.cuda() if isinstance(val,torch.Tensor) else val
+
+
+
+
+        # for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_data_embedding in zip(
+        #         dataset["batch_name"],
+        #         dataset["batch_data"],
+        #         dataset["batch_patristic"],
+        #         dataset["batch_blosum_weighted"],
+        #         dataset["batch_data_blosum"],
+        #         dataset["batch_embedding"]
+        # ):
+        #     if args.use_cuda:
+        #         batch_dataset = batch_dataset.cuda()
+        #         batch_blosum_weighted = batch_blosum_weighted.cuda()
+        #         batch_patristic = batch_patristic.cuda()
+        #         batch_data_blosum = batch_data_blosum.cuda()
+        #         batch_data_embedding = batch_data_embedding.cuda()
+
+            batch_datasets = {"int":dataset_batch["batch_data_int"],
+                              "blosum":dataset_batch["batch_data_blosum"],
+                              "onehot":torch.ones(dataset_batch["batch_data_int"].shape[0]),
+                              "mask":torch.ones_like(dataset_batch["batch_data_int"]),
+                              "embedding": dataset_batch["batch_embedding"],
+                              "sequences_representations": dataset_batch["batch_sequence_representation"],
                               }
-            seq_lens += batch_dataset[:, 0, 0].tolist()
+            seq_lens += dataset_batch["batch_data_int"][:, 0, 0].tolist()
+
+
             guide_map_estimates = guide(batch_datasets,
-                                  batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
+                                  dataset_batch["batch_patristic"], #recall that the patristic is n_seqs + 1 to re-add the node names
                                   cladistic_matrix_train,
                                   dataset_train_blosum,
                                   batch_blosum=None,
@@ -124,10 +141,10 @@ def train_batch(svi,training_function_input):
             map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
 
             train_loss += svi.step(batch_datasets,
-                                   batch_patristic,
+                                   dataset_batch["batch_patristic"],
                                    cladistic_matrix_full,
-                                   batch_data_blosum,
-                                   batch_blosum_weighted,
+                                   dataset_batch["batch_data_blosum"],
+                                   dataset_batch["batch_blosum_weighted"],
                                    map_estimates)
 
             # Normalize loss
@@ -181,30 +198,46 @@ def train_batch_clade(svi,training_function_input):
     args = training_function_input["args"]
     train_loss = 0.0
     seq_lens = []
-    for batch_number, datasets in enumerate(train_loader):
-        for clade_name, clade_dataset, clade_patristic, clade_blosum_weighted, clade_data_blosum, clade_embedding in zip(datasets["clade_name"],
-                                                                                                        datasets["clade_data"],
-                                                                                                        datasets["clade_patristic"],
-                                                                                                        datasets["clade_blosum_weighted"],
-                                                                                                        datasets["clade_data_blosum"],
-                                                                                                        datasets["clade_embedding"]):
+    for batch_number, dataset in enumerate(train_loader):
 
-            if args.use_cuda:
-                clade_dataset = clade_dataset.cuda()
-                clade_blosum_weighted = clade_blosum_weighted.cuda()
-                clade_patristic = clade_patristic.cuda()  # cannot be used like this, we cannot have a variable size latent space
-                clade_data_blosum = clade_data_blosum.cuda()
-                clade_embedding = clade_embedding.cuda()
-            if args.use_cuda:
-                datasets = {key:val.cuda() for key,val in datasets.items()}
+        if args.use_cuda:
+            dataset_batch = defaultdict()
+            for batch_name, *extra in zip(*dataset.values()):  # we have to this trick to unpack, otherwise one extra dimension is added
+                for key, val in zip(list(dataset.keys())[1:], extra):  # we skip the batch_name key
+                    dataset_batch[key] = val.cuda() if isinstance(val, torch.Tensor) else val
+        # for clade_name, clade_dataset, clade_patristic, clade_blosum_weighted, clade_data_blosum, clade_embedding, clade_seq_representation in zip(datasets["clade_name"],
+        #                                                                                                 datasets["clade_data"],
+        #                                                                                                 datasets["clade_patristic"],
+        #                                                                                                 datasets["clade_blosum_weighted"],
+        #                                                                                                 datasets["clade_data_blosum"],
+        #                                                                                                 datasets["clade_embedding"],
+        #                                                                                                 datasets["clade_seq_representation"],
+        #                                                                                                                  ):
+        #
+        #     if args.use_cuda:
+        #         clade_dataset = clade_dataset.cuda()
+        #         clade_blosum_weighted = clade_blosum_weighted.cuda()
+        #         clade_patristic = clade_patristic.cuda()  # cannot be used like this, we cannot have a variable size latent space
+        #         clade_data_blosum = clade_data_blosum.cuda()
+        #         clade_embedding = clade_embedding.cuda()
+        #         clade_seq_representation = clade_seq_representation.cuda()
 
-            clade_datasets = {"int":clade_dataset,
-                              "blosum":clade_data_blosum,
-                              "embedding":clade_embedding}
+
+            # clade_datasets = {"int":clade_dataset,
+            #                   "blosum":clade_data_blosum,
+            #                   "embedding":clade_embedding,
+            #                   "seq_representation": clade_seq_representation
+            #                   }
+            clade_datasets = {"int":dataset_batch["clade_data"],
+                              "blosum":dataset_batch["clade_data_blosum"],
+                              "embedding":dataset_batch["clade_embedding"],
+                              "sequences_representations": dataset_batch["clade_seq_representation"]
+                              }
+
 
 
             seq_lens += clade_datasets["int"][:, 0, 0].tolist()
-            train_loss += svi.step(clade_datasets, clade_patristic, cladistic_matrix,clade_blosum_weighted,map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
+            train_loss += svi.step(clade_datasets, dataset_batch["clade_patristic"], cladistic_matrix,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
 
 
     # Normalize loss

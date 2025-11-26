@@ -349,6 +349,8 @@ def processing(args:namedtuple,
             SeqIO.write(records_aligned, output_handle2, "fasta")
         dataset_train = dataset_train[:, 1:].astype('float64') # Eliminate the str name part in the row, so that not everything needs to be changed
         embeddings_train = embeddings_train[:,1:].astype("float64") if embeddings_train is not None else None
+
+
         dataset_test = None
         embeddings_test = None
         patristic_matrix_train = DraupnirUtils.symmetrize_and_clean(patristic_matrix,ancestral=ancestral)  # Highlight: if ancestral is true, patristic_matrix_train = patristic_matrix_full
@@ -492,6 +494,8 @@ def processing(args:namedtuple,
     else:
         evolutionary_matrix_train = [torch.from_numpy(evolutionary_matrix_train) if evolutionary_matrix_train is not None else evolutionary_matrix_train][0]
 
+
+
     results_dict = {"dataset_train":dataset_train,
                    "dataset_test":dataset_test,
                    "evolutionary_matrix_train":evolutionary_matrix_train,
@@ -553,6 +557,9 @@ def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_co
     dataset_train_sorted = dataset_train[dataset_train_sorted_idx]
     embeddings_train_sorted = train_load.embeddings_train[dataset_train_sorted_idx] if train_load.embeddings_train is not None else None
     sequences_representations_train_sorted = train_load.sequences_representations_train[dataset_train_sorted_idx] if train_load.sequences_representations_train is not None else None
+
+    assert np.array_equal(embeddings_train_sorted[:,0,1],dataset_train_sorted[:,0,1]), "sorting was not done correctly for the embeddings"
+    assert np.array_equal(sequences_representations_train_sorted[:,0],dataset_train_sorted[:,0,1]), "sorting was not done correctly for the sequence representations"
 
     results_dict = {"dataset_train_sorted": dataset_train_sorted,
                     "embeddings_train_sorted":embeddings_train_sorted,
@@ -830,6 +837,7 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
 
     train_load = train_load._replace(dataset_train=results_dict["dataset_train_sorted"],
                            embeddings_train = results_dict["embeddings_train_sorted"],
+                           sequences_representations_train = results_dict["sequences_representations_train_sorted"],
                            evolutionary_matrix_train=train_load.evolutionary_matrix_train, #contains both leafs and internal nodes, do not remember why
                            patristic_matrix_train=results_dict["patristic_matrix_train"],
                            cladistic_matrix_train=results_dict["cladistic_matrix_train"])
@@ -913,13 +921,14 @@ def load_dict_to_namedtuple(load_dict):
     return sample_out
 
 class CladesDataset(Dataset):
-    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum,clades_embeddings):
+    def __init__(self,clades_names,clades_data,clades_patristic,clades_blosum_weighted,clades_data_blosum,clades_embeddings, clades_seq_representation):
         self.clades_names = clades_names
         self.clades_data = clades_data
         self.clades_patristic = clades_patristic
         self.clades_blosum_weighted = clades_blosum_weighted
         self.clades_data_blosum = clades_data_blosum
-        self.clade_embeddings = clades_embeddings
+        self.clades_embeddings = clades_embeddings
+        self.clades_seq_representation = clades_seq_representation
 
 
     def __getitem__(self, index): #sets a[i]
@@ -928,26 +937,36 @@ class CladesDataset(Dataset):
         clade_patristic = self.clades_patristic[index]
         clade_blosum_weighted = self.clades_blosum_weighted[index]
         clade_data_blosum = self.clades_data_blosum[index]
-        clade_embedding = self.clade_embeddings[index]
+        clade_embedding = self.clades_embeddings[index]
+        clade_seq_representation = self.clades_seq_representation[index]
 
         return {'clade_name': clade_name,
                 'clade_data': clade_data,
                 'clade_patristic': clade_patristic ,
                 'clade_blosum_weighted':clade_blosum_weighted,
                 'clade_data_blosum':clade_data_blosum,
-                'clade_embedding':clade_embedding}
+                'clade_embedding':clade_embedding,
+                'clade_seq_representation':clade_seq_representation,
+                }
 
     def __len__(self):
         return len(self.clades_names)
 
 class SplittedDataset(Dataset):
-    def __init__(self, batches_names, batches_data, batches_patristic, batches_blosum_weighted,batches_data_blosums,batches_embeddings):
+    def __init__(self, batches_names,
+                 batches_data,
+                 batches_patristic,
+                 batches_blosum_weighted,
+                 batches_data_blosums,
+                 batches_embeddings,
+                 batches_sequence_representations):
         self.batches_names = batches_names
         self.batches_data = batches_data
         self.batches_patristic = batches_patristic
         self.batches_blosum_weighted = batches_blosum_weighted
         self.batches_data_blosum = batches_data_blosums
         self.batches_embeddings = batches_embeddings
+        self.batches_sequence_representations = batches_sequence_representations
 
     def __getitem__(self, index):  # sets a[i]
         batch_name = self.batches_names[index]
@@ -956,22 +975,25 @@ class SplittedDataset(Dataset):
         batch_blosum_weighted = self.batches_blosum_weighted[index]
         batch_data_blosum = self.batches_data_blosum[index]
         batch_embedding = self.batches_embeddings[index]
+        batch_sequence_representation = self.batches_sequence_representations[index]
         return {'batch_name': batch_name,
-                'batch_data': batch_data,
+                'batch_data_int': batch_data,
                 'batch_patristic': batch_patristic,
                 'batch_blosum_weighted': batch_blosum_weighted,
                 'batch_data_blosum':batch_data_blosum,
-                'batch_embedding':batch_embedding
+                'batch_embedding':batch_embedding,
+                'batch_sequence_representation':batch_sequence_representation,
                 }
     def __len__(self):
         return len(self.batches_names)
 
 class CustomDataset(Dataset):
-    def __init__(self, data_array_blosum,data_array_int,data_array_onehot,data_array_embedding):
+    def __init__(self, data_array_blosum,data_array_int,data_array_onehot,data_array_embedding,data_array_seq_representation):
         self.batch_data_blosum = data_array_blosum
         self.batch_data_int = data_array_int
         self.batch_data_onehot = data_array_onehot
         self.data_array_embedding = data_array_embedding
+        self.data_array_seq_representation = data_array_seq_representation
 
 
     def __getitem__(self, index):  # sets a[i]
@@ -979,10 +1001,12 @@ class CustomDataset(Dataset):
         batch_data_int = self.batch_data_int[index] if self.batch_data_int is not None else None
         batch_data_onehot = self.batch_data_onehot[index] if self.batch_data_onehot is not None else None
         batch_data_embedding = self.data_array_embedding[index] if self.data_array_embedding is not None else None
+        batch_seq_representation = self.data_array_seq_representation[index] if self.data_array_seq_representation is not None else None
         return {'blosum': batch_data_blosum,
                 'int':batch_data_int,
                 'onehot':batch_data_onehot,
                 'embedding':batch_data_embedding,
+                'seq_representation':batch_seq_representation,
                 }
     def __len__(self):
         return len(self.batch_data_blosum)
@@ -1008,7 +1032,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
     if method == "batch_dim_0":
         if args.batch_size == 1 : #only 1 batch // plating
             #train_loader = DataLoader(dataset.cpu(),batch_size=build_config.batch_size,shuffle=False,**kwargs)
-            train_loader = CustomDataset(datasets["blosum"].cpu(),datasets["int"].cpu(),datasets["onehot"].cpu(),datasets["embedding"].cpu())
+            train_loader = CustomDataset(datasets["blosum"].cpu(),datasets["int"].cpu(),datasets["onehot"].cpu(),datasets["embedding"].cpu(), datasets["sequences_representations"].cpu())
             train_loader = DataLoader(train_loader,batch_size=build_config.batch_size,shuffle=False,**kwargs)
             if use_cuda:
                 for dataset in train_loader:
@@ -1020,6 +1044,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
             blocks = DraupnirModelUtils.intervals(n_seqs // build_config.batch_size, n_seqs)
             batch_labels = ["batch_{}".format(i) for i in range(len(blocks))]
             batch_embeddings = []
+            batch_sequences_representations = []
             batch_datasets = []
             batch_patristics = []
             batch_aa_freqs = []
@@ -1037,6 +1062,9 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                 batch_patristics.append(batch_patristic)
                 batch_embedding = datasets["embedding"][int(block_idx[0]):int(block_idx[1])]
                 batch_embeddings.append(batch_embedding.cpu())
+                batch_seq_representation = datasets["sequences_representations"][int(block_idx[0]):int(block_idx[1])]
+                batch_sequences_representations.append(batch_seq_representation.cpu())
+
 
                 batch_aa_frequencies = DraupnirUtils.calculate_aa_frequencies(batch_data[:, 2:, 0].cpu().numpy(),
                                                                 build_config.aa_probs)
@@ -1050,18 +1078,27 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                 batch_data_blosum = DraupnirUtils.blosum_encoding(blosum, batch_aa_frequencies, build_config.align_seq_len,build_config.aa_probs, batch_data, False)
                 batch_data_blosums.append(batch_data_blosum.cpu())
 
-            Splitted_Datasets = SplittedDataset(batch_labels, batch_datasets, batch_patristics, batch_blosums_weighted,batch_data_blosums,batch_embeddings)
+            Splitted_Datasets = SplittedDataset(batch_labels,
+                                                batch_datasets,
+                                                batch_patristics,
+                                                batch_blosums_weighted,
+                                                batch_data_blosums,
+                                                batch_embeddings,
+                                                batch_sequences_representations)
+
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
             for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
                 #train_loader = [ x.to('cuda', non_blocking=True) if isinstance(x,torch.Tensor) else x for x in dataset.values()]
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum, batch_embedding in zip(
-                        dataset["batch_name"], dataset["batch_data"], dataset["batch_patristic"],
-                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"], dataset["batch_embedding"]):
+                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum, batch_embedding, batch_seq_representation in zip(
+                        dataset["batch_name"], dataset["batch_data_int"], dataset["batch_patristic"],
+                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"], dataset["batch_embedding"], dataset["batch_sequence_representation"]):
                     batch_dataset.to('cuda', non_blocking=True)
                     batch_patristic.to('cuda', non_blocking=True)
                     batch_blosum_weighted.to('cuda', non_blocking=True)
                     batch_data_blosum.to('cuda', non_blocking=True)
                     batch_embedding.to('cuda', non_blocking=True)
+                    batch_seq_representation.to('cuda', non_blocking=True)
+
 
 
     elif method == "batch_by_clade": #todo: remove
@@ -1071,6 +1108,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
         clades_blosums_weighted = []  # this is where the weighted average goes
         clades_data_blosums = []  # this is the dataset in blosum-encoding goes
         clades_embeddings = []
+        clades_sequences_representations = []
         for key, values in clades_dict.items():
             clades_labels.append(key)
             if isinstance(values, list) and len(values) > 1:
@@ -1084,6 +1122,8 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
             clades_datasets.append(clade_dataset.cpu())
             clade_embedding = datasets["embedding"][clades_indexes]
             clades_embeddings.append(clade_embedding)
+            clade_seq_representations = datasets["sequences_representations"][clades_indexes]
+            clades_sequences_representations.append(clade_seq_representations)
 
             patristic_indexes[0] = True  # To re-add the node names
             clade_patristic = patristic_matrix_train[patristic_indexes]
@@ -1103,9 +1143,9 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
         train_loader = DataLoader(Clades_Datasets, **kwargs)
         if use_cuda:
             for batch_number, dataset in enumerate(train_loader):
-                for clade_name, clade_dataset, clade_patristic, clade_blosum, clade_data_blosum, clade_embedding in zip(
+                for clade_name, clade_dataset, clade_patristic, clade_blosum, clade_data_blosum, clade_embedding, clade_seq_representations in zip(
                         dataset["clade_name"], dataset["clade_data"], dataset["clade_patristic"],
-                        dataset["clade_blosum_weighted"], dataset["clade_data_blosum"],dataset["clade_embedding"]):
+                        dataset["clade_blosum_weighted"], dataset["clade_data_blosum"],dataset["clade_embedding"], dataset["clade_seq_representation"]): #todo: why this does not work with the .values() trick, try again?
                     clade_dataset.to('cuda:0', non_blocking=True)
                     clade_patristic.to('cuda:0', non_blocking=True)
                     clade_blosum.to('cuda:0', non_blocking=True)

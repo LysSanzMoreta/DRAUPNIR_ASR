@@ -20,7 +20,14 @@ from pyro.distributions.torch_distribution import TorchDistribution
 
 
 class RNNEncoder(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,
+                 aa_prob,n_leaves,
+                 gru_hidden_dim,
+                 z_dim,
+                 rnn_input_size,
+                 kappa_addition,
+                 num_layers,
+                 pretrained_params):
         super(RNNEncoder, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
@@ -38,6 +45,7 @@ class RNNEncoder(nn.Module):
         self.fc1 = nn.Linear(self.gru_hidden_dim, self.nndim)
         self.linear_means = nn.Linear(self.nndim, self.z_dim)
         self.linear_std = nn.Linear(self.nndim, self.z_dim)
+
         self.layernorm = nn.LayerNorm(self.rnn_input_size)
         self.softplus = nn.Softplus()
 
@@ -50,7 +58,7 @@ class RNNEncoder(nn.Module):
 
         #todo: necessary? maybe
         #self.init_gru_bias()
-    def init_gru_bias(self):
+    def init_gru_bias(self): #some funky suggestion by llm
         for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
             if "bias_ih_l0" in name:
                 param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
@@ -67,9 +75,13 @@ class RNNEncoder(nn.Module):
         # print(rnn_final_bidirectional.var(dim=0).mean())  # should not be tiny
         # print(rnn_hidden_states.var(dim=0).mean())  # should not be tiny
         forward_out_r,backward_out_r = rnn_hidden_states[:,:,:self.gru_hidden_dim],rnn_hidden_states[:,:,self.gru_hidden_dim:]
-        # rnn_hidden_states = forward_out_r + backward_out_r #original
-        # rnn_final_forward_backward_sum = rnn_hidden_states[:,-1] #original
-        rnn_final_forward_backward_sum = forward_out_r[:,-1] + backward_out_r[:,0] #pick the last state forward and the first state from backwards
+
+        rnn_hidden_states = forward_out_r + backward_out_r #original
+        rnn_final_forward_backward_sum = rnn_hidden_states[:,-1] #original takes the last state of the forward and the first state of the backward
+
+        #rnn_final_forward_backward_sum = forward_out_r[:,-1] + backward_out_r[:,0] #pick the last state forward and the first state from backwards
+
+
         rnn_final_hidden_state = self.fc1(rnn_final_forward_backward_sum)
         z_loc = self.linear_means(rnn_final_hidden_state)
         z_scale = self.softplus(self.linear_std(rnn_final_hidden_state))
@@ -82,6 +94,54 @@ class RNNEncoder(nn.Module):
                  "rnn_final_hidden_state":rnn_final_hidden_state}
 
         #return output_means,output_std
+
+
+
+
+class FCLEncoder(nn.Module):
+    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, num_layers):
+        super(FCLEncoder, self).__init__()
+        self.gru_hidden_dim = gru_hidden_dim
+        self.z_dim = z_dim
+        self.n_leaves = n_leaves
+        self.rnn_input_size = rnn_input_size
+        self.align_seq_len = align_seq_len
+        self.aa_prob = aa_prob
+        self.num_layers = num_layers
+        self.softmax = nn.Softmax()
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+        self.fc1 = nn.Linear(self.rnn_input_size,self.gru_hidden_dim) #todo: put in sequential module
+        self.fc2 = nn.Linear(self.gru_hidden_dim,self.gru_hidden_dim)
+        self.linear_means = nn.Linear(self.gru_hidden_dim, self.z_dim)
+        self.linear_std = nn.Linear(self.gru_hidden_dim, self.z_dim)
+        self.layernorm = nn.LayerNorm(self.rnn_input_size)
+        self.softplus = nn.Softplus()
+
+
+        #todo: necessary? maybe
+        #self.init_gru_bias()
+    def init_gru_bias(self):
+        for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
+            if "bias_ih_l0" in name:
+                param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
+
+
+    def forward(self, input, hidden):
+
+        input = self.layernorm(input)
+        output = self.fc2(self.fc1(input))
+        z_loc = self.linear_means(output)
+        z_scale = self.softplus(self.linear_std(output))
+
+        return  {"z_loc":z_loc,
+                 "z_scale":z_scale}
+
+        #return output_means,output_std
+
+
+
 class RNNDecoder_Tiling(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
@@ -143,6 +203,9 @@ class RNNDecoder_Tiling(nn.Module):
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
 
         return output_logits
+
+
+
 
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
@@ -372,9 +435,12 @@ class EmbedComplexEncoder(nn.Module):
         self.fc2 = nn.Linear(self.embedding_dim,self.out_dim)
 
     def forward(self,input):
+
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.softmax(self.fc2(output))
+
         return output
+
 class GPKernel(ABC):
     @abstractmethod
     def preforward(self, t1: torch.Tensor,t2: torch.Tensor) -> torch.Tensor:
