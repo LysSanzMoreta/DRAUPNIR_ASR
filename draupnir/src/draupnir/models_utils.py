@@ -127,7 +127,9 @@ class FCLEncoder(nn.Module):
 
     def forward(self, input, hidden):
 
-        input = self.layernorm(input)
+        #input = self.layernorm(input)
+
+
         output = self.fc2(self.fc1(input))
         z_loc = self.linear_means(output)
         z_scale = self.softplus(self.linear_std(output))

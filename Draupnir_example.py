@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="3", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'

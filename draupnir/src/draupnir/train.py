@@ -29,45 +29,73 @@ def index_generator(indexes):
         i = (i + 1) % len(indexes)
         return i ##?
 
-def fill_estimates(guide_map_estimates,map_estimates,batching=False):
+# def fill_estimates(guide_map_estimates,map_estimates,batching=False):
+#     for key, val in guide_map_estimates.items():
+#         if key in ["latent_z"]:
+#             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2, tensor=val)
+#             if key not in map_estimates:
+#                 map_estimates[key] = val
+#             else:
+#                 if batching:
+#                     map_estimates[key] = val
+#                 else:
+#                     map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+#         elif key in ["alpha", "sigma_n", "sigma_f", "lambd"]:
+#             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
+#             map_estimates[key] = val
+#         elif key in ["rnn_final_hidden_state", "rnn_hidden_states","rnn_final_forward_backward_sum"]:
+#             if key not in map_estimates:
+#                 map_estimates[key] = val
+#             else:
+#                 if batching:
+#                     map_estimates[key] = val
+#                 else:
+#                     map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+#         elif key in ["z_scale","z_loc"]:
+#             map_estimates[key] = val
+#
+#         elif key in ["rnn_final_bidirectional"]:
+#             if key not in map_estimates:
+#                 map_estimates[key] = val
+#             else:
+#                 if batching:
+#                     map_estimates[key] = val
+#                 else:
+#                     map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+#         elif key in ["context_vector","attention_scores","attention_logits","hidden_states"]:
+#             if key not in map_estimates:
+#                 map_estimates[key] = val
+#             else:
+#                 map_estimates[key] = val
+#                 #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+#     return  guide_map_estimates, map_estimates
+
+def fill_estimates(guide_map_estimates,map_estimates,batching=True):
     for key, val in guide_map_estimates.items():
         if key in ["latent_z"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2, tensor=val)
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                if batching:
-                    map_estimates[key] = val
-                else:
-                    map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
         elif key in ["alpha", "sigma_n", "sigma_f", "lambd"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
             map_estimates[key] = val
-        elif key in ["rnn_final_hidden_state", "rnn_hidden_states","rnn_final_forward_backward_sum"]:
+        elif key in ["rnn_final_hidden_state", "rnn_hidden_states", "z_scale", "z_loc"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                if batching:
-                    map_estimates[key] = val
-                else:
-                    map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
-        elif key in ["z_scale","z_loc"]:
-            map_estimates[key] = val
-
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
         elif key in ["rnn_final_bidirectional"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                if batching:
-                    map_estimates[key] = val
-                else:
-                    map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
         elif key in ["context_vector","attention_scores","attention_logits","hidden_states"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
-                map_estimates[key] = val
-                #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+                map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
     return  guide_map_estimates, map_estimates
 
 def train_batch_new(svi,training_function_input):
@@ -195,6 +223,7 @@ def train_batch(svi,training_function_input):
                 batch_patristic = batch_patristic.cuda()
                 batch_data_blosum = batch_data_blosum.cuda()
                 batch_embedding = batch_data_embedding.cuda()
+                batch_sequences_representation = batch_sequences_representation.cuda()
 
             batch_datasets = {"int":batch_data_int,
                               "blosum":batch_data_blosum,
