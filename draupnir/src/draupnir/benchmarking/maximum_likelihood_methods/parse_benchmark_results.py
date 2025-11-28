@@ -18,7 +18,7 @@ import re,sys,pickle,os, time,datetime
 from collections import namedtuple
 from functools import partial
 sys.path.append('/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/other')
-sys.path.append('../../')
+sys.path.append('../../../')
 from prody import *
 import draupnir.utils as DraupnirUtils
 from PhyloBayes_Parser import parse_PhyloBayes

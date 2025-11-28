@@ -12,4 +12,4 @@ fi
 
 #-v /storage/Lys/draupnir_data:/opt/project/draupnir_data:Z
 
-docker run --rm -it --device=nvidia.com/gpu=all --security-opt=label=disable -v $HOME/.bash_docker_history:/root/.bash_history  -P hmmerdkr bash
+sudo docker run --rm -it --security-opt=label=disable -v $HOME/.bash_docker_history:/root/.bash_history  -P hmmerdkr bash

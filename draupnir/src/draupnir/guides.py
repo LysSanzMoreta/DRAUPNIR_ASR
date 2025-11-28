@@ -51,25 +51,25 @@ class DRAUPNIRGUIDES(EasyGuide):
 
         elif self.args.draupnir_version == "3":
 
-            self.encoder = FCLEncoder(align_seq_len=self.draupnir.align_seq_len,
-                                      aa_prob=self.draupnir.aa_probs,
-                                      n_leaves= self.draupnir.n_leaves,
-                                      gru_hidden_dim=self.draupnir.gru_hidden_dim,
-                                      z_dim=self.draupnir.z_dim,
-                                      rnn_input_size=self.draupnir.embedding_dim,
-                                      num_layers=self.draupnir.num_layers)
-            # self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
-            #                           aa_prob = self.draupnir.aa_probs,
-            #                           n_leaves = self.draupnir.n_leaves,
-            #                           gru_hidden_dim = self.draupnir.gru_hidden_dim,
-            #                           z_dim = self.draupnir.z_dim,
-            #                           rnn_input_size = self.draupnir.gru_hidden_dim,
-            #                           kappa_addition = self.draupnir.kappa_addition,
-            #                           num_layers = self.draupnir.num_layers,
-            #                           pretrained_params=self.draupnir.pretrained_params)
-            # self.embeddingencoder = EmbedComplexEncoder(input_dim = self.draupnir.embedding_dim,
-            #                                             embedding_dim = self.draupnir.gru_hidden_dim,
-            #                                             out_dim = self.draupnir.gru_hidden_dim)
+            # self.encoder = FCLEncoder(align_seq_len=self.draupnir.align_seq_len,
+            #                           aa_prob=self.draupnir.aa_probs,
+            #                           n_leaves= self.draupnir.n_leaves,
+            #                           gru_hidden_dim=self.draupnir.gru_hidden_dim,
+            #                           z_dim=self.draupnir.z_dim,
+            #                           rnn_input_size=self.draupnir.embedding_dim,
+            #                           num_layers=self.draupnir.num_layers)
+            self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
+                                      aa_prob = self.draupnir.aa_probs,
+                                      n_leaves = self.draupnir.n_leaves,
+                                      gru_hidden_dim = self.draupnir.gru_hidden_dim,
+                                      z_dim = self.draupnir.z_dim,
+                                      rnn_input_size = self.draupnir.gru_hidden_dim,
+                                      kappa_addition = self.draupnir.kappa_addition,
+                                      num_layers = self.draupnir.num_layers,
+                                      pretrained_params=self.draupnir.pretrained_params)
+            self.embeddingencoder = EmbedComplexEncoder(input_dim = self.draupnir.embedding_dim,
+                                                        embedding_dim = self.draupnir.gru_hidden_dim,
+                                                        out_dim = self.draupnir.gru_hidden_dim)
 
         else:
             self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
@@ -267,11 +267,11 @@ class DRAUPNIRGUIDES(EasyGuide):
             lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
             # Highlight: embed the amino acids represented by their respective blosum scores
 
-            # aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
-            # encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+            aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
-            encoder_output = self.encoder(esm_representations,esm_representations) # [n,z_dim]
+            #encoder_output = self.encoder(esm_representations,esm_representations) # [n,z_dim]
 
             z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
             latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]

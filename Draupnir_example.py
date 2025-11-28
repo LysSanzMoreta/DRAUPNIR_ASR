@@ -72,7 +72,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=3000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=1500, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -121,22 +121,26 @@ if __name__ == "__main__":
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
                         help='True: Use GPU; False: Use CPU')
-    parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
+    parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=True, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
     parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
                         help='reduce_on_plateau \n'
                              'noam ')
     parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
     parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     #Highlight: Sample from a pre-trained model
-    parser.add_argument('-load-pretrained-path', type=str, nargs='?',default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_jj_1_2022_03_25_18h42min36s777683ms_10000epochs_delta_map",
+    parser.add_argument('-load-pretrained-path',
+                        type=str,
+                        nargs='?',
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_jj_1_2022_03_25_18h42min36s777683ms_10000epochs_delta_map",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_11_26_19h45min22s339026ms_2000epochs_variational_batched_old_commit",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples')
-    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
     #Highlight: EXPERIMENTAL FEATURES, do not use unless you know what you are doing
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="3", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'
