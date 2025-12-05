@@ -55,6 +55,7 @@ def available_datasets(print_dict = False):
                 "aminopeptidase":"Amino Peptidase",
                 "PF00096":"PF00096 protein kinases"}
     return datasets,datasets_full_names
+
 def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_file=None,tree_file=None,alignment_file=None):
     """In:
     :param str name: Dataset name
@@ -383,6 +384,7 @@ def create_draupnir_dataset(name,use_custom,script_dir,args,build=False,fasta_fi
                              tree_file=tree_file)
 
     return build_config,settings_config, root_sequence_name
+
 def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):
     """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name
@@ -404,6 +406,7 @@ def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):
                    tree_file="{}/RandallBenchmarkTree_OriginalNaming.tree".format(storage_folder),
                    aa_probs=aa_prob,
                    rename_internal_nodes=False)
+
 def benchmark_randalls_dataset_test(settings_config,aa_probs=21):
     """Processing of the internal nodes dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction
     :param str scriptdir
@@ -435,11 +438,13 @@ def benchmark_randalls_dataset_test(settings_config,aa_probs=21):
         dataset[i, no_gap_indexes,0] = internal_fasta_dict[key][1] # Assign the aa info (including angles) to those positions where there is not a gap
 
     return dataset, internal_nodes
+
 def load_randalls_benchmark_ancestral_sequences(settings_config):
     dataset_test,internal_names_test = benchmark_randalls_dataset_test(settings_config)
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
     return dataset_test,internal_names_test
+
 def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree_levelorder_names,root_sequence_name,aa_probs,script_dir):
     """Load and format the ancestral sequences from the EvolveAGene4 simulations
     :param name
@@ -486,6 +491,7 @@ def load_simulations_ancestral_sequences(name,settings_config,align_seq_len,tree
     dataset_test = np.array(dataset_test, dtype="float64")
     dataset_test = torch.from_numpy(dataset_test)
     return dataset_test,leaves_names_test,max_lenght_internal_aligned
+
 def load_coral_fluorescent_proteins_ancestral_sequences(name,ancestral_file,tree_levelorder_names,aa_probs):
     """Loads the 5 ancestral root nodes from the coral fluorescent proteins as the data set test.
     :param str name

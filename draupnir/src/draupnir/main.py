@@ -604,7 +604,9 @@ def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     equal_aminoacids = (equal_aminoacids.sum(-1) / align_lenght)*100
     average_pid = equal_aminoacids.mean().cpu().numpy()
     std_pid = equal_aminoacids.std().cpu().numpy()
+
     return average_pid,std_pid
+
 def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     """Plots percent id
     :param list average_pid_list
@@ -620,6 +622,7 @@ def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     plt.savefig("{}/Percent_ID{}.png".format(results_dir,suffix))
     plt.clf()
     plt.close()
+
 def set_data_model(args,
                    train_load,
                    test_load,
@@ -857,22 +860,17 @@ def draupnir_sample(train_load,
     select_guide = "".join(select_guide.split())
     guide = select_quide(Draupnir,model_load,select_guide)
 
-    print(args)
-
-
-    print(Draupnir)
-
-
-    print(guide)
-
-
-    exit()
+    # print(args)
+    # print(Draupnir)
+    # print(guide)
+    # exit()
 
     with torch.no_grad():
         for name, parameter in guide.named_parameters():
             print(name)
-            print(pretrained_params_dict_guide[name].shape)
-            parameter.copy_(pretrained_params_dict_guide[name])
+            print("original parameter", parameter.shape)
+            print("copy parameter", pretrained_params_dict_guide[name].shape)
+            parameter.copy_(pretrained_params_dict_guide[name]) #does not work because i have changed the model structure .... so use other weights
         #for name, parameter in Draupnir.named_parameters():
             #parameter.copy_(pretrained_params_dict_model[name])
     exit()
@@ -973,9 +971,9 @@ def draupnir_sample(train_load,
             kappa_psi=None)
         sample_out_test_argmax2 = sample_out_test_argmax
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
         # Highlight : save the samples
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -1072,11 +1070,11 @@ def draupnir_sample(train_load,
 
 
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
                                                                       train_load.dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
                                                                      test_load.patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax2.logits.cpu(),
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax2.logits.cpu(),
                                                                       test_load.patristic_matrix_test.cpu().long()[1:, 0])
         # Highlight : save the samples
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,
@@ -1316,7 +1314,7 @@ def draupnir_train_old(train_load,
         save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide,results_dir)
         #Highlight: Plot entropies
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),dataset_train.detach().long()[:,0,1])
+        train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),dataset_train.detach().long()[:,0,1])
         #Highlight: Plot percent id prediction performance
         average_pid, std_pid = calculate_percent_id(dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
         average_pid_list.append(average_pid)
@@ -1364,8 +1362,8 @@ def draupnir_train_old(train_load,
                                                       use_test=False,
                                                       use_test2=True)
 
-            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
-            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
+            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
+            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.detach(),patristic_matrix_test.detach().long()[1:, 0])
 
             save_samples(dataset_test, patristic_matrix_test,sample_out_test, test_entropies,correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(dataset_test, patristic_matrix_test,sample_out_test_argmax, test_entropies,correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -1381,7 +1379,8 @@ def draupnir_train_old(train_load,
             del sample_out_test_argmax2
 
         del sample_out_train
-        entropy.append(torch.mean(train_entropy_epoch[:,1]).item())
+        #entropy.append(torch.mean(train_entropy_epoch[:,1]).item())  #entropy from 1 position
+        entropy.append(torch.mean(train_entropy_epoch[:, 1:]).item())  # only compute entropy from all positions
         if epoch == (args.num_epochs-1):
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
@@ -1510,9 +1509,9 @@ def draupnir_train_old(train_load,
                                          kappa_psi=None)
         sample_out_test_argmax2 = sample_out_test_argmax
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),dataset_train.cpu().long()[:, 0, 1])
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
         #Highlight : save the samples
         save_samples(dataset_test, patristic_matrix_test, sample_out_test, test_entropies, correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
         save_samples(dataset_test, patristic_matrix_test, sample_out_test_argmax, test_entropies,correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -1602,9 +1601,9 @@ def draupnir_train_old(train_load,
                                           use_test=False)
 
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),dataset_train.cpu().long()[:, 0, 1])
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),patristic_matrix_test.cpu().long()[1:, 0])
         # Highlight : save the samples
         save_samples(dataset_test, patristic_matrix_test, sample_out_test, test_entropies, correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
         save_samples(dataset_test, patristic_matrix_test, sample_out_test_argmax, test_entropies,correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -1810,7 +1809,7 @@ def draupnir_train(train_load,
         save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide,results_dir)
         #Highlight: Plot entropies
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),train_load.dataset_train.detach().long()[:,0,1])
+        train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),train_load.dataset_train.detach().long()[:,0,1])
         #Highlight: Plot percent id prediction performance
         average_pid, std_pid = calculate_percent_id(train_load.dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
         average_pid_list.append(average_pid)
@@ -1858,8 +1857,8 @@ def draupnir_train(train_load,
                                                       use_test=False,
                                                       use_test2=True)
 
-            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.detach(),test_load.patristic_matrix_test.detach().long()[1:, 0])
-            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.detach(),test_load.patristic_matrix_test.detach().long()[1:, 0])
+            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.detach(),test_load.patristic_matrix_test.detach().long()[1:, 0])
+            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.detach(),test_load.patristic_matrix_test.detach().long()[1:, 0])
 
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test,sample_out_test, test_entropies,additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test,sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -1875,7 +1874,8 @@ def draupnir_train(train_load,
             del sample_out_test_argmax2
 
         del sample_out_train
-        entropy.append(torch.mean(train_entropy_epoch[:,1]).item())
+        #entropy.append(torch.mean(train_entropy_epoch[:,1]).item()) # entropy for 1 position
+        entropy.append(torch.mean(train_entropy_epoch[:, 1:]).item())  # only compute entropy from all positions
         if epoch == (args.num_epochs-1):
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
@@ -2006,9 +2006,9 @@ def draupnir_train(train_load,
                                          kappa_psi=None)
         sample_out_test_argmax2 = sample_out_test_argmax
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
         #Highlight : save the samples
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -2098,9 +2098,9 @@ def draupnir_train(train_load,
                                           use_test=False)
 
         # # Highlight: Compute sequences Shannon entropies per site
-        train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
-        test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-        test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
+        test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
+        test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
         # Highlight : save the samples
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
         save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -2238,8 +2238,7 @@ def draupnir_train_batching(train_load,
                            blosum=additional_info.blosum,
                            blosum_max=blosum_max,
                            blosum_weighted=blosum_weighted,
-                           dataset_train_blosum=dataset_train_blosum,
-                           # train dataset with blosum vectors instead of one-hot encodings
+                           dataset_train_blosum=dataset_train_blosum, # train dataset with blosum vectors instead of one-hot encodings
                            variable_score=variable_score,
                            internal_nodes=test_load.patristic_matrix_test[1:, 0],  # dataset_test[:,0,1]
                            graph_coo=graph_coo,
@@ -2377,7 +2376,7 @@ def draupnir_train_batching(train_load,
         save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide, results_dir)
 
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),dataset_train_batch_0_nodes)
+        train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),dataset_train_batch_0_nodes)
         # percent_id_df, _, _ = extract_percent_id(dataset_train, sample_out_train.aa_sequences, n_samples_dict[folder], results_dir,correspondence_dict)
 
         #Highlight: Plot percent id prediction performance for 1 batch to not make it computationally very expensive
@@ -2443,9 +2442,9 @@ def draupnir_train_batching(train_load,
                                                       use_test=False,
                                                       use_test2=True)
 
-            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),
+            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),
                                                                          test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0]) #slice the test nodes, use only the first "batch_size" nodes while training
-            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),
+            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),
                                                                           test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0])
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -2460,7 +2459,8 @@ def draupnir_train_batching(train_load,
             del sample_out_test_argmax
 
         del sample_out_train
-        entropy.append(torch.mean(train_entropy_epoch[:, 1]).item())
+        #entropy.append(torch.mean(train_entropy_epoch[:, 1]).item()) #only compute entropy from 1 position
+        entropy.append(torch.mean(train_entropy_epoch[:, 1:]).item()) # compute entropy from all positions
         if epoch == (args.num_epochs - 1): #todo: delete
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
@@ -2611,11 +2611,11 @@ def draupnir_train_batching(train_load,
         kappa_psi=None)
     sample_out_test_argmax2 = sample_out_test_argmax
     # # Highlight: Compute sequences Shannon entropies per site
-    train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
+    train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
                                                                   train_load.dataset_train.cpu().long()[:, 0, 1])
-    test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
+    test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
                                                                  test_load.patristic_matrix_test.cpu().long()[1:, 0])
-    test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
+    test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
                                                                   test_load.patristic_matrix_test.cpu().long()[1:, 0])
     # Highlight : save the samples
     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,
@@ -2884,7 +2884,7 @@ def draupnir_train_batch_by_clade(train_load,
         save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
         save_checkpoint_guide(guide, results_dir)
         indexes = torch.eq(dataset_train[:,0,1], torch.Tensor(blocks_train[0]))
-        train_entropy_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),
+        train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.cpu(),
                                                                           dataset_train.cpu().long()[indexes, 0, 1])
         # percent_id_df, _, _ = extract_percent_id(dataset_train, sample_out_train.aa_sequences, n_samples_dict[folder], results_dir,correspondence_dict)
         if epoch % args.test_frequency == 0:  # every n epochs --- sample
@@ -2938,9 +2938,9 @@ def draupnir_train_batch_by_clade(train_load,
             indexes_test =  (patristic_matrix_test[:, 0][..., None] == torch.tensor(blocks_test[0])).any(-1)
             #indexes_test[0] = False
 
-            test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),
+            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),
                                                                          patristic_matrix_test.cpu().long()[indexes_test, 0]) #slice the test nodes, use only the first "batch_size" nodes while training
-            test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),
+            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),
                                                                           patristic_matrix_test.cpu().long()[indexes_test,0])
             save_samples(dataset_test, patristic_matrix_test, sample_out_test, test_entropies, correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(dataset_test, patristic_matrix_test, sample_out_test_argmax, test_entropies,correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
@@ -2960,7 +2960,8 @@ def draupnir_train_batch_by_clade(train_load,
             del sample_out_test_argmax
 
         del sample_out_train
-        entropy.append(torch.mean(train_entropy_epoch[:, 1]).item())
+        #entropy.append(torch.mean(train_entropy_epoch[:, 1]).item()) #entropy from 1 position
+        entropy.append(torch.mean(train_entropy_epoch[:, 1:]).item())  # entropy from all positions
         if epoch == (args.num_epochs - 1):
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
@@ -3097,11 +3098,11 @@ def draupnir_train_batch_by_clade(train_load,
         kappa_psi=None)
     sample_out_test_argmax2 = sample_out_test_argmax
     # # Highlight: Compute sequences Shannon entropies per site
-    train_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
+    train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),
                                                                   dataset_train.cpu().long()[:, 0, 1])
-    test_entropies = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
+    test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
                                                                  patristic_matrix_test.cpu().long()[1:, 0])
-    test_entropies2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
+    test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),
                                                                   patristic_matrix_test.cpu().long()[1:, 0])
     # Highlight : save the samples
     save_samples(dataset_test, patristic_matrix_test, sample_out_test, test_entropies, correspondence_dict,
@@ -3163,6 +3164,7 @@ def draupnir_train_batch_by_clade(train_load,
 
 
     raise ValueError("Review or delete")
+
 def send_to_plot(n_samples,
                  dataset_train,
                  dataset_test,
@@ -3465,6 +3467,7 @@ def preparing_plots(samples_out,
                                                 results_dir,
                                                 correspondence_dict,
                                                 build_config.aa_probs)
+
 def generate_config():
     """Generate random parameter values"""
     config = {
@@ -3479,6 +3482,7 @@ def generate_config():
         "gru_hidden_dim": np.random.choice([60, 70, 80, 90,100]),
     }
     return config
+
 def config_build(args):
     """Select a default configuration dictionary. It can load a string dictionary from the command line (using json) or use the default parameters
     :param namedtuple args"""
@@ -3498,6 +3502,7 @@ def config_build(args):
             "gru_hidden_dim": 60, #60
         }
     return config
+
 def manual_random_search(): #TODO: This probably does not work
     """Performs random grid search in the hyperparameter space"""
     #sys.stdout = open('Random_Search_results.txt', 'w')
@@ -3512,6 +3517,7 @@ def manual_random_search(): #TODO: This probably does not work
         print(config)
         proc= subprocess.Popen(args=[sys.executable,"Draupnir_example.py","--parameter-search","True","--config-dict",str(config).replace("'", '"')],stdout=open('Random_Search_results.txt', 'a')) #stdout=open(os.devnull, 'wb'),stderr=open(os.devnull, 'wb')
         proc.communicate()
+
 def run(name,root_sequence_name,args,settings_config,build_config,script_dir):
     """Loads and pre-treats the data for inference, executes Draupnir model for training or for sampling.
     :param str name
@@ -3523,16 +3529,13 @@ def run(name,root_sequence_name,args,settings_config,build_config,script_dir):
     """
 
     if args.generate_samples:
-        pretrained_args = json.load(open("{}/commandline_args.txt".format(args.load_pretrained_folder),"r+"))
-
+        pretrained_args = json.load(open("{}/commandline_args.txt".format(args.load_pretrained_path),"r+"))
         for key,val in pretrained_args.items():
-            args.__dict__[key] = val
-
-        exit()
-
+            if not key in ["n_samples", "load_pretrained_path","generate_samples"]:
+                args.__dict__[key] = val
+        args.__dict__["num_epochs"] = 0
 
     results_dir = "{}/PLOTS_Draupnir_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs, args.select_guide)
-
 
     print("Loading datasets....")
     param_config = config_build(args)

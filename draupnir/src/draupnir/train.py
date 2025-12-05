@@ -17,8 +17,6 @@ from pyro import poutine
 #     beta_a: float = 1
 #     beta_b : float = 2.5
 
-
-
 def index_generator(indexes):
     """Call method to subsample in order.
     model (args, iter_num = index_generator())
@@ -181,7 +179,6 @@ def train_batch_new(svi,training_function_input):
     total_epoch_loss_train = train_loss / normalizer_train
     return total_epoch_loss_train, map_estimates
 
-
 def train_batch(svi,training_function_input):
     """Regular batch training without shuffling datatasets
     :param svi: pyro infer engine
@@ -259,8 +256,6 @@ def train_batch(svi,training_function_input):
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
     return total_epoch_loss_train, map_estimates
-
-
 
 def train(svi,training_function_input):
     """Non batched training
@@ -363,7 +358,6 @@ def random_masking(data):
     random_mask = random_mask[:,None,None].repeat(1,dim1,dim2)
 
     return random_mask
-
 
 def train_transformer(svi,training_function_input):
     """Masked diffusion trasformer

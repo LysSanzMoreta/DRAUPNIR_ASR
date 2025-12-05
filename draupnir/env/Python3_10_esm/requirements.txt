@@ -2,3 +2,4 @@
 accelerate
 esm
 fair-esm
+dromi==0.0.19

@@ -1035,11 +1035,18 @@ def compute_sites_entropies(logits, node_names):
     The entropy H is minimal when one of the symbols has probability 1 and the rest 0. H = 0"""
     #probs = torch.exp(logits)  # torch.sum(probs,dim=2) returns 1's so , it's correct
 
-    prob = torch.exp(logits) / (1 + torch.exp(logits))
-    seq_entropies = -torch.sum(prob*torch.log(prob),dim=2)
+    prob_softmax = torch.nn.Softmax(dim=-1)(logits)
+
+    #prob_sigmoid = torch.exp(logits) / (1 + torch.exp(logits)) #kind of sigmoid function
+    seq_entropies = -torch.sum(prob_softmax*torch.log(prob_softmax),dim=2)
 
     seq_entropies = torch.cat((node_names[:,None],seq_entropies),dim=1)
-    return seq_entropies
+    node_names_2d = node_names[:,None].tile((logits.shape[2])).reshape(len(node_names),1,logits.shape[2])
+
+    prob_softmax = torch.concatenate((node_names_2d,prob_softmax),dim=1)
+
+    return seq_entropies, prob_softmax
+
 def compute_seq_probabilities(logits, observed,train=True):
     """Compute the sequence probabilities (prob = exp(logit)/(1+exp(logit))) from the logits
     :param tensor logits: log(prob/1-prob), [n_seq, L, 21]

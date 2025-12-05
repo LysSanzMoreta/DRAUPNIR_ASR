@@ -95,18 +95,18 @@ def validate_sequence_alphabet(seq):
         return aa_probs
     else:
         raise ValueError("Your sequences contain not allowed characters. Available alphabets are: {protein21}: -acdefghiklmnpqrstvwy or {protein21plus} -*acdefghiklmnpqrstvwybzx. If your sequence contains stop codons perhaps you can trim them.")
-def aminoacid_names_dict(aa_probs):
+def aminoacid_names_dict(aa_probs:int) -> dict:
     """ Returns an aminoacid associated to a integer value
     :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
-        aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
-        return aminoacid_names
+        aminoacid_dict = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
+        return aminoacid_dict
     elif aa_probs == 22: #includes stop codons---> fix in Create blosum
-        aminoacid_names = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
-        return aminoacid_names
+        aminoacid_dict = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
+        return aminoacid_dict
     elif aa_probs > 22:
-        aminoacid_names = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
-        return aminoacid_names
+        aminoacid_dict = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
+        return aminoacid_dict
 def create_blosum(aa_probs,subs_matrix_name):
     """
     Builds an array containing the blosum scores per character
@@ -135,7 +135,11 @@ def create_blosum(aa_probs,subs_matrix_name):
     subs_array = np.c_[ np.arange(0,aa_probs), subs_array ]
     subs_array = np.concatenate((names[None,:],subs_array),axis=0)
 
-    return subs_array, subs_dict
+    blosum_array_dict = dict(enumerate(subs_array[1:, 1:]))
+
+    return subs_array, subs_dict, blosum_array_dict
+
+
 def divide_into_monophyletic_clades(tree,storage_folder,name):
     """
     Divides the tree into monophyletic clades:
@@ -1059,7 +1063,6 @@ def create_dataset(name_file,
     np.save("{}/{}/{}_dataset_numpy_NOT_aligned_embeddings.npy".format(storage_folder, name_file, name_file),Pretrained_embeddings_not_aligned)
 
     return tree_file
-
 def symmetrize_and_clean(matrix,ancestral=True):
     """Remove, if necessary the ancestral nodes from the train matrix
     :param pandas-array matrix: patristic or cladistic matrices with columns and indexes as node names """
@@ -1715,7 +1718,7 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
         graph_coo=None
         edge_weight_matrix=None
         dgl_graph = None
-    blosum_array,blosum_dict = create_blosum(build_config.aa_probs,args.subs_matrix)
+    blosum_array,blosum_dict, blosum_array_dict = create_blosum(build_config.aa_probs,args.subs_matrix)
 
     #dgl_graph.ndata['x'] = torch.zeros((3, 5)) #to add later in the model it will be the latent space that gets transformed to logits
     #G.nodes[[0, 2]].data['x'] = th.ones((2, 5))
@@ -1982,12 +1985,12 @@ def blosum_encoding(blosum,aa_freqs,align_seq_len,aa_probs,dataset_train, one_ho
 
     blosum_expanded = blosum[1:, 1:].repeat(dataset_train.shape[0],align_seq_len, 1, 1)  # [N,max_len,aa_probs,aa_probs]
 
-    #
     # #todo: fix internal nodes
-
     warnings.warn("Fix test dataset not aligned")
-
     aa_train_blosum = blosum_expanded.gather(3, aminoacids_seqs.to(torch.int64).unsqueeze(3)).squeeze(-1)  #[N,max_len,aa_probs]
+
+    #todo: remake and test with np.vectorize
+    #sequences_blosum = np.vectorize(blosum_array_dict.get, signature='()->(n)')(dataset_train[:,2:,0])
 
     return aa_train_blosum
 def str2bool(v):
@@ -2004,7 +2007,6 @@ def str2bool(v):
 def str2None(v):
     """Converts a string into None
     :param str v"""
-
     if v.lower() in ('None','none'):
         return None
     elif isinstance(v,str):
