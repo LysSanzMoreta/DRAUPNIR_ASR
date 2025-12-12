@@ -205,7 +205,7 @@ def train_batch(svi,training_function_input):
 
 
 
-        for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_data_embedding, batch_sequences_representation in zip(
+        for batch_name, batch_dataset_int, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_dataset_embedding, batch_sequences_representation in zip(
                 dataset["batch_name"],
                 dataset["batch_data_int"],
                 dataset["batch_patristic"],
@@ -215,21 +215,21 @@ def train_batch(svi,training_function_input):
                 dataset["batch_sequence_representation"],
         ):
             if args.use_cuda:
-                batch_data_int = batch_dataset.cuda()
+                batch_dataset_int = batch_dataset_int.cuda()
                 batch_blosum_weighted = batch_blosum_weighted.cuda()
                 batch_patristic = batch_patristic.cuda()
                 batch_data_blosum = batch_data_blosum.cuda()
-                batch_embedding = batch_data_embedding.cuda()
+                batch_dataset_embedding = batch_dataset_embedding.cuda()
                 batch_sequences_representation = batch_sequences_representation.cuda()
 
-            batch_datasets = {"int":batch_data_int,
+            batch_datasets = {"int":batch_dataset_int,
                               "blosum":batch_data_blosum,
-                              "onehot":torch.ones(batch_data_int.shape[0]),
-                              "mask":torch.ones_like(batch_data_int),
-                              "embedding": batch_embedding,
+                              "onehot":torch.ones(batch_dataset_int.shape[0]),
+                              "mask":torch.ones_like(batch_dataset_int),
+                              "embedding": batch_dataset_embedding,
                               "sequences_representations": batch_sequences_representation,
                               }
-            seq_lens += batch_data_int[:, 0, 0].tolist()
+            seq_lens += batch_dataset_int[:, 0, 0].tolist()
 
 
             guide_map_estimates = guide(batch_datasets,

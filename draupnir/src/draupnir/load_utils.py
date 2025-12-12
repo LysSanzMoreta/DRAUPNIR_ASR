@@ -20,6 +20,7 @@ from torch.utils.data import Dataset, DataLoader
 from dill import Unpickler
 import ntpath
 from typing import Union
+import json
 
 
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
@@ -414,6 +415,8 @@ def processing(args:namedtuple,
 
 
         patristic_matrix = DraupnirUtils.symmetrize_and_clean(patristic_matrix, ancestral=ancestral)
+
+
         patristic_matrix_test = patristic_matrix.loc[patristic_matrix.index.isin(leaves_names_test)]
         patristic_matrix_test = patristic_matrix_test.loc[:,patristic_matrix.index.isin(leaves_names_test)]
 

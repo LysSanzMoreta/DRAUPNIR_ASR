@@ -26,6 +26,7 @@ from scipy.sparse import coo_matrix
 import argparse
 import dill
 import ast
+import json
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 from matplotlib.colors import LogNorm
@@ -138,8 +139,6 @@ def create_blosum(aa_probs,subs_matrix_name):
     blosum_array_dict = dict(enumerate(subs_array[1:, 1:]))
 
     return subs_array, subs_dict, blosum_array_dict
-
-
 def divide_into_monophyletic_clades(tree,storage_folder,name):
     """
     Divides the tree into monophyletic clades:
@@ -249,6 +248,10 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
 
     dill.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
+
+    # json.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'),indent=2)
+    # json.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),indent=2)
+
 def calculate_closest_leaves(name,tree,storage_folder):
     """ Creates a dictionary that contains the closest leave to an internal node {internal_node:leave}
     :param str name: data set project name
@@ -264,6 +267,8 @@ def calculate_closest_leaves(name,tree,storage_folder):
             else:
                 closest_leaves_dict[node.name] = [node.get_closest_leaf()[0].name]
     pickle.dump(closest_leaves_dict, open('{}/{}_Closest_leaves_dict.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def calculate_directly_linked_nodes(name,tree,storage_folder):
     """Creates a dictionary that contains the 2 children nodes directly linked to a node (not all the children from that node) {node:children}
     :param str name: data set project name
@@ -291,6 +296,8 @@ def calculate_descendants(name,tree,storage_folder):
             closest_descendants_dict[node.name]["internal"] = descendant_internal
             closest_descendants_dict[node.name]["leaves"] = descendant_leaves
     dill.dump(closest_descendants_dict, open('{}/{}_Descendants_dict.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
+
+
 def Pfam_parser(family_name,data_folder,first_match=False,update_pfam=False):
     """Creates a dictionary containing the PDB files and the sequence information (chain, residues...)
     :param str family_name: pfam family name
@@ -388,30 +395,29 @@ def generate_esm2_embeddings(dict_alignment,embeddings_file,sequence_representat
         device = "cpu"
         batch_converter = alphabet.get_batch_converter()
         model.eval()
+        model = model.to(device)
         node_names = np.array(list(zip(*sequences))[0])
 
-        #max_len = max([len(seq) for i,seq in sequences])
+        # batch_size = 100
+        # nseqs = len(sequences)
+        # max_len = max([len(seq) for i,seq in sequences])
+        # start_idxs = np.arange(0,nseqs,batch_size)
+        # stop_idxs = np.arange(batch_size,nseqs+batch_size,batch_size)
+        # embeddings = []
+        # token_representations = []
+        #for start,stop in zip(start_idxs,stop_idxs):
+
         batch_labels, batch_strs, batch_tokens = batch_converter(sequences)
-
         batch_lens = (batch_tokens != alphabet.padding_idx).sum(1)
-
-
-
-        # Run the model
         # Extract per-residue representations
-        model = model.to(device)
         batch_tokens = batch_tokens.to(device)
-
         with torch.no_grad(): #todo: return contacts is very expensive, do not return unless necessary
             results = model(batch_tokens, repr_layers=[33], return_contacts=False,need_head_weights=False)
-
         token_representations = results["representations"][33].detach().cpu().numpy().astype(object) #[N,L+2,1280]
-
         embeddings = token_representations[:,1:-1] #[N, max_len, 1280], we remove the start token from all the sequences and the -last-/stop token from the longest sequence (the other ones still have the stop toke, but gets chopped of later on)
 
         embeddings = np.pad(embeddings, pad_width=((0, 0), (1, 0), (0, 0)), mode='constant') #adds padding of zeroes to get [N, max_len +1, feat_dim]
         embeddings[:,0,0] = node_names
-
 
         # Generate per-sequence embeddings (mean pooling): the sequence representations average across the length dimension
         # NOTE: token 0 is always a beginning-of-sequence token, so the first residue is token 1.
@@ -446,6 +452,11 @@ def infer_tree(alignment, alignment_file_name,name,method=None,tree_file_name=No
     if tree_file:
         print("Using given tree file...")
         tree = TreeEte3(tree_file,format=1,quoted_node_names=True)
+
+        # for node in tree.traverse():
+        #     print(node.name)
+        root = next(iter(tree.traverse())) #the root might not be assigned a number (i.e in the simulations tree)
+        root.name = "1" if not root.name else root.name #this somehow modifies in place the tree
         return tree
 
     else:
@@ -586,8 +597,9 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
         print("Dataset larger than 200 sequences: Using R script for patristic distances (cladistic matrix is NOT available)!")
         warnings.warn("Dataset larger than 200 sequences: Requires R and the ape library")
         command = 'Rscript'
-        #path2script = '/home/lys/Dropbox/PhD/DRAUPNIR/Calculate_Patristic.R'
-        path2script = "Calculate_Patristic.R"
+        #path2script = '/home/lys/Dropbox/PhD/DRAUPNIR/Calculate_Patristic.R' #/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/Calculate_Patristic.R
+        path2script = "{}/Calculate_Patristic.R".format(os.path.dirname(os.path.dirname(storage_folder)))
+        print(path2script)
         if tree_file:
             new_tree = work_dir +tree_file.split(".")[0]+".newick"
             new_tree_format8 = work_dir  + tree_file.split(".")[0] + ".format8newick"
@@ -653,6 +665,7 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
             print("Patristic matrix file already exists, not calculated")
+
 def my_layout(node):
     """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
     :param ete3-node node: node from an ete3 tree"""
@@ -915,6 +928,11 @@ def create_dataset(name_file,
                       tree_file_name="{}/{}/{}.tree".format(storage_folder,name_file,name_file),
                       tree_file=tree_file,
                       storage_folder="{}/{}".format(storage_folder,name_file))
+
+
+
+
+
     max_lenght = alignment.get_alignment_length()
 
     #Highlight: Combining sequences in the alignment that have a PDB structure and those who don't
@@ -935,12 +953,14 @@ def create_dataset(name_file,
     if len(leafs_names) <= 200:
         print("Rendering tree...")
         render_tree(tree, "{}/{}".format(storage_folder,name_file), name_file)
+
     internal_nodes_names = [node.name for node in tree.traverse() if not node.is_leaf()]
 
     ancestors_all =[]
-    for node in tree.traverse():
+    for node in tree.traverse(): #traverse the tree in tree level order (root first)
         ancestors_node =[node.name.replace("'","")]+[node.dist] +[ancestor.name.replace("'","") for ancestor in node.get_ancestors()]
         ancestors_all.append(ancestors_node)
+
     length = max(map(len, ancestors_all))
     ancestors_info = np.array([xi + [None] * (length - len(xi)) for xi in ancestors_all])
     tree_levelorder_names = np.asarray([node.name.replace("'","") for node in tree.traverse()])
@@ -958,7 +978,7 @@ def create_dataset(name_file,
     assert len(set(nodes).intersection(set(embeddings_nodes))) == len(nodes), "The embeddings are missing some sequences"
     sort_idx = [nodes.index(val) for idx, val in enumerate(embeddings_nodes)]
     pretrained_emb = pretrained_embeddings[sort_idx]
-    pretrained_seq_repr = pretrained_seq_repr[sort_idx]
+    #pretrained_seq_repr = pretrained_seq_repr[sort_idx]
     Pretrained_embeddings_aligned =  np.zeros((len(Combined_dict), max_lenght + 3, pretrained_emb.shape[2]),dtype=object) #max length is the max alignment length
 
     for i, (key,val) in enumerate(Combined_dict.items()):
@@ -1062,7 +1082,11 @@ def create_dataset(name_file,
     np.save("{}/{}/{}_dataset_numpy_NOT_aligned_{}.npy".format(storage_folder,name_file,name_file,one_hot_label[0]), Dataset_not_aligned)
     np.save("{}/{}/{}_dataset_numpy_NOT_aligned_embeddings.npy".format(storage_folder, name_file, name_file),Pretrained_embeddings_not_aligned)
 
+
     return tree_file
+
+
+
 def symmetrize_and_clean(matrix,ancestral=True):
     """Remove, if necessary the ancestral nodes from the train matrix
     :param pandas-array matrix: patristic or cladistic matrices with columns and indexes as node names """
@@ -1076,7 +1100,21 @@ def rename_axis(matrix,nodes,name_file = None):
     Rename the nodes names to their tree level index
     nodes: tree level order node names"""
     if len(nodes) != 0 and name_file not in ["benchmark_randall","benchmark_randall_original","benchmark_randall_original_naming"]: #and not name.startswith("simulations"): #use the level order transversal tree information
-        #Highlight: If nan (pd.isnull) is found, is because the root name is messed up and missing, just write it down in the patristic matrix file!!!! Or the names in the matrix != names in trevel order
+        #Highlight: If nan (pd.isnull) is found or something else, is because the root name is messed up and missing, just write it down in the patristic matrix file!!!!
+        # I have made fixes for some of thse case, but might mot cover all of them
+        # Or the names in the matrix != names in treevel order
+
+        # n = sorted(nodes.tolist())
+        # m = sorted(matrix.index.tolist())
+        # print(n)
+        #
+        # print(m)
+        #
+        # for i in n:
+        #     if i not in m:
+        #         print(i)
+        #
+        # exit()
 
         matrix.index = [np.where(nodes == node_name)[0][0] for node_name in matrix.index] #TODO; why am I doing this twice?
         matrix.columns = [np.where(nodes == node_name)[0][0] for node_name in matrix.columns]
@@ -1174,7 +1212,7 @@ def normalize_standarize(x):
     norm = np.linalg.norm(x)
     normal_array = x / norm
     return normal_array
-def folders(folder_name,basepath):
+def folders_old(folder_name,basepath):
     """ Creates a folder at the indicated location. It rewrites folders with the same name
     :param str folder_name: name of the folder
     :param str basepath: indicates the place where to create the folder
@@ -1191,11 +1229,37 @@ def folders(folder_name,basepath):
         try:
             original_umask = os.umask(0)
             os.makedirs(newpath, 0o777)
+            print("Done1")
         finally:
             os.umask(original_umask)
+            print("Done2")
     else:
         shutil.rmtree(newpath)  # removes all the subdirectories!
         os.makedirs(newpath,0o777)
+def folders(folder_name: str, basepath: str, overwrite=False):
+    """ Creates a folder at the indicated location. It rewrites folders with the same name
+    :param str folder_name: name of the folder
+    :param str basepath: indicates the place where to create the folder
+    :param bool overwrite
+    """
+    if not basepath:
+        newpath = folder_name
+    else:
+        newpath = basepath + "/%s" % folder_name
+    if not os.path.exists(newpath):
+        try:
+            original_umask = os.umask(0)
+            os.makedirs(newpath, 0o777)
+        finally:
+            os.umask(original_umask)
+    else:
+        if overwrite:
+            print(
+                "Removing subdirectories (please review that this is the desired behaviour and you are not running the command twice)")  # if this is reached is because you are running the folders function twice with the same folder name
+            shutil.rmtree(newpath)  # removes all the subdirectories!
+            os.makedirs(newpath, 0o777)
+        else:
+            pass
 def divide_batches(Dataset,number_splits):
     """ Divides the training dataset in a given number of splits"""
     Dataset = Dataset[Dataset[:,0,0].argsort()]
@@ -1634,6 +1698,7 @@ def extra_processing(ancestor_info,patristic_matrix,results_dir,args,build_confi
 
     ancestor_info_dict = dict(zip(ancestor_info[:,0].tolist(),ancestor_info[:,2].tolist()))
     pickle.dump(ancestor_info_dict, open('{}/Ancestor_info_dict.p'.format(results_dir), 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+    #json.dump(ancestor_info_dict, open('{}/Ancestor_info_dict.p'.format(results_dir), 'wb'), indent=2)
     if isinstance(patristic_matrix,np.ndarray):
         patristic_info = dict(zip(list(range(len(patristic_matrix)-1)),patristic_matrix[1:,0].astype(int).tolist())) #Skip the fake header
     else:

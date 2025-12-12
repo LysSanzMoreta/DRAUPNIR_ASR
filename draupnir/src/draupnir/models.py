@@ -193,12 +193,18 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
             # Highlight:µa|b---> Splitted Equation  B-50
-            part1 = torch.matmul(torch.linalg.inv(inverse_internal), inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0), 1, 1)
+            # inverse_internal_bis = torch.linalg.solve(inverse_internal, internal_identity)
+
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
 
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(inverse_internal) + 1e-6).to_event(1).sample()
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis + 1e-6).to_event(1).sample()
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal, self.z_dim)
             return latent_space
@@ -240,11 +246,17 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
             # Highlight:µa|b---> Splitted Equation  B-50
-            part1 = torch.matmul(torch.linalg.inv(inverse_internal), inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0), 1, 1)
+            # inverse_internal_bis = torch.linalg.solve(inverse_internal, internal_identity)
+
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(inverse_internal)).to_event(1).sample()
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis).to_event(1).sample()
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal, self.z_dim)
             return OU_mean.squeeze(-1).T
@@ -262,19 +274,19 @@ class DRAUPNIRModelClass(nn.Module):
             OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
             OU_covariance_full = OU.forward(patristic_matrix_batch)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
-            Inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert Inverse_full.shape == (self.z_dim, self.n_leaves_internal_batch, self.n_leaves_internal_batch)
+            inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
+            assert inverse_full.shape == (self.z_dim, self.n_leaves_internal_batch, self.n_leaves_internal_batch)
             # Highlight: B.49 Λ−1aa
-            Inverse_internal = Inverse_full[:, internal_indexes, :]
-            Inverse_internal = Inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
-            assert Inverse_internal.shape == (self.z_dim, self.n_internal_batch, self.n_internal_batch)
+            inverse_internal = inverse_full[:, internal_indexes, :]
+            inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.z_dim, self.n_internal_batch, self.n_internal_batch)
             # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
             # Highlight: µa
             OU_mean_internal = torch.zeros((self.n_internal_batch,))  # [n_internal,]
             # Highlight: Λab
-            Inverse_internal_leaves = Inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            Inverse_internal_leaves = Inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
-            assert Inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
+            inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train] # ok, so we need to get the map estimates for all the train latents
             # if self.leaves_testing:
@@ -283,11 +295,19 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
             # Highlight:µa|b---> Splitted Equation  B-50
-            part1 = torch.matmul(torch.linalg.inv(Inverse_internal), Inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            #solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+
+            # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0),1,1)
+            # inverse_internal_bis = torch.linalg.solve(inverse_internal,internal_identity)
+
+
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
             assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal_batch)
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.linalg.inv(Inverse_internal)).to_event(1).sample()
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis).to_event(1).sample()
             #latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.cholesky_inverse(Inverse_internal) + 1e-6).to_event(1).sample()
 
             latent_space = latent_space.T

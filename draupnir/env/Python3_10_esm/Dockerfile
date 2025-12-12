@@ -14,8 +14,20 @@ micromamba clean --all --yes
 ENV PATH /usr/bin/*:$PATH
 
 RUN apt-get update
+RUN apt-get install --yes nano
+RUN apt-get install --yes less
 
 #Install R packages
+#RUN apt-get install --yes build-essential
+#RUN apt-get install --yes r-base-core
+#RUN apt-get install --yes r-cran-devtools
+#Highlight: Install R packages
+#RUN Rscript -e 'install.packages("remotes")'
+#RUN Rscript -e 'install.packages("RCurl")'
+#RUN Rscript -e 'install.packages("BiocManager"); BiocManager::install("biomaRt")'
+#RUN Rscript -e 'install.packages("ape")'
+
+
 
 ##For running using GUI
 RUN apt-get --yes install x11-apps && rm -rf /var/lib/apt/lists/*

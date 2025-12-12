@@ -98,6 +98,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
     DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
+
     if args.infer_angles:
         DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
         #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
@@ -606,7 +607,6 @@ def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     std_pid = equal_aminoacids.std().cpu().numpy()
 
     return average_pid,std_pid
-
 def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     """Plots percent id
     :param list average_pid_list
@@ -622,7 +622,6 @@ def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     plt.savefig("{}/Percent_ID{}.png".format(results_dir,suffix))
     plt.clf()
     plt.close()
-
 def set_data_model(args,
                    train_load,
                    test_load,
@@ -3536,10 +3535,13 @@ def run(name,root_sequence_name,args,settings_config,build_config,script_dir):
         args.__dict__["num_epochs"] = 0
 
     results_dir = "{}/PLOTS_Draupnir_{}_{}_{}epochs_{}".format(script_dir, name, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs, args.select_guide)
+    print(f"Saving results to: {results_dir}")
 
     print("Loading datasets....")
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args)
+
+
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
     train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))

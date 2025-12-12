@@ -49,7 +49,7 @@ class DRAUPNIRGUIDES(EasyGuide):
             self.embeddingencoder = EmbedComplexEncoder(self.draupnir.aa_probs,self.draupnir.embedding_dim,adapted_input_dim)
             self.positional_encodings = PositionalEncodings(self.draupnir.align_seq_len, self.draupnir.aa_probs, adapted_input_dim, 10000)
 
-        elif self.args.draupnir_version == "3":
+        elif self.args.draupnir_version == "3a":
 
             self.encoder = FCLEncoder(align_seq_len=self.draupnir.align_seq_len,
                                       aa_prob=self.draupnir.aa_probs,
@@ -58,18 +58,19 @@ class DRAUPNIRGUIDES(EasyGuide):
                                       z_dim=self.draupnir.z_dim,
                                       rnn_input_size=self.draupnir.embedding_dim,
                                       num_layers=self.draupnir.num_layers)
-            # self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
-            #                           aa_prob = self.draupnir.aa_probs,
-            #                           n_leaves = self.draupnir.n_leaves,
-            #                           gru_hidden_dim = self.draupnir.gru_hidden_dim,
-            #                           z_dim = self.draupnir.z_dim,
-            #                           rnn_input_size = self.draupnir.gru_hidden_dim,
-            #                           kappa_addition = self.draupnir.kappa_addition,
-            #                           num_layers = self.draupnir.num_layers,
-            #                           pretrained_params=self.draupnir.pretrained_params)
-            # self.embeddingencoder = EmbedComplexEncoder(input_dim = self.draupnir.embedding_dim,
-            #                                             embedding_dim = self.draupnir.gru_hidden_dim,
-            #                                             out_dim = self.draupnir.gru_hidden_dim)
+        elif self.args.draupnir_version == "3b":
+            self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
+                                      aa_prob = self.draupnir.aa_probs,
+                                      n_leaves = self.draupnir.n_leaves,
+                                      gru_hidden_dim = self.draupnir.gru_hidden_dim,
+                                      z_dim = self.draupnir.z_dim,
+                                      rnn_input_size = self.draupnir.gru_hidden_dim,
+                                      kappa_addition = self.draupnir.kappa_addition,
+                                      num_layers = self.draupnir.num_layers,
+                                      pretrained_params=self.draupnir.pretrained_params)
+            self.embeddingencoder = EmbedComplexEncoder(input_dim = self.draupnir.embedding_dim,
+                                                        embedding_dim = self.draupnir.gru_hidden_dim,
+                                                        out_dim = self.draupnir.gru_hidden_dim)
 
         else:
             self.encoder = RNNEncoder(align_seq_len = self.draupnir.align_seq_len,
@@ -103,7 +104,10 @@ class DRAUPNIRGUIDES(EasyGuide):
                 if self.args.draupnir_version == "2":
                     return self.guide_batch_transformer(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                             batch_blosum=None,map_estimates=map_estimates)
-                elif self.args.draupnir_version == "3":
+                elif self.args.draupnir_version == "3a":
+                    return self.guide_batch_zesm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+                                            batch_blosum=None,map_estimates=map_estimates)
+                elif self.args.draupnir_version == "3b":
                     return self.guide_batch_esm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                             batch_blosum=None,map_estimates=map_estimates)
 
@@ -246,8 +250,9 @@ class DRAUPNIRGUIDES(EasyGuide):
                 # "attention_logits": encoder_output["attention_logits"].detach()
                 }
 
-    def guide_batch_esm(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+    def guide_batch_zesm(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
         """
+        Using the latent representations from ESM
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
         pyro.module("encoder", self.encoder)
@@ -288,6 +293,47 @@ class DRAUPNIRGUIDES(EasyGuide):
                 "latent_z": latent_z,
                 }
 
+    def guide_batch_esm(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+        pyro.module("encoder", self.encoder)
+        # aminoacid_sequences = datasets["int"][:, 2:, 0]
+        aa_sequences = datasets["blosum"]#blosum does not contain the indexes
+        nseqs = aa_sequences.shape[0]
+        esm_embeddings = datasets["embedding"][:,2:] #the indexes are in [:,0,1]
+        esm_representations = datasets["sequences_representations"][:,1:] #the indexes are in [:,0]
+
+
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+
+            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+            # Highlight: embed the amino acids represented by their respective blosum scores
+
+            aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+
+            #encoder_output = self.encoder(esm_representations,esm_representations) # [n,z_dim]
+
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+
+
+            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+
+        return {"alpha": alpha,
+                "sigma_n": sigma_n,
+                "sigma_f": sigma_f,
+                "lambd": lambd,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                }
 
     def guide_batch_by_clade(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
 

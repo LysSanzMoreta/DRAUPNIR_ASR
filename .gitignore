@@ -31,3 +31,7 @@ draupnir/src/draupnir.egg-info/
 ESM_experiment/*
 
 draupnir/src/draupnir/prototypes/
+
+draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/
+
+*.html

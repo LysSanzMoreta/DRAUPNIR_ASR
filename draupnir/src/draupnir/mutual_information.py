@@ -9,10 +9,15 @@ from pylab import *
 from Bio import SeqIO
 import os
 now = datetime.datetime.now()
-matplotlib.use('TkAgg')
+try:
+    matplotlib.use('TkAgg')
+except:
+    pass
 
 def cal_coupling(fasta):
-    """Calculates the DIC information criterion over a pylab alignment file
+    """Calculates the DCA (direct coupling analysis) criterion over a pylab alignment file
+    OG implementation in C++: https://github.com/prody/ProDy/blob/5a45e600d57010f7dd66cccabd09d769121d516e/prody/sequence/msatools.c#L1772
+
     :param fasta: fasta file"""
     print("calculating DIC coupling analysis")
     msa = parseMSA(fasta)
@@ -59,8 +64,8 @@ def plot_MI_matrices_variational(name,leaves_mi,draupnir_variational_mi,results_
     # 2 subplots in 1 row and 2 columns
     print("Plotting.............")
     fig, [ax1, ax2] = plt.subplots(2, figsize=(15, 7.5),constrained_layout=True)
-    leaves_variational = correlation_coefficient(leaves_mi,draupnir_variational_mi)
-    print("Correlation coefficient Leaves vs Variational: {}".format(leaves_variational))
+    corr_leaves_variational = correlation_coefficient(leaves_mi,draupnir_variational_mi)
+    print("Correlation coefficient Leaves vs Variational: {}".format(corr_leaves_variational))
     mean_variational = draupnir_variational_mi.mean()
     print("Mean Variational : {}".format(mean_variational) )
     std_variational = draupnir_variational_mi.std()
@@ -90,6 +95,8 @@ def plot_MI_matrices_variational(name,leaves_mi,draupnir_variational_mi,results_
     plt.savefig("{}/Mutual_Information_{}_{}_PROTEIN_matrices_Variational_{}.png".format(results_dir, name,"root",now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms")),dpi=600)
     plt.clf()
 
+    return corr_leaves_variational
+
 def plot_MI_matrices(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_mi,draupnir_variational_mi,benchmark_folder):
     """Plots the Mutual Information matrix using the DI criterion
     :param str name: dataset project name
@@ -101,8 +108,8 @@ def plot_MI_matrices(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_mi,draupni
     print("Plotting.............")
     fig, [[ax1, ax2], [ax3, ax4]] = plt.subplots(2, 2, figsize=(15, 7.5),constrained_layout=True)
     print("Correlation coefficient Leaves vs MAP:")
-    leaves_MAP = correlation_coefficient(leaves_mi,draupnir_MAP_mi)
-    print("Correlation coefficient Leaves vs MAP: {}".format(leaves_MAP))
+    corr_leaves_MAP = correlation_coefficient(leaves_mi,draupnir_MAP_mi)
+    print("Correlation coefficient Leaves vs MAP: {}".format(corr_leaves_MAP))
     mean_MAP = draupnir_MAP_mi.mean()
     print("Mean MAP : {}".format(mean_MAP))
     std_MAP = draupnir_MAP_mi.std()
@@ -152,6 +159,8 @@ def plot_MI_matrices(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_mi,draupni
     plt.savefig("{}/Mutual_Information_{}_{}_PROTEIN_matrices_MAP_Marginal_Variational_{}.png".format(benchmark_folder, name,"root",now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms")),dpi=600)
     plt.clf()
 
+    return corr_leaves_MAP
+
 def plot_MI_matrices_delta_map(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_mi,benchmark_folder):
     """Plots the Mutual Information matrix using the DI criterion
     :param str name: dataset project name
@@ -162,8 +171,8 @@ def plot_MI_matrices_delta_map(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_
     print("Plotting.............")
     fig, [[ax1, ax2], [ax3, ax4]] = plt.subplots(2, 2, figsize=(15, 7.5),constrained_layout=True)
     print("Correlation coefficient Leaves vs MAP:")
-    leaves_MAP = correlation_coefficient(leaves_mi,draupnir_MAP_mi)
-    print("Correlation coefficient Leaves vs MAP: {}".format(leaves_MAP))
+    corr_leaves_MAP = correlation_coefficient(leaves_mi,draupnir_MAP_mi)
+    print("Correlation coefficient Leaves vs MAP: {}".format(corr_leaves_MAP))
     mean_MAP = draupnir_MAP_mi.mean()
     print("Mean MAP : {}".format(mean_MAP))
     std_MAP = draupnir_MAP_mi.std()
@@ -204,6 +213,8 @@ def plot_MI_matrices_delta_map(name,leaves_mi,draupnir_MAP_mi,draupnir_marginal_
     plt.savefig("{}/Mutual_Information_{}_{}_PROTEIN_matrices_MAP_Marginal_{}.png".format(benchmark_folder, name,"root",now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms")),dpi=600)
     plt.clf()
 
+    return corr_leaves_MAP
+
 def MI_root(name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_variational, benchmark_folder):
     """Reads or creates the root files necessary for MI calculation.
     :param str name: dataset project name
@@ -235,7 +246,9 @@ def MI_root(name,draupnir_folder_MAP, draupnir_folder_marginal, draupnir_folder_
     draupnir_marginal_mi = cal_coupling(draupnir_fasta_marginal)
     print("Variational")
     draupnir_variational_mi = cal_coupling(draupnir_fasta_variational)
-    plot_MI_matrices(name,leaves_mi, draupnir_MAP_mi, draupnir_marginal_mi, draupnir_variational_mi,benchmark_folder)
+    correlation = plot_MI_matrices(name,leaves_mi, draupnir_MAP_mi, draupnir_marginal_mi, draupnir_variational_mi,benchmark_folder)
+
+    return {"correlation": correlation}
 
 def MI_root_variational(name, draupnir_folder_variational, results_dir):
     """Reads or creates the root files necessary for MI calculation.
@@ -253,11 +266,13 @@ def MI_root_variational(name, draupnir_folder_variational, results_dir):
     if not os.path.exists(draupnir_fasta_variational):
         create_root_samples_file(name,draupnir_fasta_variational,"{}/Test_Plots".format(draupnir_folder_variational))
 
-    print("leaves")
+    print("Data leaves")
     leaves_mi = cal_coupling(leaves_fasta)
-    print("Variational")
+    print("Samples from variational")
     draupnir_variational_mi = cal_coupling(draupnir_fasta_variational)
-    plot_MI_matrices_variational(name,leaves_mi, draupnir_variational_mi,results_dir)
+    correlation = plot_MI_matrices_variational(name,leaves_mi, draupnir_variational_mi,results_dir)
+
+    return {"correlation": correlation}
 
 def MI_root_delta_map(name,draupnir_folder_MAP, draupnir_folder_marginal,benchmark_folder):
     """Reads or creates the root files necessary for MI calculation.
@@ -285,7 +300,9 @@ def MI_root_delta_map(name,draupnir_folder_MAP, draupnir_folder_marginal,benchma
     draupnir_MAP_mi = cal_coupling(draupnir_fasta_MAP)
     print("Marginal")
     draupnir_marginal_mi = cal_coupling(draupnir_fasta_marginal)
-    plot_MI_matrices_delta_map(name,leaves_mi, draupnir_MAP_mi, draupnir_marginal_mi,benchmark_folder)
+    correlation = plot_MI_matrices_delta_map(name,leaves_mi, draupnir_MAP_mi, draupnir_marginal_mi,benchmark_folder)
+
+    return {"correlation": correlation}
 
 
 

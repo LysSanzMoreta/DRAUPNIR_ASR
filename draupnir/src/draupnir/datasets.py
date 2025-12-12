@@ -26,6 +26,7 @@ def available_datasets(print_dict = False):
                 "simulations_src_sh3_2":"SRC_SH3",# EvolveAGene4 SRC SH3 domain simulation 2 #800 leaves
                 "simulations_jj_1": "jj1",
                 "simulations_jj_2": "jj2",
+                "simulations_1GMM": "1GMM_seq",
                 "benchmark_randall_original_naming": None,# uses the original tree and it's original node naming
                 "SH3_pf00018_larger_than_30aa":  None,# SRC kinases domain SH3 ---> Leaves and angles testing
                 "Coral_Faviina":  None,  # Faviina clade from coral sequences # 35 leaves
@@ -48,6 +49,7 @@ def available_datasets(print_dict = False):
                 "simulations_PIGBOS_1": "300 leaves parser.add_argument('-use-cuda', type=str2bool, nargs='?',const=True, default=True, help='Use GPU')simulation PIGB Opposite Strand regulator",
                 "simulations_jj_1": "jj1",
                 "simulations_jj_2": "jj2",
+                "simulations_1GMM": "1GMM CBM (carbohydrate Binding Domain) simulations",
                 "Coral_Faviina":"Coral fluorescent proteins (CFP) Faviina clade",  # Faviina clade from coral sequences
                 "Coral_all":"Coral fluorescent proteins (CFP) clade",  # All Coral sequences (includes Faviina clade and additional sequences)
                 "PF00400":"WD40 125 sequences",

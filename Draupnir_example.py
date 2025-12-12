@@ -10,10 +10,13 @@ import pyro
 import torch
 import argparse
 import os,sys
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
 from argparse import RawTextHelpFormatter
 local_repository=True
 if local_repository:
     sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src")
+    sys.path.insert(1,f"{script_dir}/draupnir/src")
     import draupnir
 else:#pip installed module
     import draupnir
@@ -66,6 +69,7 @@ if __name__ == "__main__":
                         #default="simulations_src_sh3_2", #800
                         #default="simulations_calcitonin_1",
                         #default="simulations_blactamase_1",
+                        #default="simulations_1GMM",
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
@@ -76,6 +80,7 @@ if __name__ == "__main__":
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/simulations_1GMM/1GMM_seq_True_Pep_alignment.FASTA",
                         default=None,
                         help='Path to alignment in fasta format (use with args.use_custom = True), with ALIGNED sequences. '
                              'PLEASE make sure that the fasta header names and the names in the tree are the same')
@@ -83,6 +88,7 @@ if __name__ == "__main__":
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.fasta.treefile",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_manual5_mafft_trimmed.fasta.treefile",
                         default=None,
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/simulations_1GMM/1GMM_seq_True_Rooted_tree_node_labels.tre",
                         help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True).'
                              'PLEASE make sure that the fasta header names and the names in the tree are the same'
                              'Set to None for the -default- datasets')
@@ -106,7 +112,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=100, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -115,7 +121,7 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
-    parser.add_argument('-n-samples','-n_samples', default=60, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
@@ -144,7 +150,9 @@ if __name__ == "__main__":
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'
-                             '3: pre-computed latent')
+                             '3a: pre-computed latent representation from ESM embeddings'
+                             '3b: pre-computed embeddings from ESM, which we process with the RNN',
+                        )
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '
@@ -190,5 +198,5 @@ if __name__ == "__main__":
     #pyro.set_rng_seed(0) # torch is already running with different seeds
     #torch.manual_seed(0)
     pyro.enable_validation(False)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+
     main()
