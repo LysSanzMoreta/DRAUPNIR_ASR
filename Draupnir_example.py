@@ -10,6 +10,7 @@ import pyro
 import torch
 import argparse
 import os,sys
+import json
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 from argparse import RawTextHelpFormatter
@@ -31,6 +32,14 @@ def main():
 
     draupnir.available_datasets(print_dict=True)
 
+    if args.generate_samples:
+        warnings.warn("Overwriting most args to coincide to the ones from the args.load_pretrained_path")
+        pretrained_args = json.load(open("{}/commandline_args.txt".format(args.load_pretrained_path),"r+"))
+        for key,val in pretrained_args.items():
+            if not key in ["n_samples", "load_pretrained_path","generate_samples","use_cuda","device"]:
+                args.__dict__[key] = val
+        args.__dict__["num_epochs"] = 0
+
     #Highlight: Creates the dataset configuration and the dataset tensor
     build_config,settings_config, root_sequence_name = draupnir.create_draupnir_dataset(name=args.dataset_name,
                                                            use_custom=args.use_custom,
@@ -48,7 +57,7 @@ def main():
         draupnir.draw_tree_facets(args.dataset_name,settings_config) #coloured panels and names
 
     #Highlight: Runs draupnir
-    draupnir.run(args.dataset_name,root_sequence_name,args,settings_config,build_config,script_dir)
+    draupnir.run(root_sequence_name,args,settings_config,build_config,script_dir)
 
     # Highlight: Calculate mutual information---> Only use AFTER at least the model has been run at least once with the variational guide
     run_mutual_information = False
@@ -64,19 +73,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        #default="simulations_src_sh3_3", #200
+                        default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
                         #default="simulations_src_sh3_2", #800
                         #default="simulations_calcitonin_1",
                         #default="simulations_blactamase_1",
-                        default="simulations_1GMM",
+                        #default="simulations_1GMM",
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=500, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -112,7 +121,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=100, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -121,7 +130,7 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
-    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=60, type=int, help='Number of samples (sequences sampled) per node')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
@@ -137,6 +146,7 @@ if __name__ == "__main__":
     parser.add_argument('-load-pretrained-path',
                         type=str,
                         nargs='?',
+                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
                         default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_12_12h24min01s102311ms_3000epochs_variational",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples. It is activated when args.generate_samples is True, otherwise it is ignored and simply trains the model')
     parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
@@ -150,7 +160,7 @@ if __name__ == "__main__":
                              '1: first version as published and the batched version'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
-                             '3b: pre-computed embeddings from ESM, which we process with the RNN',
+                             '3b: pre-computed -aligned- embeddings from ESM, which we process with the RNN',
                         )
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,

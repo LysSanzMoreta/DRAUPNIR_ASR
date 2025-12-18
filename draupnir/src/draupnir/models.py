@@ -138,7 +138,7 @@ class DRAUPNIRModelClass(nn.Module):
         OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
 
         # exit()
-        assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch)
+        assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
         assert OU_mean.shape == (1,self.n_leaves_batch)
         #noise = 1e-15 + torch.eye(OU_covariance.shape[1])
         #https://github.com/pyro-ppl/pyro/issues/702
@@ -298,9 +298,11 @@ class DRAUPNIRModelClass(nn.Module):
             inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
             #solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
             # X will be the A-1
-
             # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0),1,1)
             # inverse_internal_bis = torch.linalg.solve(inverse_internal,internal_identity)
+            # residual = torch.matmul(inverse_internal, inverse_internal_bis) - internal_identity  # should be close to zero
+            # max_err = residual.abs().max()
+            # print(f"max err: {max_err}")
 
 
             part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
@@ -519,7 +521,6 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
 
         return sampling_out
 
-
 class DRAUPNIRModel_classic_no_blosum2(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
@@ -620,7 +621,6 @@ class DRAUPNIRModel_classic_no_blosum2(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
 
 class DRAUPNIRModel_transformer_no_blosum(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
@@ -834,7 +834,6 @@ class DRAUPNIRModel_transformer_no_blosum(DRAUPNIRModelClass):
 
         return sampling_out
 
-
 class DRAUPNIRModel_batching(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
     It uses batched Blosum weighted average embeddings."""
@@ -891,6 +890,8 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
+
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
         if self.args.select_guide == "delta_map":
             self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, map_estimates)
@@ -1027,14 +1028,20 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
 
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
+
+        self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
+
+
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
+
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior_batched(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+
         #blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #Highlight: it workedwith the entire blosum weighted matrix
         ##blosum = batch_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21] #only use the weighted average of the batch sequences
         #blosum = self.embed(blosum)
@@ -1046,6 +1053,8 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
+        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
 
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
@@ -1367,7 +1376,6 @@ class DRAUPNIRModel_batching_no_blosum2(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
 
 class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
     """Perform inference by dividing the tree into batches that correspond to the clade in the tree, with its corresponent batched latent space.
