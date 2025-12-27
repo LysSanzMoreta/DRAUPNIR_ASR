@@ -490,8 +490,12 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         else:
             Draupnir = DraupnirModels.DRAUPNIRModel_transformer_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
-    elif args.draupnir_version == "3":
+    elif args.draupnir_version in  ["3a","3b"]:
         Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
+        patristic_matrix_model = patristic_matrix_train
+
+    elif args.draupnir_version in ["4"]:
+        Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm(model_load)
         patristic_matrix_model = patristic_matrix_train
     else:  # batching
         print("Batching! (currently batch_size == None or batch_size != 1)")
@@ -524,6 +528,8 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         # guide_file.write("".join(guide_text))
         save_script(Draupnir,results_dir,"guides.py")
     return Draupnir.to(args.device), patristic_matrix_model
+
+
 def select_optimizer(args,params_config):
     """Select optimizer + scheduler combo """
 
@@ -574,10 +580,21 @@ def select_quide(Draupnir,model_load,args):
         guide = guide_types[args.select_guide]
         return guide.to(args.devcie)
     else:
-        guide = DraupnirGuides.DRAUPNIRGUIDES(Draupnir.model,model_load,Draupnir)
-        # print(DraupnirUtils.get_method_arguments(guide,"guide"))
+
+        guide_dict = {"1": DraupnirGuides.DRAUPNIRGuides_classic(Draupnir.model,model_load,Draupnir),
+                      "2": DraupnirGuides.DRAUPNIRGuides_transformer(Draupnir.model,model_load,Draupnir),
+                      "3a": DraupnirGuides.DRAUPNIRGuides_z_esm(Draupnir.model,model_load,Draupnir),
+                      "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm(Draupnir.model,model_load,Draupnir),
+                      }
+
+        guide = guide_dict[args.draupnir_version]
+
+        print("Using variational guide : {}".format(guide.get_class()))
+
         #guide = guide.apply(init_weights)
         return guide.to(args.device)
+
+
 def transform_to_integers(sample_out,build_config):
     """Transform the one-hot encoded sequences embedded in a namedtuple back to integers
     :param namedtuple sample_out: contains the tensors produced by Draupnir.sample
