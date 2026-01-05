@@ -148,6 +148,7 @@ dict_urls = {
     -Tree-level-order: Position of the node in tree-level order in the tree
     
     >Node_A1//1.0_sample_0
+- Torch tensors (i.e latents ) are in the train_info_dict.torch files in each of the folders
 
     
 **If this library is useful for your research please cite:**
