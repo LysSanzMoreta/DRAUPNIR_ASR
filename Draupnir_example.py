@@ -85,7 +85,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=3000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -157,12 +157,13 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="4", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
-                             '3b: pre-computed -aligned- embeddings from ESM, which we process with the RNN',
+                             '3b: pre-computed -aligned- embeddings from ESM, which we process with the RNN'
+                             '4: xlsm embeddings',
                         )
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,

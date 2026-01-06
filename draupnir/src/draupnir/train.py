@@ -94,6 +94,8 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True):
                 map_estimates[key] = val
             else:
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
+        elif key in ["embeddings","batch_nodes"]:
+            map_estimates[key] =val
     return  guide_map_estimates, map_estimates
 
 def train_batch_new(svi,training_function_input):
@@ -197,14 +199,7 @@ def train_batch(svi,training_function_input):
     train_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
-
-
-
-
     for batch_number, dataset in enumerate(train_loader):
-
-
-
         for batch_name, batch_dataset_int, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_dataset_embedding, batch_sequences_representation in zip(
                 dataset["batch_name"],
                 dataset["batch_data_int"],

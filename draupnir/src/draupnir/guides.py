@@ -24,7 +24,7 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.guide_type = ModelLoad.args.select_guide
         self.draupnir = Draupnir
         self.args = ModelLoad.args
-        self.encoder_rnn_input_size = self.draupnir.aa_probs
+        self.encoder_input_size = self.draupnir.aa_probs
         self.dataset_train_blosum = self.draupnir.dataset_train_blosum
         self.batch_size = self.draupnir.batch_size
         self.batch_by_clade = self.draupnir.batch_by_clade
@@ -93,7 +93,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                                   n_leaves=self.draupnir.n_leaves,
                                   gru_hidden_dim=self.draupnir.gru_hidden_dim,
                                   z_dim=self.draupnir.z_dim,
-                                  rnn_input_size=self.encoder_rnn_input_size,
+                                  input_size=self.encoder_input_size,
                                   kappa_addition=self.draupnir.kappa_addition,
                                   num_layers=self.draupnir.num_layers,
                                   pretrained_params=self.draupnir.pretrained_params)
@@ -309,7 +309,7 @@ class DRAUPNIRGuides_z_esm(DRAUPNIRGUIDES):
                                   n_leaves=self.draupnir.n_leaves,
                                   gru_hidden_dim=self.draupnir.gru_hidden_dim,
                                   z_dim=self.draupnir.z_dim,
-                                  rnn_input_size=self.draupnir.embedding_dim,
+                                  input_size=self.draupnir.embedding_dim,
                                   num_layers=self.draupnir.num_layers)
 
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
@@ -364,7 +364,7 @@ class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
                                   n_leaves=self.draupnir.n_leaves,
                                   gru_hidden_dim=self.draupnir.gru_hidden_dim,
                                   z_dim=self.draupnir.z_dim,
-                                  rnn_input_size=self.draupnir.gru_hidden_dim,
+                                  input_size=self.draupnir.gru_hidden_dim,
                                   kappa_addition=self.draupnir.kappa_addition,
                                   num_layers=self.draupnir.num_layers,
                                   pretrained_params=self.draupnir.pretrained_params)
@@ -418,6 +418,69 @@ class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
                 }
 
 
+class DRAUPNIRGuides_xlstm(DRAUPNIRGUIDES):
+    def __init__(self,draupnir_model,ModelLoad, Draupnir):
+        DRAUPNIRGUIDES.__init__(self,draupnir_model,ModelLoad, Draupnir)
+
+        self.encoder = xLSTMEncoder(max_len=self.draupnir.align_seq_len,
+                                  input_size=self.draupnir.z_dim,
+                                    z_dim = self.draupnir.z_dim)
+        self.embeddingencoder = EmbedComplexEncoder(input_dim=self.draupnir.aa_probs,
+                                                    embedding_dim=self.draupnir.gru_hidden_dim,
+                                                    out_dim=self.draupnir.z_dim)
+
+    def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param patristic_matrix: matrix of patristic distances (branch lengths) between the nodes in the tree
+        :param cladistic_matrix: matrix of cladistic distances between the nodes in the tree
+        :param data_blosum : data encoded with blosum vectors
+        :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
+
+        pyro.module("encoder", self.encoder)
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        aa_sequences_blosum = datasets["blosum"]#blosum does not contain the indexes
+        nseqs = aa_sequences_blosum.shape[0]
+
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+
+            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+            # Highlight: embed the amino acids represented by their respective blosum scores
+
+            # print(aminoacid_sequences[:,0])
+            # print(aminoacid_sequences[:,1])
+            # print(aminoacid_sequences[:,2])
+            # print(aminoacid_sequences[:,5])
+
+            aminoacid_embeddings = self.embeddingencoder(aa_sequences_blosum) #i use the "aligned embeddings"
+            encoder_output = self.encoder(aminoacid_embeddings)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+
+
+            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+
+        # print("z_latent")
+        # print(latent_z.max())
+        # print(latent_z.min())
+        # print(torch.isnan(latent_z).any())
+        # print(torch.isinf(latent_z).any())
+
+        return {"alpha": alpha,
+                "sigma_n": sigma_n,
+                "sigma_f": sigma_f,
+                "lambd": lambd,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                "embeddings": encoder_output["embeddings"],
+                "batch_nodes" :batch_nodes
+                }
 
 
 

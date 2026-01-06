@@ -24,7 +24,7 @@ class RNNEncoder(nn.Module):
                  aa_prob,n_leaves,
                  gru_hidden_dim,
                  z_dim,
-                 rnn_input_size,
+                 input_size,
                  kappa_addition,
                  num_layers,
                  pretrained_params):
@@ -32,7 +32,7 @@ class RNNEncoder(nn.Module):
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.n_leaves = n_leaves
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
@@ -46,10 +46,10 @@ class RNNEncoder(nn.Module):
         self.linear_means = nn.Linear(self.nndim, self.z_dim)
         self.linear_std = nn.Linear(self.nndim, self.z_dim)
 
-        #self.layernorm = nn.LayerNorm(self.rnn_input_size)
+        #self.layernorm = nn.LayerNorm(self.input_size)
         self.softplus = nn.Softplus()
 
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+        self.rnn = nn.GRU(input_size=self.input_size,
                           hidden_size=self.gru_hidden_dim,
                           batch_first=True,
                           bidirectional=True,
@@ -92,16 +92,13 @@ class RNNEncoder(nn.Module):
 
         #return output_means,output_std
 
-
-
-
 class FCLEncoder(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,rnn_input_size, num_layers):
+    def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,input_size, num_layers):
         super(FCLEncoder, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.n_leaves = n_leaves
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
@@ -109,11 +106,11 @@ class FCLEncoder(nn.Module):
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
-        self.fc1 = nn.Linear(self.rnn_input_size,self.gru_hidden_dim) #todo: put in sequential module
+        self.fc1 = nn.Linear(self.input_size,self.gru_hidden_dim) #todo: put in sequential module
         self.fc2 = nn.Linear(self.gru_hidden_dim,self.gru_hidden_dim)
         self.linear_means = nn.Linear(self.gru_hidden_dim, self.z_dim)
         self.linear_std = nn.Linear(self.gru_hidden_dim, self.z_dim)
-        self.layernorm = nn.LayerNorm(self.rnn_input_size)
+        self.layernorm = nn.LayerNorm(self.input_size)
         self.softplus = nn.Softplus()
 
 
@@ -139,26 +136,206 @@ class FCLEncoder(nn.Module):
 
         #return output_means,output_std
 
+class xLSTMEncoder(nn.Module):
+    def __init__(self,max_len,input_size,z_dim):
+        super(xLSTMEncoder, self).__init__()
+        from xlstm import (
+            xLSTMBlockStack,
+            xLSTMBlockStackConfig,
+            mLSTMBlockConfig,
+            mLSTMLayerConfig,
+            sLSTMBlockConfig,
+            sLSTMLayerConfig,
+            FeedForwardConfig,
+        )
+
+        self.input_size = input_size
+        self.z_dim = z_dim
+        self.num_heads = 3
+
+        self.cfg = xLSTMBlockStackConfig(
+            mlstm_block=mLSTMBlockConfig(
+                mlstm=mLSTMLayerConfig(
+                    conv1d_kernel_size=4,  # seems to be unaffected
+                    qkv_proj_blocksize=self.num_heads,  # set to num_heads
+                    num_heads=self.num_heads,
+                    proj_factor=2.0,
+                    embedding_dim=-1,
+                    bias=False,
+                    dropout=0.0,
+                    context_length=-1,
+                    round_proj_up_to_multiple_of=90,  # inner_embedding_dim, must be divisible by num_heads
+                    round_proj_up_dim_up=True
+                )
+            ),
+            slstm_block=sLSTMBlockConfig(
+                slstm=sLSTMLayerConfig(
+                    backend="cuda",
+                    embedding_dim=-1,
+                    num_heads=self.num_heads,
+                    # this must divide the hidden size, is not yet supported by all versions in this directory
+                    conv1d_kernel_size=4,
+                    group_norm_weight=True,
+                    dropout=0,
+                    bias_init="powerlaw_blockdependent",
+                ),
+                feedforward=FeedForwardConfig(proj_factor=1.3,
+                                              act_fn="gelu",
+                                              embedding_dim=-1,
+                                              dropout=0,
+                                              bias=False,
+                                              ff_type="ffn_gated"),
+            ),
+            context_length=max_len,
+            num_blocks=4,  # does not seem to matter
+            embedding_dim=self.input_size,
+            slstm_at=[1],
+            add_post_blocks_norm=True,
+            bias=False,
+            dropout=0.0,
+
+        )
+
+        self.xlstm_stack = xLSTMBlockStack(self.cfg)
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.fc1 = nn.Linear(self.input_size, self.input_size)
+        self.linear_means = nn.Linear(self.input_size, self.z_dim)
+        self.linear_std = nn.Linear(self.input_size, self.z_dim)
+
+
+        #TODO: need to manually move to cuda?
+    def forward(self,input):
+
+        embedding = self.xlstm_stack(input)
+
+        # print(embedding.max())
+        # print(embedding.min())
+        # print(torch.isinf(embedding).any())
+        # print(torch.isnan(embedding).any())
+        # print("-----------0-------------")
+        # print(embedding[:,0])
+        # print("-----------1-------------")
+        # print(embedding[:,1])
+        # print("-----------2-------------")
+        # print(embedding[:,2])
+        # print("-----------5-------------")
+        # print(embedding[:,5])
+
+        latent = embedding.mean(axis=1)
+        latent = self.fc1(latent)
+        z_loc = self.linear_means(latent)
+        z_scale = self.logsoftmax(latent)
+
+        return {"embeddings": embedding,
+                "z_loc": z_loc,
+                "z_scale": z_scale
+                }
+class xLSTMDecoder(nn.Module):
+    def __init__(self,max_len,input_size,z_dim,output_size):
+        super(xLSTMDecoder, self).__init__()
+        from xlstm import (
+            xLSTMBlockStack,
+            xLSTMBlockStackConfig,
+            mLSTMBlockConfig,
+            mLSTMLayerConfig,
+            sLSTMBlockConfig,
+            sLSTMLayerConfig,
+            FeedForwardConfig,
+        )
+
+        self.input_size = input_size
+        self.output_size = output_size
+        self.z_dim = z_dim
+        self.num_heads = 3
+
+        self.cfg = xLSTMBlockStackConfig(
+            mlstm_block=mLSTMBlockConfig(
+                mlstm=mLSTMLayerConfig(
+                    conv1d_kernel_size=4,  # seems to be unaffected
+                    qkv_proj_blocksize=self.num_heads,  # set to num_heads
+                    num_heads=self.num_heads,
+                    proj_factor=2.0,
+                    embedding_dim=-1,
+                    bias=False,
+                    dropout=0.0,
+                    context_length=-1,
+                    round_proj_up_to_multiple_of=90,  # inner_embedding_dim, must be divisible by num_heads
+                    round_proj_up_dim_up=True
+                )
+            ),
+            slstm_block=sLSTMBlockConfig(
+                slstm=sLSTMLayerConfig(
+                    backend="cuda",
+                    embedding_dim=-1,
+                    num_heads=self.num_heads,
+                    # this must divide the hidden size, is not yet supported by all versions in this directory
+                    conv1d_kernel_size=4,
+                    group_norm_weight=True,
+                    dropout=0,
+                    bias_init="powerlaw_blockdependent",
+                ),
+                feedforward=FeedForwardConfig(proj_factor=1.3,
+                                              act_fn="gelu",
+                                              embedding_dim=-1,
+                                              dropout=0,
+                                              bias=False,
+                                              ff_type="ffn_gated"),
+            ),
+            context_length=max_len,
+            num_blocks=4,  # does not seem to matter
+            embedding_dim=self.input_size,
+            slstm_at=[1],
+            add_post_blocks_norm=True,
+            bias=False,
+            dropout=0.0,
+
+        )
+
+        self.xlstm_stack = xLSTMBlockStack(self.cfg)
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.fc1 = nn.Linear(self.input_size, self.input_size)
+        self.linear_probs = nn.Linear(self.input_size, self.output_size)
+
+    def forward(self,input):
+
+        embedding = self.xlstm_stack(input)
+        #
+        # print(embedding.max())
+        # print(embedding.min())
+        # print(torch.isinf(embedding).any())
+        # print(torch.isnan(embedding).any())
+
+        output_logits = self.logsoftmax(self.linear_probs(self.fc1(embedding))) #todo: layernorm
+
+        return output_logits
 
 
 class RNNDecoder_Tiling(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self,
+                 align_seq_len,
+                 aa_probs,
+                 gru_hidden_dim,
+                 z_dim,
+                 input_size,
+                 kappa_addition,
+                 num_layers,
+                 pretrained_params):
         super(RNNDecoder_Tiling, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
-        self.aa_prob = aa_prob
+        self.aa_probs = aa_probs
         self.num_layers = num_layers
         self.kappa_addition = kappa_addition
         self.softmax = nn.Softmax()
         self.logsoftmax = nn.LogSoftmax(dim=-1)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
-        #self.layernorm = nn.LayerNorm(self.rnn_input_size)
+        #self.layernorm = nn.LayerNorm(self.input_size)
         self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-        self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+        self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_probs)
+        self.rnn = nn.GRU(input_size=self.input_size,
                           hidden_size=self.gru_hidden_dim,
                           batch_first=True,
                           bidirectional=True,
@@ -202,16 +379,12 @@ class RNNDecoder_Tiling(nn.Module):
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
 
         return output_logits
-
-
-
-
 class RNNDecoder_Tiling_Angles(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = 4
@@ -226,7 +399,7 @@ class RNNDecoder_Tiling_Angles(nn.Module):
         self.fc2_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
         self.fc2_means = nn.Linear(self.gru_hidden_dim, 2)
         self.fc2_kappas = nn.Linear(self.gru_hidden_dim, 2)
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+        self.rnn = nn.GRU(input_size=self.input_size,
                           hidden_size=self.gru_hidden_dim,
                           batch_first=True,
                           bidirectional=True,
@@ -245,11 +418,11 @@ class RNNDecoder_Tiling_Angles(nn.Module):
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(output))
         return output_logits,output_means,output_kappas
 class RNNDecoder_Tiling_AnglesComplex(nn.Module):
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_AnglesComplex, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
@@ -267,7 +440,7 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         self.fc2_probs = nn.Linear(int((self.gru_hidden_dim) // 2), self.aa_prob)
         self.fc2_means = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
         self.fc2_kappas = nn.Linear(int((self.gru_hidden_dim) // 2), 2)
-        self.rnn = nn.GRU(input_size=self.rnn_input_size,
+        self.rnn = nn.GRU(input_size=self.input_size,
                           hidden_size=self.gru_hidden_dim,
                           batch_first=True,
                           bidirectional=True,
@@ -286,11 +459,11 @@ class RNNDecoder_Tiling_AnglesComplex(nn.Module):
         output_kappas = self.kappa_addition + self.softplus(self.fc2_kappas(self.fc1_kappas(output)))
         return output_logits,output_means,output_kappas
 class RNNDecoder_TeacherForcing(nn.Module): #Highlight: faster learning for some reason
-    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,rnn_input_size, kappa_addition,num_layers,pretrained_params):
+    def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_TeacherForcing, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
-        self.rnn_input_size = rnn_input_size
+        self.input_size = input_size
         self.align_seq_len = align_seq_len
         self.aa_prob = aa_prob
         self.num_layers = num_layers
@@ -303,18 +476,18 @@ class RNNDecoder_TeacherForcing(nn.Module): #Highlight: faster learning for some
         if self.method == "tf":
             self.layernorm = nn.LayerNorm(self.gru_hidden_dim)
             self.fc1 = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim)
-            self.fc2 = nn.Linear(self.gru_hidden_dim,self.rnn_input_size)
-            self.linear_probs = nn.Linear(self.rnn_input_size, self.aa_prob)
+            self.fc2 = nn.Linear(self.gru_hidden_dim,self.input_size)
+            self.linear_probs = nn.Linear(self.input_size, self.aa_prob)
         else:
             #self.layernorm = nn.LayerNorm(self.gru_hidden_dim)
 
-            self.fc1 = nn.Linear( self.gru_hidden_dim, self.rnn_input_size ) #+ 2*self.gru_hidden_dim
-            self.fc2 = nn.Linear(self.rnn_input_size , self.gru_hidden_dim)
+            self.fc1 = nn.Linear( self.gru_hidden_dim, self.input_size ) #+ 2*self.gru_hidden_dim
+            self.fc2 = nn.Linear(self.input_size , self.gru_hidden_dim)
             self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_prob)
-        #self.fc_hidden = nn.Linear(2*self.rnn_input_size,2*self.rnn_input_size)
+        #self.fc_hidden = nn.Linear(2*self.input_size,2*self.input_size)
 
 
-        self.rnn = nn.GRU(input_size=self.rnn_input_size, # + 2*self.gru_hidden_dim,
+        self.rnn = nn.GRU(input_size=self.input_size, # + 2*self.gru_hidden_dim,
                           hidden_size=self.gru_hidden_dim,
                           batch_first=True,
                           bidirectional=False,
@@ -400,7 +573,6 @@ class RNNDecoder_TeacherForcing(nn.Module): #Highlight: faster learning for some
 
         else:
             return self.forward_normal(input,hidden,mode)
-
 class Embed(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(Embed, self).__init__()
@@ -1046,7 +1218,6 @@ def compute_sites_entropies(logits, node_names):
     prob_softmax = torch.concatenate((node_names_2d,prob_softmax),dim=1)
 
     return seq_entropies, prob_softmax
-
 def compute_seq_probabilities(logits, observed,train=True):
     """Compute the sequence probabilities (prob = exp(logit)/(1+exp(logit))) from the logits
     :param tensor logits: log(prob/1-prob), [n_seq, L, 21]

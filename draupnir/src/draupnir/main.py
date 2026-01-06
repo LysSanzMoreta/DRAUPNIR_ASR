@@ -493,7 +493,6 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     elif args.draupnir_version in  ["3a","3b"]:
         Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
         patristic_matrix_model = patristic_matrix_train
-
     elif args.draupnir_version in ["4"]:
         Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm(model_load)
         patristic_matrix_model = patristic_matrix_train
@@ -528,8 +527,6 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         # guide_file.write("".join(guide_text))
         save_script(Draupnir,results_dir,"guides.py")
     return Draupnir.to(args.device), patristic_matrix_model
-
-
 def select_optimizer(args,params_config):
     """Select optimizer + scheduler combo """
 
@@ -585,6 +582,7 @@ def select_quide(Draupnir,model_load,args):
                       "2": DraupnirGuides.DRAUPNIRGuides_transformer(Draupnir.model,model_load,Draupnir),
                       "3a": DraupnirGuides.DRAUPNIRGuides_z_esm(Draupnir.model,model_load,Draupnir),
                       "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm(Draupnir.model,model_load,Draupnir),
+                      "4":DraupnirGuides.DRAUPNIRGuides_xlstm(Draupnir.model,model_load,Draupnir)
                       }
 
         guide = guide_dict[args.draupnir_version]
@@ -593,8 +591,6 @@ def select_quide(Draupnir,model_load,args):
 
         #guide = guide.apply(init_weights)
         return guide.to(args.device)
-
-
 def transform_to_integers(sample_out,build_config):
     """Transform the one-hot encoded sequences embedded in a namedtuple back to integers
     :param namedtuple sample_out: contains the tensors produced by Draupnir.sample
@@ -740,6 +736,8 @@ def set_data_model(args,
     #         )
     return train_load,test_load, additional_load, additional_info,align_seq_len,dataset_train_blosum.to(args.device),dataset_test_blosum.to(args.device), blosum_max, blosum_weighted.to(args.device),variable_score
 def start_sampling(args,train_load,test_load,additional_load,params_config,build_config, guide,Draupnir,datasets_train,dataset_train_blosum, additional_info,settings_config, blocks_train=None):
+
+    exit()
     if args.select_guide == "variational":
         #map_estimates_dict = defaultdict()
         print("Variational approach: Re-sampling from the guide")
@@ -1061,7 +1059,6 @@ def start_sampling(args,train_load,test_load,additional_load,params_config,build
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, args.results_dir)
-
 def draupnir_sample(train_load,
                     test_load,
                     additional_load,
@@ -3568,7 +3565,7 @@ def config_build(args):
             "weight_decay": 0,#weight_decay: weight decay (L2 penalty) (default: 0)
             "clip_norm": 10,#clip_norm: magnitude of norm to which gradients are clipped (default: 10.0)
             "lrd": 1, #rate at which learning rate decays (default: 1.0)
-            "z_dim": 30,
+            "z_dim": 60,
             "gru_hidden_dim": 60, #60
         }
     return config

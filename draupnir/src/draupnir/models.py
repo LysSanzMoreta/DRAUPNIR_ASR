@@ -40,7 +40,7 @@ class DRAUPNIRModelClass(nn.Module):
         self.descendants_dict = ModelLoad.descendants_dict
         self.clades_dict_all = ModelLoad.clades_dict_all
         self.max_indel_size = ModelLoad.args.max_indel_size
-        self.rnn_input_size = self.z_dim
+        self.input_size = self.z_dim
         self.use_attention = False
         self.batch_first = True
         self.leaves_testing = ModelLoad.leaves_testing
@@ -321,10 +321,10 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
      uses a GRU as the mapping function and blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
+        self.input_size = self.z_dim + self.aa_probs
         self.num_layers = 1
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim,
-                                         self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+                                         self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
 
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
@@ -436,8 +436,8 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum = None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         nodes_idx = datasets["int"][:, 0, 1]
@@ -526,7 +526,7 @@ class DRAUPNIRModel_transformer_no_blosum(DRAUPNIRModelClass):
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        #self.rnn_input_size = self.z_dim
+        #self.input_size = self.z_dim
         self.decoder = TransformerDecoder(
                                             input_dim_l= self.z_dim,
                                             input_dim_r= self.z_dim,
@@ -738,8 +738,8 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim + self.aa_probs
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
@@ -898,8 +898,8 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim #+ self.aa_probs
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim #+ self.aa_probs
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
@@ -1063,9 +1063,20 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim #+ self.aa_probs
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
-        self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
+        self.input_size = self.z_dim #+ self.aa_probs
+        # self.decoder = RNNDecoder_Tiling(align_seq_len=self.align_seq_len,
+        #                                  aa_probs=self.aa_probs,
+        #                                  gru_hidden_dim=self.gru_hidden_dim,
+        #                                  z_dim=self.z_dim,
+        #                                  input_size=self.input_size,
+        #                                  kappa_addition=self.kappa_addition,
+        #                                  num_layers=self.num_layers,
+        #                                  pretrained_params=self.pretrained_params)
+        self.decoder = xLSTMDecoder(max_len=self.align_seq_len,
+                                  input_size=self.z_dim,
+                                  z_dim = self.z_dim,
+                                  output_size = self.aa_probs)
+
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
@@ -1092,13 +1103,9 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
 
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
-
         self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
-
-
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
-        pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
 
         # Highlight: GP prior over the latent space
@@ -1106,16 +1113,16 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
 
-        #blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #Highlight: it workedwith the entire blosum weighted matrix
-        ##blosum = batch_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21] #only use the weighted average of the batch sequences
-        #blosum = self.embed(blosum)
-        #latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+        if map_estimates is not  None:
+            embeddings = map_estimates["embeddings"]
+            latent_space = embeddings + latent_space #independent vectors
 
-        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
+        #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
         with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
             logits = self.decoder.forward(
                     input=latent_space,
-                    hidden=decoder_hidden)
+                    #hidden=decoder_hidden
+            )
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
 
         self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
@@ -1129,6 +1136,7 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
 
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
         """Samples using all sequences, which is not computationally feasible if there is a high number of sequences"""
+        raise ValueError("not implemented")
         if use_test2: #MAP estimate
             assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
             latent_space = self.conditional_samplingMAP(map_estimates,patristic_matrix)
@@ -1196,21 +1204,27 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
 
             assert latent_space.shape == (n_nodes, self.z_dim)
 
-        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
-        # blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
-        # blosum = self.embed(blosum)
-        # latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+        if map_estimates is not  None:
+            embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
+            if batch_idx[1] is None:
+                embeddings = embeddings[int(batch_idx[0]):]
+            else:
+                embeddings = embeddings[int(batch_idx[0]):int(batch_idx[1])]
 
-        #with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+
+            latent_space_ = embeddings + latent_space_
+
         logits = self.decoder.forward(
-            input=latent_space_,
-            hidden=decoder_hidden)
+            input=latent_space_)
+
         if use_argmax:
             #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
             aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
         else:
             aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+
         sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
                                       latent_space=latent_space.detach(),
                                       logits=logits.detach(),
@@ -1228,9 +1242,9 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
     Clade batch training and sampling."""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim + self.aa_probs
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
@@ -1388,9 +1402,9 @@ class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
     """Leaves training and testing. Train on full leave latent space (train + test), only observe the pre-selected train leaves"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
-        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.rnn_input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim + self.aa_probs
+        #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.align_seq_len, self.aa_probs, self.gru_hidden_dim,self.input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
@@ -1505,8 +1519,8 @@ class DRAUPNIRModel_anglespredictions(DRAUPNIRModelClass):
     leaves_testing argument stated in datasets.py"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
-        self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.input_size = self.z_dim + self.aa_probs
+        self.decoder = RNNDecoder_Tiling_Angles(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
@@ -1639,9 +1653,9 @@ class DRAUPNIRModel_classic_plating(DRAUPNIRModelClass):
     NOTE: The plating of the leaves nodes can be with the ordered nodes (same order as input) or random order"""
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
-        self.rnn_input_size = self.z_dim + self.aa_probs
+        self.input_size = self.z_dim + self.aa_probs
         self.num_layers = 2
-        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.rnn_input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
         self.splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.n_leaves), int(self.n_leaves / self.plate_size)) * self.num_epochs)
         if self.plate_unordered:
