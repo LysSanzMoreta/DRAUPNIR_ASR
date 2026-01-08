@@ -63,21 +63,23 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="
     average_probabilities = torch.mean(probabilities_softmax[:,1:])
 
     concat_predictions = np.concatenate([dataset_blosum,aa_predictions_blosum],axis=0)
+    total_seqs = concat_predictions.shape[0]
     array_mask = np.ones_like(concat_predictions[:,:,0]).astype(bool) #we have to take into account the gaps
-
     overwrite=False
     filepath = f"{storage_folder}/{name}/cosine_similarity_mean.npy"
     if not os.path.exists(filepath) or overwrite:
+        if total_seqs < 1000:#todo: separate train vs test
+            results, final_time = DromiSimilarities.calculate_similarities(concat_predictions, align_lenght, array_mask, f"{storage_folder}/{name}",
+                                                                           batch_size=100,
+                                                                           ksize=3,
+                                                                           neighbours=1,
+                                                                           metric="cosine",
+                                                                           calculate_kmers=False,
+                                                                           calculate_positional_weights=False) #calculate_similarities_ondisk
 
-        results, final_time = DromiSimilarities.calculate_similarities(concat_predictions, align_lenght, array_mask, f"{storage_folder}/{name}",
-                                                                       batch_size=100,
-                                                                       ksize=3,
-                                                                       neighbours=1,
-                                                                       metric="cosine",
-                                                                       calculate_kmers=False,
-                                                                       calculate_positional_weights=False) #calculate_similarities_ondisk
-
-        cosine_similarity = np.load(filepath) #contains cosine similarity stacked [nseqs + nseqs, nseqs + nseqs]
+            cosine_similarity = np.load(filepath) #contains cosine similarity stacked [nseqs + nseqs, nseqs + nseqs]
+        else:
+            cosine_similarity = np.ones((n_seqs,n_seqs))*np.nan
     else:
 
         cosine_similarity = np.load(filepath)
@@ -117,8 +119,9 @@ folders_dict = {"simulations_src_sh3_3":{
                 },
                 "simulations_1GMM":{
                 "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
+                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
                 "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
-                "draupnir_hid_esm": ""
+                "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational"
                 },
 }
 
@@ -150,8 +153,8 @@ def analyze(results_dict=None):
     return results_dict
 
 
-results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict.torch",weights_only=False)
-#analyze(results_dict)
+results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
+analyze(results_dict)
 
 
 results_dict_reoriented = defaultdict(dict)
@@ -202,9 +205,9 @@ imgkit.from_file("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablat
 
 
 
-
-
-
+#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational/Train_argmax_Plots/train_argmax_info_dict.torch
+#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational
+#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational/Train_argmax_Plots/train_argmax_info_dict.torch
 
 
 

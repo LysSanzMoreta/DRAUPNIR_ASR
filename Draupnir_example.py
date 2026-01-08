@@ -130,11 +130,11 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
-    parser.add_argument('-n-samples','-n_samples', default=60, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
-    parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
+    parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=False,
                         help='True: Use GPU; False: Use CPU')
     parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
     parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
@@ -149,20 +149,20 @@ if __name__ == "__main__":
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_12_12h24min01s102311ms_3000epochs_variational",
                         #default="/media/lys/0c4a2be6-0148-4ef1-8df3-b89418dfece3/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_10h38min05s860885ms_3000epochs_variational",
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_16h04min11s242472ms_4000epochs_variational",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_13h37min12s182537ms_4000epochs_variational",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples. It is activated when args.generate_samples is True, otherwise it is ignored and simply trains the model')
-    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
     #Highlight: EXPERIMENTAL FEATURES, do not use unless you know what you are doing
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="4", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
-                             '3b: pre-computed -aligned- embeddings from ESM, which we process with the RNN'
+                             '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
                              '4: xlsm embeddings',
                         )
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',

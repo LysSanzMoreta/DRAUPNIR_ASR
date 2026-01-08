@@ -61,6 +61,25 @@ BuildConfig = namedtuple('BuildConfig',['alignment_file','use_ancestral','n_test
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
 
 
+def create_folders(args,results_dir,script_dir):
+    DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
+    DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Test_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Test2_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
+    DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
+
+    if args.infer_angles:
+        DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+        #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+        DraupnirUtils.folders(("{}/Test_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+        #DraupnirUtils.Folders(("{}/Test_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+        DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+        #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+
 def load_data(name,settings_config,build_config,param_config,results_dir,script_dir,args):
     """
     Reads and prepares the stored dataset and other files (created by DraupnirUtils.create_draupnir_dataset()) to be split into train (leaves) and test (internal nodes) sets. Additionally
@@ -89,23 +108,23 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     dataset_sequence_representations = np.load("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name),allow_pickle=True) if os.path.exists("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name)) else None
 
 
-    DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
-    DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Test_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Test2_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
-    DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
-
-    if args.infer_angles:
-        DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-        #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-        DraupnirUtils.folders(("{}/Test_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-        #DraupnirUtils.Folders(("{}/Test_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-        DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-        #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
+    # DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Test_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Test2_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
+    # DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
+    #
+    # if args.infer_angles:
+    #     DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    #     #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    #     DraupnirUtils.folders(("{}/Test_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    #     #DraupnirUtils.Folders(("{}/Test_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    #     DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
+    #     #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
     json.dump(args.__dict__, open('{}/commandline_args.txt'.format(results_dir), 'w'), indent=2)
     dataset = DraupnirLoadUtils.remove_nan(dataset)
     dataset_embeddings = DraupnirLoadUtils.remove_nan(dataset_embeddings) #todo: return indexes to be able to do it with any dataframe from the same dataset
@@ -737,7 +756,6 @@ def set_data_model(args,
     return train_load,test_load, additional_load, additional_info,align_seq_len,dataset_train_blosum.to(args.device),dataset_test_blosum.to(args.device), blosum_max, blosum_weighted.to(args.device),variable_score
 def start_sampling(args,train_load,test_load,additional_load,params_config,build_config, guide,Draupnir,datasets_train,dataset_train_blosum, additional_info,settings_config, blocks_train=None):
 
-    exit()
     if args.select_guide == "variational":
         #map_estimates_dict = defaultdict()
         print("Variational approach: Re-sampling from the guide")
@@ -3553,8 +3571,11 @@ def generate_config():
 def config_build(args):
     """Select a default configuration dictionary. It can load a string dictionary from the command line (using json) or use the default parameters
     :param namedtuple args"""
+    config_dict_path = f"{args.results_dir}/config_dict.json"
     if args.parameter_search:
         config = json.loads(args.config_dict)
+    elif args.generate_samples:
+        config = json.load(open(f"{args.load_pretrained_path}/config_dict.json","r"))
     else:
         "Default hyperparameters (Clipped Adam optimizer), z dim and GRU"
         config = {
@@ -3565,9 +3586,15 @@ def config_build(args):
             "weight_decay": 0,#weight_decay: weight decay (L2 penalty) (default: 0)
             "clip_norm": 10,#clip_norm: magnitude of norm to which gradients are clipped (default: 10.0)
             "lrd": 1, #rate at which learning rate decays (default: 1.0)
-            "z_dim": 60,
+            "z_dim": 30,
             "gru_hidden_dim": 60, #60
         }
+
+    print(config)
+
+
+
+    json.dump(config,open(config_dict_path,"w"),indent=2)
     return config
 
 def manual_random_search(): #TODO: This probably does not work
@@ -3600,6 +3627,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     args.__dict__["results_dir"] = results_dir
 
     print("Loading datasets....")
+    create_folders(args, results_dir, script_dir)
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(args.dataset_name,settings_config,build_config,param_config,results_dir,script_dir,args)
 
