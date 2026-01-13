@@ -1080,6 +1080,7 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
+        raise ValueError("not implemented")
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -1207,13 +1208,14 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
         if map_estimates is not  None:
-            embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
+            if use_test or use_test2:
+                embeddings = map_estimates["test"]["embeddings"]
+            else:
+                embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
             if batch_idx[1] is None:
                 embeddings = embeddings[int(batch_idx[0]):]
             else:
                 embeddings = embeddings[int(batch_idx[0]):int(batch_idx[1])]
-
-
             latent_space_ = embeddings + latent_space_
 
         logits = self.decoder.forward(

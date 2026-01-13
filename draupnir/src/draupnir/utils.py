@@ -251,7 +251,6 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
 
     # json.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'),indent=2)
     # json.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),indent=2)
-
 def calculate_closest_leaves(name,tree,storage_folder):
     """ Creates a dictionary that contains the closest leave to an internal node {internal_node:leave}
     :param str name: data set project name
@@ -267,8 +266,6 @@ def calculate_closest_leaves(name,tree,storage_folder):
             else:
                 closest_leaves_dict[node.name] = [node.get_closest_leaf()[0].name]
     pickle.dump(closest_leaves_dict, open('{}/{}_Closest_leaves_dict.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
-
 def calculate_directly_linked_nodes(name,tree,storage_folder):
     """Creates a dictionary that contains the 2 children nodes directly linked to a node (not all the children from that node) {node:children}
     :param str name: data set project name
@@ -296,8 +293,6 @@ def calculate_descendants(name,tree,storage_folder):
             closest_descendants_dict[node.name]["internal"] = descendant_internal
             closest_descendants_dict[node.name]["leaves"] = descendant_leaves
     dill.dump(closest_descendants_dict, open('{}/{}_Descendants_dict.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
-
-
 def Pfam_parser(family_name,data_folder,first_match=False,update_pfam=False):
     """Creates a dictionary containing the PDB files and the sequence information (chain, residues...)
     :param str family_name: pfam family name
@@ -665,7 +660,6 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
             print("Patristic matrix file already exists, not calculated")
-
 def my_layout(node):
     """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
     :param ete3-node node: node from an ete3 tree"""
@@ -906,7 +900,7 @@ def create_dataset(name_file,
         git_vector = np.zeros(30) #fake git vector
         aa_info = np.zeros((seq_len + 2, 30))
         aa_info[0] = np.hstack([seq_len,[0]*29]) #first row contains some sequence length information
-        aa_info[1] = git_vector #second row contains a git vector (never used but we could use it for something else)
+        aa_info[1] = git_vector #second row contains a git vector (never used but we could use it to store something else)
         if one_hot_encoding:
             for index_a, aa_name in enumerate(not_aligned_seq):
                 one_hot = np.zeros(aa_probs)

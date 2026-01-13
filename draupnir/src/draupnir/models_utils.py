@@ -164,7 +164,7 @@ class xLSTMEncoder(nn.Module):
                     bias=False,
                     dropout=0.0,
                     context_length=-1,
-                    round_proj_up_to_multiple_of=90,  # inner_embedding_dim, must be divisible by num_heads
+                    round_proj_up_to_multiple_of=self.input_size*self.num_heads,  # inner_embedding_dim, must be divisible by num_heads
                     round_proj_up_dim_up=True
                 )
             ),
@@ -197,39 +197,26 @@ class xLSTMEncoder(nn.Module):
         )
 
         self.xlstm_stack = xLSTMBlockStack(self.cfg)
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
-        self.fc1 = nn.Linear(self.input_size, self.input_size)
-        self.linear_means = nn.Linear(self.input_size, self.z_dim)
-        self.linear_std = nn.Linear(self.input_size, self.z_dim)
+        self.logsoftmax = nn.LogSoftmax(dim=None)
+        # self.fc1 = nn.Linear(self.input_size, self.input_size)
+        # self.linear_means = nn.Linear(self.input_size, self.z_dim)
+        # self.linear_std = nn.Linear(self.input_size, self.z_dim)
 
 
-        #TODO: need to manually move to cuda?
     def forward(self,input):
 
         embedding = self.xlstm_stack(input)
 
-        # print(embedding.max())
-        # print(embedding.min())
-        # print(torch.isinf(embedding).any())
-        # print(torch.isnan(embedding).any())
-        # print("-----------0-------------")
-        # print(embedding[:,0])
-        # print("-----------1-------------")
-        # print(embedding[:,1])
-        # print("-----------2-------------")
-        # print(embedding[:,2])
-        # print("-----------5-------------")
-        # print(embedding[:,5])
-
         latent = embedding.mean(axis=1)
-        latent = self.fc1(latent)
-        z_loc = self.linear_means(latent)
-        z_scale = self.logsoftmax(latent)
+        # latent = self.fc1(latent)
+        # z_loc = self.linear_means(latent)
+        # z_scale = torch.exp(self.logsoftmax(self.linear_std(latent)))
 
         return {"embeddings": embedding,
-                "z_loc": z_loc,
-                "z_scale": z_scale
+                # "z_loc": z_loc,
+                # "z_scale": z_scale
                 }
+
 class xLSTMDecoder(nn.Module):
     def __init__(self,max_len,input_size,z_dim,output_size):
         super(xLSTMDecoder, self).__init__()
@@ -293,6 +280,7 @@ class xLSTMDecoder(nn.Module):
 
         self.xlstm_stack = xLSTMBlockStack(self.cfg)
         self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
         self.fc1 = nn.Linear(self.input_size, self.input_size)
         self.linear_probs = nn.Linear(self.input_size, self.output_size)
 
@@ -300,12 +288,7 @@ class xLSTMDecoder(nn.Module):
 
         embedding = self.xlstm_stack(input)
         #
-        # print(embedding.max())
-        # print(embedding.min())
-        # print(torch.isinf(embedding).any())
-        # print(torch.isnan(embedding).any())
-
-        output_logits = self.logsoftmax(self.linear_probs(self.fc1(embedding))) #todo: layernorm
+        output_logits = self.logsoftmax(self.relu(self.linear_probs(self.fc1(embedding)))) #todo: layernorm
 
         return output_logits
 

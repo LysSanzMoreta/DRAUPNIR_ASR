@@ -107,24 +107,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
     dataset_embeddings = np.load("{}/{}_dataset_numpy_{}_embeddings.npy".format(settings_config.data_folder,name,aligned),allow_pickle=True) if os.path.exists("{}/{}_dataset_numpy_{}_embeddings.npy".format(settings_config.data_folder,name,aligned)) else None
     dataset_sequence_representations = np.load("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name),allow_pickle=True) if os.path.exists("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name)) else None
 
-
-    # DraupnirUtils.folders(ntpath.basename(results_dir),script_dir)
-    # DraupnirUtils.folders(("{}/Train_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Test_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Test2_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Test_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Test2_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Train_argmax_Plots/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Draupnir_Checkpoints/".format(ntpath.basename(results_dir))), script_dir)
-    # DraupnirUtils.folders(("{}/Scripts/".format(ntpath.basename(results_dir))), script_dir)
-    #
-    # if args.infer_angles:
-    #     DraupnirUtils.folders(("{}/Train_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-    #     #DraupnirUtils.Folders(("{}/Train_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-    #     DraupnirUtils.folders(("{}/Test_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-    #     #DraupnirUtils.Folders(("{}/Test_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-    #     DraupnirUtils.folders(("{}/Test2_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
-    #     #DraupnirUtils.Folders(("{}/Test2_argmax_Plots/Angles_plots_per_aa/".format(ntpath.basename(results_dir))), script_dir)
     json.dump(args.__dict__, open('{}/commandline_args.txt'.format(results_dir), 'w'), indent=2)
     dataset = DraupnirLoadUtils.remove_nan(dataset)
     dataset_embeddings = DraupnirLoadUtils.remove_nan(dataset_embeddings) #todo: return indexes to be able to do it with any dataframe from the same dataset
@@ -245,7 +227,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
             internal_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', str(node)))
             leaves_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', node))
 
-        else:#Highlight: For the datasets without given test nodes, who have baliphy or iqtree trees
+        else:#Highlight: For the datasets without given test nodes, which have baliphy or iqtree trees
             internal_nodes_indexes = [i for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', node)]
             leave_nodes_indexes = [i for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', node)]
             internal_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', str(node)))
@@ -638,7 +620,10 @@ def calculate_percent_id(dataset_true,aa_sequences_predictions,align_lenght):
     average_pid = equal_aminoacids.mean().cpu().numpy()
     std_pid = equal_aminoacids.std().cpu().numpy()
 
-    return average_pid,std_pid
+    return {"average_pid": average_pid,
+            "std_pid": std_pid,
+            "equal_aminoacids": equal_aminoacids
+            }
 def plot_percent_id(average_pid_list,std_pid_list,results_dir,suffix=""):
     """Plots percent id
     :param list average_pid_list
@@ -731,30 +716,22 @@ def set_data_model(args,
     plt.close()
     plt.clf()
 
-    # out = (align_seq_len, #todo: namedtuple or similar
-    #         device,
-    #         dataset_train,
-    #         dataset_train_blosum,
-    #         patristic_matrix_train,
-    #         cladistic_matrix_train,
-    #         embeddings_train,
-    #         dataset_test,
-    #         dataset_test_blosum,
-    #         aa_frequencies_train,
-    #         blosum,
-    #         blosum_max,
-    #         blosum_weighted,
-    #         variable_score,
-    #         patristic_matrix_test,
-    #         cladistic_matrix_test,
-    #         dgl_graph,
-    #         nodes_representations_array,
-    #         patristic_matrix_full,
-    #         cladistic_matrix_full,
-    #         correspondence_dict
-    #         )
+
     return train_load,test_load, additional_load, additional_info,align_seq_len,dataset_train_blosum.to(args.device),dataset_test_blosum.to(args.device), blosum_max, blosum_weighted.to(args.device),variable_score
-def start_sampling(args,train_load,test_load,additional_load,params_config,build_config, guide,Draupnir,datasets_train,dataset_train_blosum, additional_info,settings_config, blocks_train=None):
+def start_sampling(args,
+                   train_load,
+                   test_load,
+                   additional_load,
+                   params_config,
+                   build_config,
+                   guide,Draupnir,
+                   datasets_train,
+                   datasets_test,
+                   dataset_train_blosum,
+                   dataset_test_blosum,
+                   additional_info,
+                   settings_config,
+                   blocks_train=None):
 
     if args.select_guide == "variational":
         #map_estimates_dict = defaultdict()
@@ -784,9 +761,9 @@ def start_sampling(args,train_load,test_load,additional_load,params_config,build
             map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
             for sample_idx, sample in enumerate(samples_names):
                 print("sample idx {}".format(sample_idx))
-                # map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None) # i extracted the "test" estimates here for some experiment
-                # map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
-                # map_estimates_dict[sample] = map_estimates
+                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None) # i extracted the "test" estimates here for some experiment
+                map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
+
                 for batch_idx, batch_idx_test in zip(blocks_train, blocks_test):
                     batch_train_sample = Draupnir.sample_batched(map_estimates,
                                                                  1,
@@ -1077,6 +1054,8 @@ def start_sampling(args,train_load,test_load,additional_load,params_config,build
                      sample_out_test, sample_out_test_argmax,
                      sample_out_test2, sample_out_test_argmax2,
                      additional_load, additional_info, build_config, args, args.results_dir)
+
+
 def draupnir_sample(train_load,
                     test_load,
                     additional_load,
@@ -1185,6 +1164,14 @@ def draupnir_sample(train_load,
                 "sequences_representations": train_load.sequences_representations_train
                 }
 
+    n_test_seqs = test_load.dataset_test.shape[0]
+    datasets_test = {"blosum": dataset_test_blosum,
+                "int": test_load.dataset_test,
+                "onehot": torch.ones(n_test_seqs).to(args.device),  # Dummy
+                "embedding": None,
+                "sequences_representations": None
+                }
+
     blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs) if build_config.batch_size > 1 else None
 
     print("Generating new samples!...")
@@ -1197,7 +1184,9 @@ def draupnir_sample(train_load,
                    guide,
                    Draupnir,
                    datasets_train,
+                   datasets_test,
                    dataset_train_blosum,
+                   dataset_test_blosum,
                    additional_info,
                    settings_config,
                    blocks_train
@@ -1383,9 +1372,10 @@ def draupnir_train_old(train_load,
         #Highlight: Plot entropies
         train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),dataset_train.detach().long()[:,0,1])
         #Highlight: Plot percent id prediction performance
-        average_pid, std_pid = calculate_percent_id(dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
-        average_pid_list.append(average_pid)
-        std_pid_list.append(std_pid)
+        percent_id_out = calculate_percent_id(dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
+        average_pid_list.append(percent_id_out["average_pid"])
+        std_pid_list.append(percent_id_out["std_pid"])
+
         if epoch % args.test_frequency == 0:  # every n epochs --- sample
             dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
             sample_out_test = Draupnir.sample(map_estimates,
@@ -1881,9 +1871,9 @@ def draupnir_train(train_load,
         #Highlight: Plot entropies
         train_entropy_epoch, train_probs_epoch = DraupnirModelsUtils.compute_sites_entropies(sample_out_train.logits.detach(),train_load.dataset_train.detach().long()[:,0,1])
         #Highlight: Plot percent id prediction performance
-        average_pid, std_pid = calculate_percent_id(train_load.dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
-        average_pid_list.append(average_pid)
-        std_pid_list.append(std_pid)
+        percent_id_out = calculate_percent_id(train_load.dataset_train.detach(), sample_out_train.aa_sequences.detach(),model_load.align_seq_len)
+        average_pid_list.append(percent_id_out["average_pid"])
+        std_pid_list.append(percent_id_out["std_pid"])
         if epoch % args.test_frequency == 0:  # every n epochs --- sample
             dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
             sample_out_test = Draupnir.sample(map_estimates,
@@ -2351,7 +2341,6 @@ def draupnir_train_batching(train_load,
                 "embedding": train_load.embeddings_train,
                 "sequences_representations": train_load.sequences_representations_train
                 }
-
     datasets_test = {"blosum": dataset_test_blosum,
                 "int": test_load.dataset_test,
                 "onehot": torch.ones(n_test_seqs).to(args.device),  # Dummy
@@ -2450,9 +2439,9 @@ def draupnir_train_batching(train_load,
         # percent_id_df, _, _ = extract_percent_id(dataset_train, sample_out_train.aa_sequences, n_samples_dict[folder], results_dir,correspondence_dict)
 
         #Highlight: Plot percent id prediction performance for 1 batch to not make it computationally very expensive
-        average_pid, std_pid = calculate_percent_id(dataset_train_batch_0, sample_out_train.aa_sequences.detach().cpu(),model_load.align_seq_len)
-        average_pid_list.append(average_pid)
-        std_pid_list.append(std_pid)
+        percent_pid_out = calculate_percent_id(dataset_train_batch_0, sample_out_train.aa_sequences.detach().cpu(),model_load.align_seq_len)
+        average_pid_list.append(percent_pid_out["average_pid"])
+        std_pid_list.append(percent_pid_out["std_pid"])
         if epoch % args.test_frequency == 0:  # every n epochs --- sample, it is a bit expensive, therefore, we only do it sometimes
             with torch.no_grad():
                 warnings.warn("Batch/split this sampling step if the number of train sequences is too high")
@@ -2460,9 +2449,9 @@ def draupnir_train_batching(train_load,
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
 
-                # map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # # i extracted the "test" estimates here for some experiment
-                # map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
-                # map_estimates["test"] = map_estimates_test
+                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
+                map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
+                map_estimates["test"] = map_estimates_test
 
             sample_out_test = Draupnir.sample_batched(map_estimates,
                                               n_samples,
@@ -2574,6 +2563,7 @@ def draupnir_train_batching(train_load,
     text_file.close()
     print("Final Sampling...using variational guide")
     print("Sampling is also divided in batches")
+
     start_sampling(args,
                    train_load,
                    test_load,
@@ -2583,7 +2573,9 @@ def draupnir_train_batching(train_load,
                    guide,
                    Draupnir,
                    datasets_train,
+                   datasets_test,
                    dataset_train_blosum,
+                   dataset_test_blosum,
                    additional_info,
                    settings_config,
                    blocks_train)

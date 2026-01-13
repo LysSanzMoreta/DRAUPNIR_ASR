@@ -11,6 +11,8 @@ import torch
 import argparse
 import os,sys
 import json
+os.environ["PATH"]  += "/usr/local/bin/ninja" #add the ninja-build path
+os.environ["PATH"]  += "/usr/lib/cuda" #add the ninja-build path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 from argparse import RawTextHelpFormatter
@@ -29,6 +31,7 @@ def main():
     a) Generate a dataset in the appropiate form
     b) Run Draupnir model and generate results
     c) Produce additional results with the output from the -run- step"""
+
 
     draupnir.available_datasets(print_dict=True)
 
@@ -134,7 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
-    parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=False,
+    parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
                         help='True: Use GPU; False: Use CPU')
     parser.add_argument('-use-scheduler', type=str2bool, nargs='?', default=False, help='Use learning rate scheduler, to modify the learning rate during training. Only used with 1 large dataset in the paper')
     parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
@@ -151,13 +154,13 @@ if __name__ == "__main__":
                         #default="/media/lys/0c4a2be6-0148-4ef1-8df3-b89418dfece3/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_10h38min05s860885ms_3000epochs_variational",
                         default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_13h37min12s182537ms_4000epochs_variational",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples. It is activated when args.generate_samples is True, otherwise it is ignored and simply trains the model')
-    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
     #Highlight: EXPERIMENTAL FEATURES, do not use unless you know what you are doing
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="4", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'

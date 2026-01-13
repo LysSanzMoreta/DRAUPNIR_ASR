@@ -49,7 +49,7 @@ def available_datasets(print_dict = False):
                 "simulations_PIGBOS_1": "300 leaves parser.add_argument('-use-cuda', type=str2bool, nargs='?',const=True, default=True, help='Use GPU')simulation PIGB Opposite Strand regulator",
                 "simulations_jj_1": "jj1",
                 "simulations_jj_2": "jj2",
-                "simulations_1GMM": "1GMM CBM (carbohydrate Binding Domain) simulations",
+                "simulations_1GMM": "1000 sequences 1GMM CBM (carbohydrate Binding Domain) simulations",
                 "Coral_Faviina":"Coral fluorescent proteins (CFP) Faviina clade",  # Faviina clade from coral sequences
                 "Coral_all":"Coral fluorescent proteins (CFP) clade",  # All Coral sequences (includes Faviina clade and additional sequences)
                 "PF00400":"WD40 125 sequences",

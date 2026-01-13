@@ -12,19 +12,105 @@ if local_repository:
     import draupnir
 else:#pip installed module
     import draupnir
+
 import draupnir.models_utils as DraupnirModelsUtils
 import draupnir.utils as DraupnirsUtils
 import draupnir.main as DraupnirMain
-
+import draupnir.datasets as DraupnirDatasets
+import re
+from typing import Union
 from sklearn.metrics.pairwise import cosine_similarity
 import dromi
 import dromi.similarities as DromiSimilarities
 import dataframe_image as dfi
 from pandas._config import get_option
 import imgkit
+from ete3 import Tree as TreeEte3
+from pprint import pprint
+import statsmodels.api as sm
+import matplotlib.pyplot as plt
+from scipy import stats
+
+storage_metrics_folder = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics"
 
 
-def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="") -> dict:
+def calculate_descendants_consensus_sequence(tree,model_output,nodes_dict):
+    """Only calculate for the internal nodes"""
+
+    rename_fx = lambda node: nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
+
+    root_int_name = rename_fx(tree)
+    root_descendants = [rename_fx(descendant) for descendant in tree.get_descendants() if descendant.is_leaf()]
+    descendants_dict = {root_int_name:root_descendants}
+    true_dataset = model_output["dataset"].detach().cpu().numpy()
+
+    descendants_consensus_dict = {}
+    for node in tree.iter_descendants('preorder'):
+        if not node.is_leaf():  # for internal nodes
+            int_name = nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
+            descendants_nodes = [rename_fx(descendant)  for descendant in node.get_descendants() if descendant.is_leaf()]
+            descendants_dict[int_name] = descendants_nodes
+            descendants_sequences_idx = (true_dataset[:,0,1][..., None] == np.array(descendants_nodes)).any(-1)
+            descendants_sequences = true_dataset[descendants_sequences_idx, 2:,0]
+            descendants_consensus_sequence =  stats.mode(descendants_sequences, axis=0, keepdims=True).mode
+            descendants_consensus_dict[int_name] = descendants_consensus_sequence
+
+    return descendants_dict, descendants_consensus_dict
+
+
+def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict=None):
+
+    root_sequence_name = DraupnirDatasets.available_datasets(print_dict = False)[0][dataset_name]
+    tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder, dataset_name, root_sequence_name)
+    tree = TreeEte3(tree_file, format=1, quoted_node_names=True) #not in tree level order and internal nodes are missing the "I"
+
+    ancestor_info = pd.read_csv("{}/{}/{}_tree_levelorder_info.csv".format(storage_folder,dataset_name,dataset_name), sep="\t",index_col=False,low_memory=False)
+    ancestor_info["0"] = ancestor_info["0"].astype(str)
+    ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
+    nodes_names = ancestor_info["0"].tolist()
+
+    leaves_nodes_dict = dict((node,i) for i,node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+', str(node)))
+    internal_nodes_dict = dict((node, i) for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', str(node))) #tree level order names
+    nodes_dict = {**leaves_nodes_dict,**internal_nodes_dict}
+
+    if mode_name.endswith("train") and lowass_dict is None:
+        descendants_dict, descendants_consensus_dict = calculate_descendants_consensus_sequence(tree,model_output,nodes_dict) #todo: we need to calculate the consensus sequence from the train, but use it with the test
+    else: #todo:compare the consensus sequence to the prediction of the internal node
+        descendants_dict = lowass_dict["descendants_dict"] #todo: inherit the dicts from the train and then calculate pid with the test
+        descendants_consensus_dict = lowass_dict["descendants_consensus_dict"]
+
+
+
+    node2rootdist = {tree: 1} #root is deepest
+    depth_dict = {}
+    for node in tree.iter_descendants('preorder'):
+        int_name = nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
+        depth = node.dist + node2rootdist[node.up]
+        node2rootdist[node] = depth
+        depth_dict[int_name] = 1-depth #not sure if to reverse it like this or not
+
+    return dict(depth_dict = depth_dict,
+                descendants_dict=descendants_dict,
+                descendants_consensus_dict=descendants_consensus_dict
+                )
+
+
+def lowass_scores(storage_folder:str,dataset_name:str, mode_name:str, metrics_dict:dict,model_output:dict,lowass_dict:Union[dict | None]):
+    """Calculation of the LOWESS (Locally Weighted Scatterplot Smoothing) between the """
+
+    results_dict = calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict)
+    depth_array = np.array([results_dict["depth_dict"][node] for node in metrics_dict["nodes_ids_order"]])
+    pid = metrics_dict["equal_aminoacids"]
+    cosine_similarity = metrics_dict["cosine_similarity"]
+    lowass_pid = sm.nonparametric.lowess(endog=pid, exog=depth_array, frac=1. / 3)
+    lowass_cosine = sm.nonparametric.lowess(endog=cosine_similarity, exog=depth_array, frac=1. / 3)
+
+
+    return {"lowass_pid":lowass_pid,
+            "lowass_cosine":lowass_cosine}
+
+
+def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,mode_name:str="") -> dict:
 
     """
     Specific epistasis—in which one mutation influences the phenotypic effect of few other mutations—is caused by direct and indirect physical interactions between mutations,
@@ -33,17 +119,13 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="
     of a nonlinear relationship between the physical properties and their biological effects, such as function or fitness
     """
 
-    storage_folder = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics"
-
-    DraupnirsUtils.folders(name,storage_folder,overwrite=False)
+    DraupnirsUtils.folders(mode_name,storage_metrics_folder,overwrite=False)
     #mi_dict = draupnir.MI_root_variational(dataset_name, results_folder, f"{storage_folder}/{name}")
 
     aa_predictions = predictions_dict["aa_predictions"].cpu()
-
     _,_,blosum_dict = DraupnirsUtils.create_blosum(21,"BLOSUM62")
 
-    ids = predictions_dict["dataset"][:,1,0].cpu().detach().numpy()
-
+    nodes_ids_order = predictions_dict["dataset"][:,0,1].cpu().detach().numpy()
     dataset_int = predictions_dict["dataset"][:,2:,0].cpu().detach().numpy()
 
     #Highlight: transform to blosum
@@ -51,7 +133,7 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="
     aa_predictions_blosum = np.vectorize(blosum_dict.get,signature='()->(n)')(aa_predictions[0]) #we take the first sample
 
     n_seqs, align_lenght = predictions_dict["aa_predictions"].shape[1], predictions_dict["aa_predictions"].shape[2]
-    average_pid, std_pid = DraupnirMain.calculate_percent_id(predictions_dict["dataset"].cpu().detach(), aa_predictions, align_lenght) # the function slices inside the amino acids
+    percent_id_out = DraupnirMain.calculate_percent_id(predictions_dict["dataset"].cpu().detach(), aa_predictions, align_lenght) # the function slices inside the amino acids
 
     #metrics dataframe
     dataset_train_nodes = predictions_dict["dataset"].cpu().long()[:, 0, 1]
@@ -66,10 +148,10 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="
     total_seqs = concat_predictions.shape[0]
     array_mask = np.ones_like(concat_predictions[:,:,0]).astype(bool) #we have to take into account the gaps
     overwrite=False
-    filepath = f"{storage_folder}/{name}/cosine_similarity_mean.npy"
+    filepath = f"{storage_metrics_folder}/{mode_name}/cosine_similarity_mean.npy"
     if not os.path.exists(filepath) or overwrite:
-        if total_seqs < 1000:#todo: separate train vs test
-            results, final_time = DromiSimilarities.calculate_similarities(concat_predictions, align_lenght, array_mask, f"{storage_folder}/{name}",
+        if total_seqs < 1000: #todo: how to only compute the similarities between true and predicted, and not true vs true or predicted vs predicted --> some flattening technique
+            results, final_time = DromiSimilarities.calculate_similarities(concat_predictions, align_lenght, array_mask, f"{storage_metrics_folder}/{mode_name}",
                                                                            batch_size=100,
                                                                            ksize=3,
                                                                            neighbours=1,
@@ -85,23 +167,24 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,name:str="
         cosine_similarity = np.load(filepath)
 
 
-    cosine_similarity = np.diagonal(cosine_similarity[:n_seqs,n_seqs:]) #we get the similarities between the
-
+    cosine_similarity = np.diagonal(cosine_similarity[:n_seqs,n_seqs:]) #we get the similarities of true vs predicted only, in this case top right corner
 
 
     metrics_dict = {
                     # "probabilities_softmax": probabilities_softmax,
                     # "entropies": entropies,
-                    # "cosine_similarity": cosine_similarity,
-                    "average_pid": average_pid,
-                    "average_std": std_pid,
+                    "nodes_ids_order": nodes_ids_order,
+                    "cosine_similarity": cosine_similarity,
+                    "pid": percent_id_out["equal_aminoacids"],
+                    "average_pid": percent_id_out["average_pid"],
+                    "average_std": percent_id_out["std_pid"],
                     "average_entropy": average_entropy,
                     "average_probabilities": average_probabilities,
-                    "average_cosine_similarity": cosine_similarity.mean(),
+                    "average_cosine_similarity": cosine_similarity.mean()*100,
                     #"correlation_leaves_samples_mi": mi_dict["correlation"]
                     }
 
-    print(metrics_dict)
+
 
     return metrics_dict
 
@@ -117,17 +200,19 @@ folders_dict = {"simulations_src_sh3_3":{
                 # "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
                 # "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
                 },
-                "simulations_1GMM":{
-                "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
-                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
-                "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
-                "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational"
-                },
+    #             "simulations_1GMM":{
+    #             "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
+    #             "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
+    #             "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
+    #             "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational"
+    #             }
+    # ,
 }
 
 
 def analyze(results_dict=None):
 
+    storage_folder = "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data"
     if not results_dict is not None:
         results_dict = defaultdict(dict)
 
@@ -135,6 +220,7 @@ def analyze(results_dict=None):
         for mode in folders_dict[dataset_name].keys():
             if f"{mode}_train" not in results_dict[dataset_name].keys():
                 print(f"Analyzing {mode}")
+
                 results_folder = folders_dict[dataset_name][mode]
                 train_argmax_dict = torch.load("{}/Train_argmax_Plots/train_argmax_info_dict.torch".format(results_folder),
                                                weights_only=False)
@@ -143,17 +229,28 @@ def analyze(results_dict=None):
 
                 print("Metrics train")
                 metrics_dict = metrics(train_argmax_dict, dataset_name, results_folder, f"{mode}_train")
+                lowass_dict_train = lowass_scores(storage_folder, dataset_name,"train",metrics_dict,train_argmax_dict,lowass_dict=None)
+
+
+
+                #del metrics_dict["cosine_similarity"] #to big to save it?
+                metrics_dict = {**metrics_dict,**lowass_dict_train}
                 results_dict[dataset_name][f"{mode}_train"] = metrics_dict
 
                 print("Metrics test")
                 metrics_dict = metrics(test_argmax_dict, dataset_name, results_folder, f"{mode}_test")
+                lowass_dict_test = lowass_scores(storage_folder, dataset_name,"test", metrics_dict,test_argmax_dict,lowass_dict=lowass_dict_train)
+                #del metrics_dict["cosine_similarity"]  # to big to save it
+                metrics_dict = {**metrics_dict, **lowass_dict_test}
+
                 results_dict[dataset_name][f"{mode}_test"] = metrics_dict
 
     torch.save(results_dict,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch")
     return results_dict
 
 
-results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
+#results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
+results_dict=None
 analyze(results_dict)
 
 
