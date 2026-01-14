@@ -44,7 +44,10 @@ def calculate_descendants_consensus_sequence(tree,model_output,nodes_dict):
     descendants_dict = {root_int_name:root_descendants}
     true_dataset = model_output["dataset"].detach().cpu().numpy()
 
-    descendants_consensus_dict = {}
+
+    root_sequence = stats.mode(true_dataset[:,2:,0], axis=0, keepdims=True).mode
+
+    descendants_consensus_dict = {root_int_name:root_sequence}
     for node in tree.iter_descendants('preorder'):
         if not node.is_leaf():  # for internal nodes
             int_name = nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
@@ -57,8 +60,7 @@ def calculate_descendants_consensus_sequence(tree,model_output,nodes_dict):
 
     return descendants_dict, descendants_consensus_dict
 
-
-def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict=None):
+def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,predictions_dict,lowass_dict=None):
 
     root_sequence_name = DraupnirDatasets.available_datasets(print_dict = False)[0][dataset_name]
     tree_file = "{}/{}/{}_True_Rooted_tree_node_labels.tre".format(storage_folder, dataset_name, root_sequence_name)
@@ -74,43 +76,67 @@ def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_outpu
     nodes_dict = {**leaves_nodes_dict,**internal_nodes_dict}
 
     if mode_name.endswith("train") and lowass_dict is None:
-        descendants_dict, descendants_consensus_dict = calculate_descendants_consensus_sequence(tree,model_output,nodes_dict) #todo: we need to calculate the consensus sequence from the train, but use it with the test
+        descendants_dict, descendants_consensus_dict = calculate_descendants_consensus_sequence(tree,predictions_dict,nodes_dict)
+        consensus_metrics = {}
+
     else: #todo:compare the consensus sequence to the prediction of the internal node
-        descendants_dict = lowass_dict["descendants_dict"] #todo: inherit the dicts from the train and then calculate pid with the test
+
+        descendants_dict = lowass_dict["descendants_dict"]
         descendants_consensus_dict = lowass_dict["descendants_consensus_dict"]
+        nodes_order_idx = predictions_dict["dataset"][:,0,1].cpu().detach().numpy().astype(int)
+        descendants_consensus =np.concatenate([descendants_consensus_dict[node.item()] for node in nodes_order_idx],axis=0) #if this fails is because some internal node consensus sequence is missing
 
+        predictions_dict = {"aa_predictions":descendants_consensus[None,:,:],
+                            "dataset":predictions_dict["dataset"], #true sequences, the descendant consensus need to be ordered according to the node ordering here
+                            "dataset_name":predictions_dict["dataset_name"],
+                            "folder_path":predictions_dict["folder_path"]
+                            }
+        consensus_metrics = metrics(predictions_dict, mode_name.replace("_test","_consensus"))
 
-
-    node2rootdist = {tree: 1} #root is deepest
-    depth_dict = {}
+    rename_fx = lambda node: nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
+    node2rootdist = {tree: 0}
+    depth_dict = {rename_fx(tree): 1} #root is deepest
     for node in tree.iter_descendants('preorder'):
-        int_name = nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
+        int_name = rename_fx(node)
         depth = node.dist + node2rootdist[node.up]
         node2rootdist[node] = depth
         depth_dict[int_name] = 1-depth #not sure if to reverse it like this or not
 
     return dict(depth_dict = depth_dict,
                 descendants_dict=descendants_dict,
-                descendants_consensus_dict=descendants_consensus_dict
+                descendants_consensus_dict=descendants_consensus_dict,
+                consensus_metrics = consensus_metrics
                 )
-
 
 def lowass_scores(storage_folder:str,dataset_name:str, mode_name:str, metrics_dict:dict,model_output:dict,lowass_dict:Union[dict | None]):
     """Calculation of the LOWESS (Locally Weighted Scatterplot Smoothing) between the """
 
     results_dict = calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict)
+
+    lowass_dict = {}
+
     depth_array = np.array([results_dict["depth_dict"][node] for node in metrics_dict["nodes_ids_order"]])
-    pid = metrics_dict["equal_aminoacids"]
+    pid = metrics_dict["pid"].view(-1)
     cosine_similarity = metrics_dict["cosine_similarity"]
+
     lowass_pid = sm.nonparametric.lowess(endog=pid, exog=depth_array, frac=1. / 3)
-    lowass_cosine = sm.nonparametric.lowess(endog=cosine_similarity, exog=depth_array, frac=1. / 3)
+
+    if cosine_similarity.size != 0:
+        lowass_cosine = sm.nonparametric.lowess(endog=cosine_similarity, exog=depth_array, frac=1. / 3)
+        lowass_dict["lowass_cosine"] = lowass_cosine
+    else:
+        lowass_dict["lowass_cosine"] = []
 
 
-    return {"lowass_pid":lowass_pid,
-            "lowass_cosine":lowass_cosine}
+    lowass_dict["lowass_pid"] = lowass_pid
+    lowass_dict["depth_dict"] = results_dict["depth_dict"]
+    lowass_dict["descendants_dict"] = results_dict["descendants_dict"]
+    lowass_dict["descendants_consensus_dict"] = results_dict["descendants_consensus_dict"]
+    lowass_dict["consensus_metrics"] = results_dict["consensus_metrics"]
 
+    return lowass_dict
 
-def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,mode_name:str="") -> dict:
+def metrics(predictions_dict:dict,mode_name:str="") -> dict:
 
     """
     Specific epistasis—in which one mutation influences the phenotypic effect of few other mutations—is caused by direct and indirect physical interactions between mutations,
@@ -119,30 +145,35 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,mode_name:
     of a nonlinear relationship between the physical properties and their biological effects, such as function or fitness
     """
 
+    metrics_dict = defaultdict()
     DraupnirsUtils.folders(mode_name,storage_metrics_folder,overwrite=False)
-    #mi_dict = draupnir.MI_root_variational(dataset_name, results_folder, f"{storage_folder}/{name}")
+    mi_dict = draupnir.MI_root_variational(predictions_dict["dataset_name"], predictions_dict["folder_path"], f"{storage_metrics_folder}/{mode_name}")
 
-    aa_predictions = predictions_dict["aa_predictions"].cpu()
+    aa_predictions = predictions_dict["aa_predictions"].cpu() if isinstance(predictions_dict["aa_predictions"],torch.Tensor) else predictions_dict["aa_predictions"] #should have shape [n_samples, L, feats]
     _,_,blosum_dict = DraupnirsUtils.create_blosum(21,"BLOSUM62")
 
-    nodes_ids_order = predictions_dict["dataset"][:,0,1].cpu().detach().numpy()
+    nodes_ids_order = predictions_dict["dataset"][:,0,1].cpu().detach().numpy().astype(int)
     dataset_int = predictions_dict["dataset"][:,2:,0].cpu().detach().numpy()
 
     #Highlight: transform to blosum
     dataset_blosum = np.vectorize(blosum_dict.get,signature='()->(n)')(dataset_int)
-    aa_predictions_blosum = np.vectorize(blosum_dict.get,signature='()->(n)')(aa_predictions[0]) #we take the first sample
+    aa_predictions_blosum = np.vectorize(blosum_dict.get,signature='()->(n)')(aa_predictions[0]) #we take the first sample, which is the most likely sequence
 
-    n_seqs, align_lenght = predictions_dict["aa_predictions"].shape[1], predictions_dict["aa_predictions"].shape[2]
+    n_seqs, align_lenght = aa_predictions.shape[1], aa_predictions.shape[2]
     percent_id_out = DraupnirMain.calculate_percent_id(predictions_dict["dataset"].cpu().detach(), aa_predictions, align_lenght) # the function slices inside the amino acids
 
     #metrics dataframe
     dataset_train_nodes = predictions_dict["dataset"].cpu().long()[:, 0, 1]
 
-    logits = predictions_dict["logits"].cpu()
-    entropies, probabilities_softmax = DraupnirModelsUtils.compute_sites_entropies(logits= logits,node_names = dataset_train_nodes)
+    if "logits" in predictions_dict.items():
+        logits = predictions_dict["logits"].cpu()
+        entropies, probabilities_softmax = DraupnirModelsUtils.compute_sites_entropies(logits= logits,node_names = dataset_train_nodes)
 
-    average_entropy = torch.mean(entropies[:,1:])
-    average_probabilities = torch.mean(probabilities_softmax[:,1:])
+        average_entropy = torch.mean(entropies[:,1:])
+        average_probabilities = torch.mean(probabilities_softmax[:,1:])
+
+        metrics_dict["average_entropy"] = average_entropy
+        metrics_dict["average_probabilities"] = average_probabilities
 
     concat_predictions = np.concatenate([dataset_blosum,aa_predictions_blosum],axis=0)
     total_seqs = concat_predictions.shape[0]
@@ -169,20 +200,13 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,mode_name:
 
     cosine_similarity = np.diagonal(cosine_similarity[:n_seqs,n_seqs:]) #we get the similarities of true vs predicted only, in this case top right corner
 
-
-    metrics_dict = {
-                    # "probabilities_softmax": probabilities_softmax,
-                    # "entropies": entropies,
-                    "nodes_ids_order": nodes_ids_order,
-                    "cosine_similarity": cosine_similarity,
-                    "pid": percent_id_out["equal_aminoacids"],
-                    "average_pid": percent_id_out["average_pid"],
-                    "average_std": percent_id_out["std_pid"],
-                    "average_entropy": average_entropy,
-                    "average_probabilities": average_probabilities,
-                    "average_cosine_similarity": cosine_similarity.mean()*100,
-                    #"correlation_leaves_samples_mi": mi_dict["correlation"]
-                    }
+    metrics_dict["nodes_ids_order"] = nodes_ids_order
+    metrics_dict["cosine_similarity"] = cosine_similarity
+    metrics_dict["pid"] = percent_id_out["equal_aminoacids"]
+    metrics_dict["average_pid"] = percent_id_out["average_pid"]
+    metrics_dict["average_pid_std"] = percent_id_out["std_pid"]
+    metrics_dict["average_cosine_similarity"] = cosine_similarity.mean()*100
+    metrics_dict["correlations_leaves_samples_mi"] = mi_dict["correlation"]
 
 
 
@@ -191,22 +215,22 @@ def metrics(predictions_dict:dict,dataset_name:str,results_folder:str,mode_name:
 
 folders_dict = {"simulations_src_sh3_3":{
                 "draupnir_classic":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
-                # "draupnir_z_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_15h14min18s836930ms_3000epochs_variational_z_esm",
-                # "draupnir_hid_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h48min20s543620ms_3000epochs_variational_rnn_esm_embeddings",
-                # "draupnir_classic_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_18h31min09s305015ms_3000epochs_variational",
-                # "draupnir_z_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_20h06min16s422135ms_3000epochs_variational_z_esm",
-                # "draupnir_hid_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_09_14h33min09s636948ms_3000epochs_variational_rnn_esm_embeddings",
-                # "draupnir_classic_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_14h04min29s168767ms_3000epochs_variational",
-                # "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
-                # "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
+                "draupnir_z_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_15h14min18s836930ms_3000epochs_variational_z_esm",
+                "draupnir_hid_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h48min20s543620ms_3000epochs_variational_rnn_esm_embeddings",
+                "draupnir_classic_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_18h31min09s305015ms_3000epochs_variational",
+                "draupnir_z_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_20h06min16s422135ms_3000epochs_variational_z_esm",
+                "draupnir_hid_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_09_14h33min09s636948ms_3000epochs_variational_rnn_esm_embeddings",
+                "draupnir_classic_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_14h04min29s168767ms_3000epochs_variational",
+                "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
+                "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
                 },
-    #             "simulations_1GMM":{
-    #             "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
-    #             "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
-    #             "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
-    #             "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational"
-    #             }
-    # ,
+                "simulations_1GMM":{
+                "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
+                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
+                # "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
+                # "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational",
+                 }
+    ,
 }
 
 
@@ -222,68 +246,110 @@ def analyze(results_dict=None):
                 print(f"Analyzing {mode}")
 
                 results_folder = folders_dict[dataset_name][mode]
-                train_argmax_dict = torch.load("{}/Train_argmax_Plots/train_argmax_info_dict.torch".format(results_folder),
-                                               weights_only=False)
-                test_argmax_dict = torch.load("{}/Test_argmax_Plots/test_argmax_info_dict.torch".format(results_folder),
-                                              weights_only=False)
+                train_argmax_dict = torch.load("{}/Train_argmax_Plots/train_argmax_info_dict.torch".format(results_folder),weights_only=False)
+                train_argmax_dict["folder_path"] = results_folder
+                train_argmax_dict["dataset_name"] = dataset_name
+                test_argmax_dict = torch.load("{}/Test_argmax_Plots/test_argmax_info_dict.torch".format(results_folder),weights_only=False)
+                test_argmax_dict["folder_path"] = results_folder
+                test_argmax_dict["dataset_name"] = dataset_name
 
                 print("Metrics train")
-                metrics_dict = metrics(train_argmax_dict, dataset_name, results_folder, f"{mode}_train")
-                lowass_dict_train = lowass_scores(storage_folder, dataset_name,"train",metrics_dict,train_argmax_dict,lowass_dict=None)
+                metrics_dict = metrics(train_argmax_dict, f"{mode}_train")
+                lowass_dict_train = lowass_scores(storage_folder, dataset_name,f"{mode}_train",metrics_dict,train_argmax_dict,lowass_dict=None)
 
-
-
-                #del metrics_dict["cosine_similarity"] #to big to save it?
+                #del metrics_dict["cosine_similarity"] #too big to save it?
                 metrics_dict = {**metrics_dict,**lowass_dict_train}
                 results_dict[dataset_name][f"{mode}_train"] = metrics_dict
 
-                print("Metrics test")
-                metrics_dict = metrics(test_argmax_dict, dataset_name, results_folder, f"{mode}_test")
-                lowass_dict_test = lowass_scores(storage_folder, dataset_name,"test", metrics_dict,test_argmax_dict,lowass_dict=lowass_dict_train)
-                #del metrics_dict["cosine_similarity"]  # to big to save it
+                print("Metrics test & consensus")
+                metrics_dict = metrics(test_argmax_dict, f"{mode}_test")
+                lowass_dict_test = lowass_scores(storage_folder, dataset_name,f"{mode}_test", metrics_dict,test_argmax_dict,lowass_dict=lowass_dict_train)
+
+                #del metrics_dict["cosine_similarity"]  # too big to save it
                 metrics_dict = {**metrics_dict, **lowass_dict_test}
 
                 results_dict[dataset_name][f"{mode}_test"] = metrics_dict
+                results_dict[dataset_name][f"{mode}_consensus"] = metrics_dict["consensus_metrics"]
+                del results_dict[dataset_name][f"{mode}_test"]["consensus_metrics"] #otherwise it is saved twice
+
 
     torch.save(results_dict,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch")
+    print("Finished analysis and saved results")
     return results_dict
 
 
-#results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
-results_dict=None
-analyze(results_dict)
+results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
+#analyze(None)
+#analyze(results_dict)
 
 
-results_dict_reoriented = defaultdict(dict)
-for i in results_dict.keys():
-    for j in results_dict[i].keys():
-        vals_dict = results_dict[i][j]
-        for key,val in vals_dict.items():
-            if isinstance(val,(np.float16,np.float64,torch.Tensor,np.ndarray)):
-                vals_dict[key] = round(val.item(),4)
-            else:
-                vals_dict[key] = round(val, 4)
-        results_dict_reoriented[(i,j)] = vals_dict
-
-results_df = pd.DataFrame.from_dict(results_dict_reoriented,orient="index")
-
-print(results_df)
-
-results_df_styled = results_df.style.background_gradient(axis=0, cmap='YlOrRd').format(precision=4)
-
-sparse_index = get_option("styler.sparse.index")
-sparse_columns = get_option("styler.sparse.columns")
-html = results_df_styled._render_html(sparse_index, sparse_columns, None, None)
-
-with open("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/temp.html", "w") as f:
-    f.write(html)
-
-# Convert HTML → PNG
-options = {"format": "png", "encoding": "UTF-8"}
-imgkit.from_file("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/temp.html",
-                 "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict.png", options=options)
 
 
+
+def build_metrics_table(results_dict,name):
+    table_keys = ["average_pid","average_pid_std","average_cosine_similarity","correlations_leaves_samples_mi"]
+    results_dict_reoriented = defaultdict(dict)
+    for i in results_dict.keys():
+        for j in results_dict[i].keys():
+            vals_dict = results_dict[i][j]
+            vals_dict = {key:vals_dict[key] for key in table_keys}
+
+            for key,val in vals_dict.items():
+                if isinstance(val,(np.float16,np.float64,torch.Tensor,np.ndarray)):
+                    vals_dict[key] = round(val.item(),4)
+                else:
+                    vals_dict[key] = round(val, 4)
+            results_dict_reoriented[(i,j)] = vals_dict
+
+    results_df = pd.DataFrame.from_dict(results_dict_reoriented,orient="index")
+    results_df_styled = results_df.style.background_gradient(axis=0, cmap='YlOrRd').format(precision=4)
+
+    #todo: put different colours for each of the model types
+
+
+    sparse_index = get_option("styler.sparse.index")
+    sparse_columns = get_option("styler.sparse.columns")
+    html = results_df_styled._render_html(sparse_index, sparse_columns, None, None)
+
+    with open("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/temp.html", "w") as f:
+        f.write(html)
+
+    # Convert HTML → PNG
+    options = {"format": "png", "encoding": "UTF-8"}
+    imgkit.from_file("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/temp.html",
+                     f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/{name}.png", options=options)
+
+
+def compute_lowass_curves(results_dict):
+
+
+    for i in results_dict.keys():
+        print(i)
+        fig, axs = plt.subplots(nrows=1,ncols=2)
+        for j in results_dict[i].keys():
+            print(j)
+            vals_dict = results_dict[i][j]
+            print(vals_dict.keys())
+            #todo: missing values for lowass scores for the consensus sequences (figure out loop)
+
+            lowass_cosine = vals_dict["lowass_cosine"] if "lowass_cosine" in vals_dict.keys() else []
+            lowass_pid = vals_dict["lowass_pid"]
+            if len(lowass_cosine) > 0:#i do not have the cosine sim for all datasets
+                axs[0].plot(lowass_cosine[:,0],lowass_cosine[:,1],label=j)
+            axs[1].plot(lowass_pid[:,0],lowass_pid[:,1],label=j)
+
+        axs[:, 0].set_title("Lowass cosine")
+        axs[:, 1].set_title("Lowass pid")
+        fig.suptitle(i)
+        plt.savefig(f"{storage_metrics_folder}/Lowass_{i}.png")
+        plt.clf()
+
+
+
+
+#build_metrics_table(results_dict,"results_dict_v2")
+
+compute_lowass_curves(results_dict)
 
 
 

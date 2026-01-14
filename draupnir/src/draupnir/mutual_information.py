@@ -263,6 +263,7 @@ def MI_root_variational(name, draupnir_folder_variational, results_dir):
 
     draupnir_fasta_variational = "{}/Test_Plots/{}_root_node_sampled.fasta".format(draupnir_folder_variational,name)
 
+
     if not os.path.exists(draupnir_fasta_variational):
         create_root_samples_file(name,draupnir_fasta_variational,"{}/Test_Plots".format(draupnir_folder_variational))
 
