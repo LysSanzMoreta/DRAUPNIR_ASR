@@ -19,6 +19,7 @@ import draupnir.models_utils as DraupnirModelsUtils
 
 
 class DRAUPNIRGUIDES(EasyGuide):
+
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         super(DRAUPNIRGUIDES, self).__init__(draupnir_model)
         self.guide_type = ModelLoad.args.select_guide
@@ -44,8 +45,6 @@ class DRAUPNIRGUIDES(EasyGuide):
 
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
-
-
     def get_class(self):
         full_name = self.__class__
         name = str(full_name).split(".")[-1].replace("'>","")

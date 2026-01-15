@@ -579,19 +579,20 @@ def select_quide(Draupnir,model_load,args):
         return guide.to(args.devcie)
     else:
 
-        guide_dict = {"1": DraupnirGuides.DRAUPNIRGuides_classic(Draupnir.model,model_load,Draupnir),
-                      "2": DraupnirGuides.DRAUPNIRGuides_transformer(Draupnir.model,model_load,Draupnir),
-                      "3a": DraupnirGuides.DRAUPNIRGuides_z_esm(Draupnir.model,model_load,Draupnir),
-                      "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm(Draupnir.model,model_load,Draupnir),
-                      "4":DraupnirGuides.DRAUPNIRGuides_xlstm(Draupnir.model,model_load,Draupnir)
+        guide_dict = {"1": DraupnirGuides.DRAUPNIRGuides_classic,
+                      "2": DraupnirGuides.DRAUPNIRGuides_transformer,
+                      "3a": DraupnirGuides.DRAUPNIRGuides_z_esm,
+                      "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm,
+                      "4":DraupnirGuides.DRAUPNIRGuides_xlstm #i think this initializes every guide
                       }
 
-        guide = guide_dict[args.draupnir_version]
+        guide = guide_dict[args.draupnir_version](Draupnir.model,model_load,Draupnir)
 
         print("Using variational guide : {}".format(guide.get_class()))
 
         #guide = guide.apply(init_weights)
         return guide.to(args.device)
+
 def transform_to_integers(sample_out,build_config):
     """Transform the one-hot encoded sequences embedded in a namedtuple back to integers
     :param namedtuple sample_out: contains the tensors produced by Draupnir.sample
@@ -761,8 +762,9 @@ def start_sampling(args,
             map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
             for sample_idx, sample in enumerate(samples_names):
                 print("sample idx {}".format(sample_idx))
-                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None) # i extracted the "test" estimates here for some experiment
-                map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
+                if args.draupnir_version in ["2","4"]:
+                    map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None) # i extracted the "test" estimates here for some experiment
+                    map_estimates["test"] = {val: key.detach()  for val, key in map_estimates_test.items() if key is not None}
 
                 for batch_idx, batch_idx_test in zip(blocks_train, blocks_test):
                     batch_train_sample = Draupnir.sample_batched(map_estimates,
@@ -2197,6 +2199,7 @@ def draupnir_train(train_load,
         if build_config.leaves_testing: #TODO: Check that this works
             dataset_test = DraupnirUtils.convert_to_integers(test_load.dataset_test.cpu(),build_config.aa_probs,axis=2) #no need to do it with the test of the simulations, never was one hot encoded. Only for testing leaves
             test_load._replace(dataset_test=dataset_test)
+
     send_to_plot(n_samples,
                      train_load.dataset_train,
                      test_load.dataset_test,
@@ -2448,10 +2451,10 @@ def draupnir_train_batching(train_load,
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None) # we need the
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
-                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
-                map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
-                map_estimates["test"] = map_estimates_test
+                if args.draupnir_version in ["2","4"]:
+                    map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
+                    map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
+                    map_estimates["test"] = map_estimates_test
 
             sample_out_test = Draupnir.sample_batched(map_estimates,
                                               n_samples,

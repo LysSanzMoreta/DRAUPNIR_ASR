@@ -1009,7 +1009,7 @@ class CustomDataset(Dataset):
                 'int':batch_data_int,
                 'onehot':batch_data_onehot,
                 'embedding':batch_data_embedding,
-                'seq_representation':batch_seq_representation,
+                'sequences_representations':batch_seq_representation,
                 }
     def __len__(self):
         return len(self.batch_data_blosum)

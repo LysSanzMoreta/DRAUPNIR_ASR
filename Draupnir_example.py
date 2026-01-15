@@ -53,6 +53,7 @@ def main():
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
 
+
     #Highlight: Creates image of the estimated tree coloured by clades (clades are also estimated)
     draw_tree = False
     if draw_tree:
@@ -76,12 +77,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_src_sh3_3", #200
+                        #default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
                         #default="simulations_src_sh3_2", #800
-                        #default="simulations_calcitonin_1",
-                        #default="simulations_blactamase_1",
-                        #default="simulations_1GMM",
+                        #default="simulations_calcitonin_1",  #50
+                        default="simulations_blactamase_1", #32
+                        #default="simulations_PIGBOS_1", #300
+                        #default="simulations_1GMM", #1000
+                        #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
@@ -124,7 +127,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -160,7 +163,7 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="4", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '2: transformer attempt'

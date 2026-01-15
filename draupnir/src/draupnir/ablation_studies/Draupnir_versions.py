@@ -92,6 +92,13 @@ def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,predictions
                             "folder_path":predictions_dict["folder_path"]
                             }
         consensus_metrics = metrics(predictions_dict, mode_name.replace("_test","_consensus"))
+        lowass_dict_consensus = {}
+        lowass_dict_consensus = lowass_calculation(lowass_dict,consensus_metrics, consensus_metrics["cosine_similarity"], "lowass_cosine", lowass_dict_consensus)
+        lowass_dict_consensus = lowass_calculation(lowass_dict,consensus_metrics, consensus_metrics["pid"].view(-1), "lowass_pid", lowass_dict_consensus)
+
+        consensus_metrics = {**consensus_metrics,**lowass_dict_consensus}
+
+
 
     rename_fx = lambda node: nodes_dict[f"I{node.name}"] if node.name.isdigit() else nodes_dict[node.name]
     node2rootdist = {tree: 0}
@@ -108,31 +115,37 @@ def calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,predictions
                 consensus_metrics = consensus_metrics
                 )
 
+def lowass_calculation(tree_results_dict,metrics_dict,metric_array,metric_name,lowass_dict):
+
+    depth_array = np.array([tree_results_dict["depth_dict"][node] for node in metrics_dict["nodes_ids_order"]])
+    if metric_array.size != 0:
+        lowass_score = sm.nonparametric.lowess(endog=metric_array, exog=depth_array, frac=1. / 3)
+        lowass_dict[metric_name] = lowass_score
+    else:
+        lowass_dict[metric_name] = []
+
+    return lowass_dict
+
+
 def lowass_scores(storage_folder:str,dataset_name:str, mode_name:str, metrics_dict:dict,model_output:dict,lowass_dict:Union[dict | None]):
     """Calculation of the LOWESS (Locally Weighted Scatterplot Smoothing) between the """
 
-    results_dict = calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict)
+
+    tree_results_dict = calculate_tree_nodes_depth(storage_folder,dataset_name,mode_name,model_output,lowass_dict)
 
     lowass_dict = {}
 
-    depth_array = np.array([results_dict["depth_dict"][node] for node in metrics_dict["nodes_ids_order"]])
+    #depth_array = np.array([results_dict["depth_dict"][node] for node in metrics_dict["nodes_ids_order"]])
     pid = metrics_dict["pid"].view(-1)
+    lowass_dict = lowass_calculation(tree_results_dict,metrics_dict,pid,"lowass_pid",lowass_dict)
     cosine_similarity = metrics_dict["cosine_similarity"]
+    lowass_dict = lowass_calculation(tree_results_dict,metrics_dict,cosine_similarity,"lowass_cosine",lowass_dict)
 
-    lowass_pid = sm.nonparametric.lowess(endog=pid, exog=depth_array, frac=1. / 3)
-
-    if cosine_similarity.size != 0:
-        lowass_cosine = sm.nonparametric.lowess(endog=cosine_similarity, exog=depth_array, frac=1. / 3)
-        lowass_dict["lowass_cosine"] = lowass_cosine
-    else:
-        lowass_dict["lowass_cosine"] = []
-
-
-    lowass_dict["lowass_pid"] = lowass_pid
-    lowass_dict["depth_dict"] = results_dict["depth_dict"]
-    lowass_dict["descendants_dict"] = results_dict["descendants_dict"]
-    lowass_dict["descendants_consensus_dict"] = results_dict["descendants_consensus_dict"]
-    lowass_dict["consensus_metrics"] = results_dict["consensus_metrics"]
+    #lowass_dict["lowass_pid"] = lowass_pid
+    lowass_dict["depth_dict"] = tree_results_dict["depth_dict"]
+    lowass_dict["descendants_dict"] = tree_results_dict["descendants_dict"]
+    lowass_dict["descendants_consensus_dict"] = tree_results_dict["descendants_consensus_dict"]
+    lowass_dict["consensus_metrics"] = tree_results_dict["consensus_metrics"]
 
     return lowass_dict
 
@@ -213,22 +226,21 @@ def metrics(predictions_dict:dict,mode_name:str="") -> dict:
     return metrics_dict
 
 
-folders_dict = {"simulations_src_sh3_3":{
+folders_dict = {"simulations_src_sh3_3":{ #todo: blosum vs not
                 "draupnir_classic":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
                 "draupnir_z_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_15h14min18s836930ms_3000epochs_variational_z_esm",
                 "draupnir_hid_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h48min20s543620ms_3000epochs_variational_rnn_esm_embeddings",
                 "draupnir_classic_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_18h31min09s305015ms_3000epochs_variational",
                 "draupnir_z_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_20h06min16s422135ms_3000epochs_variational_z_esm",
                 "draupnir_hid_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_09_14h33min09s636948ms_3000epochs_variational_rnn_esm_embeddings",
-                "draupnir_classic_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_14h04min29s168767ms_3000epochs_variational",
-                "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
-                "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
+                "draupnir_classic_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_14h04min29s168767ms_3000epochs_variational",
+                "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
+                "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
                 },
-                "simulations_1GMM":{
-                "draupnir_classic_60_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational",
-                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
-                # "draupnir_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational",
-                # "draupnir_hid_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_27_18h16min44s519045ms_0epochs_variational",
+                "simulations_1GMM":{     #1GMM is not converged, might need 5000-6000 epochs
+                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models//PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
+                # "draupnir_z_esm": "",
+                # "draupnir_hid_esm": "",
                  }
     ,
 }
@@ -254,19 +266,19 @@ def analyze(results_dict=None):
                 test_argmax_dict["dataset_name"] = dataset_name
 
                 print("Metrics train")
-                metrics_dict = metrics(train_argmax_dict, f"{mode}_train")
-                lowass_dict_train = lowass_scores(storage_folder, dataset_name,f"{mode}_train",metrics_dict,train_argmax_dict,lowass_dict=None)
+                metrics_dict_train = metrics(train_argmax_dict, f"{mode}_train")
+                lowass_dict_train = lowass_scores(storage_folder, dataset_name,f"{mode}_train",metrics_dict_train,train_argmax_dict,lowass_dict=None)
 
                 #del metrics_dict["cosine_similarity"] #too big to save it?
-                metrics_dict = {**metrics_dict,**lowass_dict_train}
+                metrics_dict = {**metrics_dict_train,**lowass_dict_train}
                 results_dict[dataset_name][f"{mode}_train"] = metrics_dict
 
                 print("Metrics test & consensus")
-                metrics_dict = metrics(test_argmax_dict, f"{mode}_test")
-                lowass_dict_test = lowass_scores(storage_folder, dataset_name,f"{mode}_test", metrics_dict,test_argmax_dict,lowass_dict=lowass_dict_train)
+                metrics_dict_test = metrics(test_argmax_dict, f"{mode}_test")
+                lowass_dict_test = lowass_scores(storage_folder, dataset_name,f"{mode}_test", metrics_dict_test,test_argmax_dict,lowass_dict=lowass_dict_train)
 
                 #del metrics_dict["cosine_similarity"]  # too big to save it
-                metrics_dict = {**metrics_dict, **lowass_dict_test}
+                metrics_dict = {**metrics_dict,**metrics_dict_test, **lowass_dict_test}
 
                 results_dict[dataset_name][f"{mode}_test"] = metrics_dict
                 results_dict[dataset_name][f"{mode}_consensus"] = metrics_dict["consensus_metrics"]
@@ -278,12 +290,9 @@ def analyze(results_dict=None):
     return results_dict
 
 
-results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
+#results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
 #analyze(None)
 #analyze(results_dict)
-
-
-
 
 
 def build_metrics_table(results_dict,name):
@@ -322,26 +331,49 @@ def build_metrics_table(results_dict,name):
 
 def compute_lowass_curves(results_dict):
 
+    colors_dict = {
+                "hid_esm": ['#1e90ff','#4169e1'], #dodgerblue, royalblue
+                "z_esm": ["#ba55d3",'#ee82ee'], #mediumorchid, violet
+                "classic": ["#228b22",'#adff2f'], #forestgreen, greenyellow
+                   }
+    for dataset in results_dict.keys():
+        print(dataset)
+        fig, axs = plt.subplots(nrows=2,ncols=2,figsize = (16,12))
+        for mode in results_dict[dataset].keys():
+            print(mode)
+            vals_dict = results_dict[dataset][mode]
 
-    for i in results_dict.keys():
-        print(i)
-        fig, axs = plt.subplots(nrows=1,ncols=2)
-        for j in results_dict[i].keys():
-            print(j)
-            vals_dict = results_dict[i][j]
-            print(vals_dict.keys())
-            #todo: missing values for lowass scores for the consensus sequences (figure out loop)
+            color_names = [val for key,val in colors_dict.items() if key in mode][0]
+
+            if mode.endswith("_train"):
+                row_idx = 0
+                color_name = color_names[0]
+            elif mode.endswith("_test"):
+                row_idx = 1
+                color_name = color_names[0]
+            else: #consensus
+                row_idx = 1
+                color_name = color_names[1]
 
             lowass_cosine = vals_dict["lowass_cosine"] if "lowass_cosine" in vals_dict.keys() else []
             lowass_pid = vals_dict["lowass_pid"]
             if len(lowass_cosine) > 0:#i do not have the cosine sim for all datasets
-                axs[0].plot(lowass_cosine[:,0],lowass_cosine[:,1],label=j)
-            axs[1].plot(lowass_pid[:,0],lowass_pid[:,1],label=j)
+                axs[row_idx,0].plot(lowass_cosine[:,0],lowass_cosine[:,1],label=mode,color=color_name)
+            axs[row_idx,1].plot(lowass_pid[:,0],lowass_pid[:,1],label=mode,color = color_name)
 
-        axs[:, 0].set_title("Lowass cosine")
-        axs[:, 1].set_title("Lowass pid")
-        fig.suptitle(i)
-        plt.savefig(f"{storage_metrics_folder}/Lowass_{i}.png")
+        axs[0,0].set_title("Train. Lowass cosine")
+        axs[0,1].set_title("Train. Lowass pid")
+        axs[1,0].set_title("Test. Lowass cosine")
+        axs[1,1].set_title("Test. Lowass pid")
+
+        fig.supxlabel("Node depth (1 = root)")
+        fig.supylabel("Node reconstruction accuracy")
+
+        axs[0,1].legend(loc="upper right",bbox_to_anchor=(1.7, 1.05))
+        axs[1,1].legend(bbox_to_anchor=(1.2, 1))
+        fig.suptitle(dataset)
+        fig.tight_layout(pad=4.0)
+        plt.savefig(f"{storage_metrics_folder}/Lowass_{dataset}.png")
         plt.clf()
 
 
@@ -349,28 +381,11 @@ def compute_lowass_curves(results_dict):
 
 #build_metrics_table(results_dict,"results_dict_v2")
 
+results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
 compute_lowass_curves(results_dict)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational/Train_argmax_Plots/train_argmax_info_dict.torch
-#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_14h40min42s087801ms_0epochs_variational
-#/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_26_14h52min35s209209ms_0epochs_variational/Train_argmax_Plots/train_argmax_info_dict.torch
 
 
 

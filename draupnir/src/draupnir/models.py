@@ -813,12 +813,12 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
             assert latent_space.shape == (n_nodes, self.z_dim)
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_ = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
         blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
         blosum = self.embed(blosum)
         latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
 
-        #with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+        #with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
         logits = self.decoder.forward(
             input=latent_space_,
             hidden=decoder_hidden)
@@ -978,12 +978,12 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
             assert latent_space.shape == (n_nodes, self.z_dim)
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
-        latent_space_ = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
         # blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
         # blosum = self.embed(blosum)
         # latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
 
-        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+        with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
             logits = self.decoder.forward(
                 input=latent_space_,
                 hidden=decoder_hidden)
@@ -1059,6 +1059,187 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
         return sampling_out
 
 class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
+    """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
+    It uses batched Blosum weighted average embeddings."""
+    def __init__(self,ModelLoad):
+        DRAUPNIRModelClass.__init__(self,ModelLoad)
+        self.input_size = self.z_dim #+ self.aa_probs
+        # self.decoder = RNNDecoder_Tiling(align_seq_len=self.align_seq_len,
+        #                                  aa_probs=self.aa_probs,
+        #                                  gru_hidden_dim=self.gru_hidden_dim,
+        #                                  z_dim=self.z_dim,
+        #                                  input_size=self.input_size,
+        #                                  kappa_addition=self.kappa_addition,
+        #                                  num_layers=self.num_layers,
+        #                                  pretrained_params=self.pretrained_params)
+        self.decoder = xLSTMDecoder(max_len=self.align_seq_len,
+                                  input_size=self.z_dim,
+                                  z_dim = self.z_dim,
+                                  output_size = self.aa_probs)
+
+        self.internal_nodes_batch = None
+        self.n_leaves_internal_batch = None
+    def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
+        raise ValueError("not implemented")
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
+        # Highlight: Register GRU module
+        pyro.module("embeddings",self.embed)
+        pyro.module("decoder", self.decoder)
+        # Highlight: GP prior over the latent space
+        latent_space = self.gp_prior_batched(patristic_matrix_sorted)
+        # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],
+                                               self.gru_hidden_dim).contiguous()  # bidirectional
+        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
+            logits = self.decoder.forward(
+                    input=latent_space,
+                    hidden=decoder_hidden)
+            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
+    def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
+
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
+        batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
+        # Highlight: Register GRU module
+        pyro.module("decoder", self.decoder)
+
+        # Highlight: GP prior over the latent space
+        latent_space = self.gp_prior_batched(patristic_matrix_sorted)
+        # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+        latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+
+        if map_estimates is not  None:
+            embeddings = map_estimates["embeddings"]
+            latent_space = embeddings + latent_space #independent vectors
+
+        #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
+        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
+            logits = self.decoder.forward(
+                    input=latent_space,
+                    #hidden=decoder_hidden
+            )
+            pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
+        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
+
+
+    def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
+        if self.args.select_guide == "delta_map":
+            self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, map_estimates)
+        else:
+            self.model_variational(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, map_estimates)
+
+    def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,cladistic_matrix,use_argmax=False,use_test=True,use_test2=False):
+        """Samples using all sequences, which is not computationally feasible if there is a high number of sequences"""
+        raise ValueError("not implemented")
+        if use_test2: #MAP estimate
+            assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
+            latent_space = self.conditional_samplingMAP(map_estimates,patristic_matrix)
+            n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
+        elif use_test:# Marginal posterior
+            assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
+            latent_space = self.conditional_sampling(map_estimates,patristic_matrix)
+            n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
+        else:# sample training leaves
+            n_nodes = self.n_leaves
+            latent_space = map_estimates["latent_z"].T
+            assert latent_space.shape == (n_nodes, self.z_dim)
+
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        latent_space_ = latent_space.repeat(1, self.max_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        # blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
+        # blosum = self.embed(blosum)
+        # latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+
+        with pyro.plate("plate_len",self.max_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
+            logits = self.decoder.forward(
+                input=latent_space_,
+                hidden=decoder_hidden)
+            if use_argmax:
+                #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
+                aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
+            else:
+                aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+            #return aa_sequences,latent_space, logits, None, None
+            sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
+                                          latent_space=latent_space.detach(),
+                                          logits=logits.detach(),
+                                          phis=None,
+                                          psis=None,
+                                          mean_phi=None,
+                                          mean_psi=None,
+                                          kappa_phi=None,
+                                          kappa_psi=None)
+
+        return sampling_out
+
+    def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
+        """Batched sampling for large data sets"""
+
+        if use_test or use_test2:# Only Marginal posterior available when batching
+            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+            #Highlight: Slice out the train sequences and only a batch from the test sequences
+            if batch_idx[1] is None:
+                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+            else:
+                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+            self.n_internal_batch = len(self.internal_nodes_batch)
+            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
+            self.n_leaves_internal_batch = len(nodes_batch)
+            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+            indexes[0] = True #re-add the nodes names
+            patristic_matrix = patristic_matrix_full[indexes]
+            patristic_matrix = patristic_matrix[:,indexes]
+            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+            n_nodes = self.n_internal_batch
+        else: #training/leaves
+            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+            latent_space = map_estimates["latent_z"].T
+            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+
+            assert latent_space.shape == (n_nodes, self.z_dim)
+
+        #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        if map_estimates is not  None:
+            if use_test or use_test2:
+                embeddings = map_estimates["test"]["embeddings"]
+            else:
+                embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
+            if batch_idx[1] is None:
+                embeddings = embeddings[int(batch_idx[0]):]
+            else:
+                embeddings = embeddings[int(batch_idx[0]):int(batch_idx[1])]
+            latent_space_ = embeddings + latent_space_
+
+        logits = self.decoder.forward(
+            input=latent_space_)
+
+        if use_argmax:
+            #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
+            aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
+        else:
+            aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+
+        sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
+                                      latent_space=latent_space.detach(),
+                                      logits=logits.detach(),
+                                      phis=None,
+                                      psis=None,
+                                      mean_phi=None,
+                                      mean_psi=None,
+                                      kappa_phi=None,
+                                      kappa_psi=None)
+
+        return sampling_out
+
+class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
     It uses batched Blosum weighted average embeddings."""
     def __init__(self,ModelLoad):
