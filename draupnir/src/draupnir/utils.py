@@ -76,8 +76,8 @@ def validate_sequence_alphabet(seq):
     :param str seq: sequence of characters
     """
     alphabets = {'dna': re.compile('^[acgtn]*$', re.I),
-             'protein21': re.compile('^[-acdefghiklmnpqrstvwy]*$', flags=re.IGNORECASE),
-            'protein21plus': re.compile('^[-acdefghiklmnpqrstvwybzx]*$', flags= re.IGNORECASE)}
+             'protein21': re.compile('^[-*acdefghiklmnpqrstvwy]*$', flags=re.IGNORECASE),
+            'protein21plus': re.compile('^[-*acdefghiklmnpqrstvwybzx]*$', flags= re.IGNORECASE)}
 
     if alphabets["dna"].search(str(seq)) is not None: raise ValueError("Please use amino acids in your sequences, accepted alphabets are protein21: -acdefghiklmnpqrstvwy or protein21plus: -*acdefghiklmnpqrstvwybzx")
 

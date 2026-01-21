@@ -148,6 +148,7 @@ dict_urls = {
     -Tree-level-order: Position of the node in tree-level order in the tree
     
     >Node_A1//1.0_sample_0
+- Torch tensors (i.e latents ) are in the train_info_dict.torch files in each of the folders
 
     
 **If this library is useful for your research please cite:**
@@ -160,6 +161,13 @@ dict_urls = {
   year={2021}
 }
 ```
+** Extra comments **
+
+The computational times reported in the paper are no longer correct, the model runs in minutes, not hours. So please take that into account.
+
+Change model hyperparameters ( i.e Z dimension) here (will be soon exposed) : https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/main.py#L2768-L2777 
+
+
 **This software is not for commercial use.**
 
 **Do not hesitate to give input on how to improve the documentation of this library**
