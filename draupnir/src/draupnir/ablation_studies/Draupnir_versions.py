@@ -226,24 +226,6 @@ def metrics(predictions_dict:dict,mode_name:str="") -> dict:
     return metrics_dict
 
 
-folders_dict = {"simulations_src_sh3_3":{ #todo: blosum vs not
-                "draupnir_classic":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
-                "draupnir_z_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_15h14min18s836930ms_3000epochs_variational_z_esm",
-                "draupnir_hid_esm":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h48min20s543620ms_3000epochs_variational_rnn_esm_embeddings",
-                "draupnir_classic_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_18h31min09s305015ms_3000epochs_variational",
-                "draupnir_z_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_08_20h06min16s422135ms_3000epochs_variational_z_esm",
-                "draupnir_hid_esm_2":"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_09_14h33min09s636948ms_3000epochs_variational_rnn_esm_embeddings",
-                "draupnir_classic_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_14h04min29s168767ms_3000epochs_variational",
-                "draupnir_z_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_16h26min18s402748ms_3000epochs_variational_z_esm",
-                "draupnir_hid_esm_3" : "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_12_17h10min23s288319ms_3000epochs_variational_rnn_esm_embeddings",
-                },
-                "simulations_1GMM":{     #1GMM is not converged, might need 5000-6000 epochs
-                "draupnir_classic_200_samples": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models//PLOTS_Draupnir_simulations_1GMM_2026_01_07_12h09min45s765532ms_0epochs_variational",
-                # "draupnir_z_esm": "",
-                # "draupnir_hid_esm": "",
-                 }
-}
-
 folders_dict = {
     "simulations_src_sh3_1": {
         "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_20_21h08min29s151422ms_10000epochs_variational",
@@ -279,7 +261,7 @@ folders_dict = {
         "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
         "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_00h59min19s996824ms_10000epochs_variational",
         "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_06h38min12s618111ms_10000epochs_variational",
-        "draupnir_classic_hidden_esm": "",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
     },
 
 }
@@ -326,15 +308,15 @@ def analyze(results_dict=None):
                 del results_dict[dataset_name][f"{mode}_test"]["consensus_metrics"] #otherwise it is saved twice
 
 
-    torch.save(results_dict,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch")
+    torch.save(results_dict,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict.torch")
     print("Finished analysis and saved results")
     return results_dict
 
 
-#results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict_new.torch",weights_only=False)
-#analyze(None)
+#results_dict = torch.load("/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/metrics/results_dict.torch",weights_only=False)
+analyze(None)
 #analyze(results_dict)
-
+exit()
 
 def build_metrics_table(results_dict,name):
     table_keys = ["average_pid","average_pid_std","average_cosine_similarity","correlations_leaves_samples_mi"]

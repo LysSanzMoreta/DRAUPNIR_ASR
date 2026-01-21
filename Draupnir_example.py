@@ -80,9 +80,9 @@ if __name__ == "__main__":
                         #default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
                         #default="simulations_src_sh3_2", #800
-                        #default="simulations_calcitonin_1",  #50
-                        default="simulations_blactamase_1", #32
-                        #default="simulations_PIGBOS_1", #300
+                        default="simulations_calcitonin_1",  #50
+                        #default="simulations_blactamase_1", #32
+                        #default="simulations_PIGBOS_1", #300 #todo: add gdrive link
                         #default="simulations_1GMM", #1000
                         #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
@@ -169,7 +169,9 @@ if __name__ == "__main__":
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
-                             '4: xlsm embeddings',
+                             '4: xlsm embeddings'
+                             '5: minigru embeddings'
+                        ,
                         )
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
