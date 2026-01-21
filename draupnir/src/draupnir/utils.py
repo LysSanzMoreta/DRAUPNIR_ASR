@@ -100,7 +100,7 @@ def aminoacid_names_dict(aa_probs:int) -> dict:
     """ Returns an aminoacid associated to a integer value
     :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
-        aminoacid_dict = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
+        aminoacid_dict = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_dict
     elif aa_probs == 22: #includes stop codons---> fix in Create blosum
         aminoacid_dict = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
@@ -1099,19 +1099,6 @@ def rename_axis(matrix,nodes,name_file = None):
         #Highlight: If nan (pd.isnull) is found or something else, is because the root name is messed up and missing, just write it down in the patristic matrix file!!!!
         # I have made fixes for some of thse case, but might mot cover all of them
         # Or the names in the matrix != names in treevel order
-
-        # n = sorted(nodes.tolist())
-        # m = sorted(matrix.index.tolist())
-        # print(n)
-        #
-        # print(m)
-        #
-        # for i in n:
-        #     if i not in m:
-        #         print(i)
-        #
-        # exit()
-
         matrix.index = [np.where(nodes == node_name)[0][0] for node_name in matrix.index] #TODO; why am I doing this twice?
         matrix.columns = [np.where(nodes == node_name)[0][0] for node_name in matrix.columns]
         return matrix

@@ -242,8 +242,49 @@ folders_dict = {"simulations_src_sh3_3":{ #todo: blosum vs not
                 # "draupnir_z_esm": "",
                 # "draupnir_hid_esm": "",
                  }
-    ,
 }
+
+folders_dict = {
+    "simulations_src_sh3_1": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_20_21h08min29s151422ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_20_21h31min54s951820ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_19_20h23min58s667738ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_19_20h40min49s587822ms_10000epochs_variational",
+    },
+    "simulations_src_sh3_2": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_16_19h25min29s965361ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_16_23h26min19s155055ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_12h14min37s844603ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_14h44min01s395934ms_10000epochs_variational",
+    },
+    "simulations_src_sh3_3": {
+        "draupnir_classic_blosum": "",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_16h29min59s341296ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_17h35min55s614522ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_18h19min00s229714ms_10000epochs_variational",
+    },
+    "simulations_blactamase_1": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_20_21h53min12s628284ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_20_23h10min50s249395ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_21_00h23min24s640140ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_21_01h08min11s963248ms_10000epochs_variational",
+    },
+    "simulations_sirtuins_1": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_21h01min46s029776ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_23h39min47s797048ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_01h59min03s763175ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_03h18min33s750688ms_10000epochs_variational",
+    },
+    "simulations_1GMM": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_00h59min19s996824ms_10000epochs_variational",
+        "draupnir_classic_z_esm": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_06h38min12s618111ms_10000epochs_variational",
+        "draupnir_classic_hidden_esm": "",
+    },
+
+}
+
+
 
 
 def analyze(results_dict=None):
