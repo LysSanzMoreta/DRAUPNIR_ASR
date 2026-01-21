@@ -83,8 +83,8 @@ def validate_sequence_alphabet(seq):
     :param str seq: sequence of characters
     """
     alphabets = {'dna': re.compile('^[acgtn]*$', re.I),
-             'protein21': re.compile('^[-acdefghiklmnpqrstvwy]*$', flags=re.IGNORECASE),
-            'protein21plus': re.compile('^[-acdefghiklmnpqrstvwybzx]*$', flags= re.IGNORECASE)}
+             'protein21': re.compile('^[*-acdefghiklmnpqrstvwy]*$', flags=re.IGNORECASE),
+            'protein21plus': re.compile('^[*-acdefghiklmnpqrstvwybzx]*$', flags= re.IGNORECASE)}
 
     if alphabets["dna"].search(str(seq)) is not None: raise ValueError("Please use amino acids in your sequences, accepted alphabets are protein21: -acdefghiklmnpqrstvwy or protein21plus: -*acdefghiklmnpqrstvwybzx")
 
@@ -100,7 +100,7 @@ def aminoacid_names_dict(aa_probs:int) -> dict:
     """ Returns an aminoacid associated to a integer value
     :param int aa_probs: amino acid probabilities, this number correlates to the number of different aa types in the input alignment"""
     if aa_probs == 21:
-        aminoacid_dict = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
+        aminoacid_dict = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
         return aminoacid_dict
     elif aa_probs == 22: #includes stop codons---> fix in Create blosum
         aminoacid_dict = {"-":0,"*":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20}
@@ -121,6 +121,7 @@ def create_blosum(aa_probs,subs_matrix_name):
     aa_list = list(aminoacid_names_dict(aa_probs).keys())
     index_gap = aa_list.index("-")
     aa_list[index_gap] = "*" #in the blosum matrix gaps are represented as *
+    aa_list = list(dict.fromkeys(aa_list)) #remove dplicates (stop codons and gaps) and keep order
 
     subs_dict = defaultdict()
     subs_array = np.zeros((len(aa_list) , len(aa_list) ))
@@ -139,6 +140,7 @@ def create_blosum(aa_probs,subs_matrix_name):
     blosum_array_dict = dict(enumerate(subs_array[1:, 1:]))
 
     return subs_array, subs_dict, blosum_array_dict
+
 def divide_into_monophyletic_clades(tree,storage_folder,name):
     """
     Divides the tree into monophyletic clades:

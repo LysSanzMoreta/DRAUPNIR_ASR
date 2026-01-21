@@ -774,6 +774,7 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
+        self.n_leaves_batch = aminoacid_sequences.shape[0]  # need this for sampling from a pretrained model
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior_batched(patristic_matrix_sorted)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
@@ -789,6 +790,7 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
 
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
