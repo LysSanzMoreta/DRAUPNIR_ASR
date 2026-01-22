@@ -108,7 +108,6 @@ def aminoacid_names_dict(aa_probs:int) -> dict:
     elif aa_probs > 22:
         aminoacid_dict = {"-":0,"R":1,"H":2,"K":3,"D":4,"E":5,"S":6,"T":7,"N":8,"Q":9,"C":10,"G":11,"P":12,"A":13,"V":14,"I":15,"L":16,"M":17,"F":18,"Y":19,"W":20,"B":21,"Z":22,"X":23}
         return aminoacid_dict
-
 def create_blosum(aa_probs,subs_matrix_name):
     """
     Builds an array containing the blosum scores per character
@@ -141,7 +140,6 @@ def create_blosum(aa_probs,subs_matrix_name):
     blosum_array_dict = dict(enumerate(subs_array[1:, 1:]))
 
     return subs_array, subs_dict, blosum_array_dict
-
 def divide_into_monophyletic_clades(tree,storage_folder,name):
     """
     Divides the tree into monophyletic clades:
@@ -1081,9 +1079,6 @@ def create_dataset(name_file,
 
 
     return tree_file
-
-
-
 def symmetrize_and_clean(matrix,ancestral=True):
     """Remove, if necessary the ancestral nodes from the train matrix
     :param pandas-array matrix: patristic or cladistic matrices with columns and indexes as node names """

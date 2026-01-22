@@ -77,10 +77,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        #default="simulations_src_sh3_3", #200
+                        default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
                         #default="simulations_src_sh3_2", #800
-                        default="simulations_calcitonin_1",  #50
+                        #default="simulations_calcitonin_1",  #50
                         #default="simulations_blactamase_1", #32
                         #default="simulations_PIGBOS_1", #300 #todo: add gdrive link
                         #default="simulations_1GMM", #1000
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2025_12_03_14h24min11s451285ms_3000epochs_variational",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_12_12h24min01s102311ms_3000epochs_variational",
                         #default="/media/lys/0c4a2be6-0148-4ef1-8df3-b89418dfece3/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_10h38min05s860885ms_3000epochs_variational",
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_13h37min12s182537ms_4000epochs_variational",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_14h44min01s395934ms_10000epochs_variational",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples. It is activated when args.generate_samples is True, otherwise it is ignored and simply trains the model')
     parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 

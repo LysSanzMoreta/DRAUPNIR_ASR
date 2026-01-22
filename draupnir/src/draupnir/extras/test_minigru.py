@@ -56,9 +56,7 @@ class minGRU(Module):
             out = torch.lerp(prev_hidden, hidden, gate) if exists(prev_hidden) else (hidden * gate)
         else:
             # parallel
-
             log_coeffs = -F.softplus(gate)
-
             log_z = -F.softplus(-gate)
             log_tilde_h = self.log_g(hidden)
             log_values = log_z + log_tilde_h
@@ -118,16 +116,13 @@ class minLM(Module):
     ):
         super().__init__()
         self.token_emb = nn.Embedding(num_tokens, dim)
-
         self.layers = ModuleList([])
-
-        min_rnn_klass = minGRU
 
         for _ in range(depth):
             self.layers.append(ModuleList([
                 CausalDepthWiseConv1d(dim, conv_kernel_size) if enable_conv else None,
                 RMSNorm(dim),
-                min_rnn_klass(dim, expansion_factor=expansion),
+                minGRU(dim, expansion_factor=expansion),
                 RMSNorm(dim),
                 FeedForward(dim, mult=ff_mult),
                 nn.Dropout(dropout) if dropout > 0. else None
@@ -160,15 +155,12 @@ class minLM(Module):
         prev_hiddens = iter(default(prev_hiddens, []))
 
         for conv, norm, mingru, ff_norm, ff, dropout in self.layers:
-
             # conv
-
             if exists(conv):
                 assert len(list(prev_hiddens)) == 0, 'caching not supported for conv version'
                 x = conv(x) + x
 
             # min gru
-
             prev_hidden = next(prev_hiddens, None)
 
             min_gru_out, next_prev_hidden = mingru(
@@ -181,11 +173,8 @@ class minLM(Module):
             next_prev_hiddens.append(next_prev_hidden)
 
             # feedforward
-
             x = ff(ff_norm(x)) + x
-
             # dropout
-
             if exists(dropout):
                 x = dropout(x)
 
@@ -273,9 +262,7 @@ def base_decoding(
 
     return out[..., prompt_seq_len:]
 
-# accelerators
 
-accelerator = Accelerator()
 
 # the min{GRU|LSTM} char language model
 
@@ -317,7 +304,9 @@ val_loader = DataLoader(val_dataset, batch_size = BATCH_SIZE)
 # optimizer
 
 optim = Adam(model.parameters(), lr = LEARNING_RATE)
+# accelerators
 
+accelerator = Accelerator()
 model, optim, train_loader, val_loader = accelerator.prepare(
     model, optim, train_loader, val_loader
 )

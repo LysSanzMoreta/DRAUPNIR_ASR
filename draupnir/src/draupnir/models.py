@@ -50,7 +50,7 @@ class DRAUPNIRModelClass(nn.Module):
         self.aa_frequencies_train = ModelLoad.aa_frequencies_train
         self.blosum = ModelLoad.blosum
         self.blosum_max = ModelLoad.blosum_max
-        self.blosum_weighted = ModelLoad.blosum_weighted
+        self.blosum_weighted = ModelLoad.blosum_weighted #based solely on the train dataset
         self.dataset_train_blosum = ModelLoad.dataset_train_blosum
         self.variable_score = ModelLoad.variable_score
         self.internal_nodes = ModelLoad.internal_nodes
@@ -137,7 +137,6 @@ class DRAUPNIRModelClass(nn.Module):
         OU_covariance = OUKernel_Fast(sigma_f, sigma_n, lambd).forward(patristic_matrix)
         OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
 
-        # exit()
         assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
         assert OU_mean.shape == (1,self.n_leaves_batch)
         #noise = 1e-15 + torch.eye(OU_covariance.shape[1])
@@ -148,6 +147,7 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
         latent_space = latent_space.T
         return latent_space
+
     def map_sampling(self,map_estimates,patristic_matrix_full):
         "Use map sampling for leaves prediction/testing, when internal nodes are not available"
         test_indexes = (patristic_matrix_full[1:, 0][..., None] == self.internal_nodes).any(-1) #indexes of the leaves selected for testing
@@ -289,6 +289,9 @@ class DRAUPNIRModelClass(nn.Module):
             assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train] # ok, so we need to get the map estimates for all the train latents
+
+            print("xb",xb.shape)
+            print("n_leaves",self.n_leaves)
             # if self.leaves_testing:
             #     leaves_indexes = (patristic_matrix[1:, 0][..., None] == self.leaves_nodes).any(-1) #only the indexes of the training leaves
             #     xb = xb[:,leaves_indexes]
@@ -766,6 +769,7 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
 
         aminoacid_sequences = datasets["int"][:, 2:, 0]
@@ -777,6 +781,12 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         self.n_leaves_batch = aminoacid_sequences.shape[0]  # need this for sampling from a pretrained model
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior_batched(patristic_matrix_sorted)
+
+        print("latent space")
+
+        print(latent_space.shape)
+
+        exit()
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
         blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #Highlight: it workedwith the entire blosum weighted matrix
@@ -790,8 +800,8 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
                     input=latent_space,
                     hidden=decoder_hidden)
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
-        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
+        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
         if self.args.select_guide == "delta_map":
@@ -1024,6 +1034,8 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
             indexes[0] = True #re-add the nodes names
             patristic_matrix = patristic_matrix_full[indexes]
             patristic_matrix = patristic_matrix[:,indexes]
+
+
             latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
             n_nodes = self.n_internal_batch
         else: #training/leaves
@@ -1247,14 +1259,6 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.input_size = self.z_dim #+ self.aa_probs
-        # self.decoder = RNNDecoder_Tiling(align_seq_len=self.align_seq_len,
-        #                                  aa_probs=self.aa_probs,
-        #                                  gru_hidden_dim=self.gru_hidden_dim,
-        #                                  z_dim=self.z_dim,
-        #                                  input_size=self.input_size,
-        #                                  kappa_addition=self.kappa_addition,
-        #                                  num_layers=self.num_layers,
-        #                                  pretrained_params=self.pretrained_params)
         self.decoder = xLSTMDecoder(max_len=self.align_seq_len,
                                   input_size=self.z_dim,
                                   z_dim = self.z_dim,
