@@ -148,6 +148,33 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = latent_space.T
         return latent_space
 
+    def prediction_batching_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_test,batch_idx,use_test,use_test2):
+        """Correction of a few parameters to be able to carry on with the batched sampling"""
+        if use_test or use_test2:# internal nodes. Only Marginal posterior available when batching
+            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+            #Highlight: Slice out the train sequences and only a batch from the test sequences
+            if batch_idx[1] is None:
+                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+            else:
+                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+            self.n_internal_batch = len(self.internal_nodes_batch)
+            self.leaves_nodes = map_estimates["train_leaves_nodes"] if "train_leaves_nodes" in map_estimates.keys() else self.leaves_nodes
+            self.n_leaves = len(self.leaves_nodes)
+            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch)) #this needs to contain only the leave nodes on
+            self.n_leaves_internal_batch = len(nodes_batch) #leave nodes + internal nodes
+            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+            indexes[0] = True #re-add the nodes names
+            patristic_matrix = patristic_matrix_full[indexes]
+            patristic_matrix = patristic_matrix[:,indexes]
+            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+            n_nodes = self.n_internal_batch
+        else: #training/leaves
+            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+            latent_space = map_estimates["latent_z"].T
+            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])] if batch_idx is not None else latent_space
+            assert latent_space.shape == (n_nodes, self.z_dim)
+
+        return latent_space, n_nodes
     def map_sampling(self,map_estimates,patristic_matrix_full):
         "Use map sampling for leaves prediction/testing, when internal nodes are not available"
         test_indexes = (patristic_matrix_full[1:, 0][..., None] == self.internal_nodes).any(-1) #indexes of the leaves selected for testing
@@ -286,6 +313,13 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight: Λab
             inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
             inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
+
+
+            print("inverse internal leaves shape")
+            print(inverse_internal_leaves.shape)
+
+
+
             assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train] # ok, so we need to get the map estimates for all the train latents
@@ -855,28 +889,31 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
     def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
         """Batched sampling for large data sets"""
 
-        if use_test or use_test2:# Only Marginal posterior available when batching
-            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
-            #Highlight: Slice out the train sequences and only a batch from the test sequences
-            if batch_idx[1] is None:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
-            else:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
-            self.n_internal_batch = len(self.internal_nodes_batch)
-            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
-            self.n_leaves_internal_batch = len(nodes_batch)
-            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
-            indexes[0] = True #re-add the nodes names
-            patristic_matrix = patristic_matrix_full[indexes]
-            patristic_matrix = patristic_matrix[:,indexes]
-            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
-            n_nodes = self.n_internal_batch
-        else: #training/leaves
-            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
-            latent_space = map_estimates["latent_z"].T
-            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        # if use_test or use_test2:# Only Marginal posterior available when batching
+        #     assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+        #     #Highlight: Slice out the train sequences and only a batch from the test sequences
+        #     if batch_idx[1] is None:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+        #     else:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+        #     self.n_internal_batch = len(self.internal_nodes_batch)
+        #     nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
+        #     self.n_leaves_internal_batch = len(nodes_batch)
+        #     indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+        #     indexes[0] = True #re-add the nodes names
+        #     patristic_matrix = patristic_matrix_full[indexes]
+        #     patristic_matrix = patristic_matrix[:,indexes]
+        #     latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+        #     n_nodes = self.n_internal_batch
+        # else: #training/leaves
+        #     n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+        #     latent_space = map_estimates["latent_z"].T
+        #     latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        #
+        #     assert latent_space.shape == (n_nodes, self.z_dim)
 
-            assert latent_space.shape == (n_nodes, self.z_dim)
+        latent_space, n_nodes = self.prediction_batching_preprocessing(self, map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,
+                                          use_test, use_test2)
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
@@ -967,7 +1004,6 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
 
         self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
-
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
         if self.args.select_guide == "delta_map":
             self.model_delta_map(datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum,batch_blosum, map_estimates)
@@ -1020,38 +1056,38 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
     def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
         """Batched sampling for large data sets"""
 
-        if use_test or use_test2:# Only Marginal posterior available when batching
-            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
-            #Highlight: Slice out the train sequences and only a batch from the test sequences
-            if batch_idx[1] is None:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
-            else:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
-            self.n_internal_batch = len(self.internal_nodes_batch)
-            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
-            self.n_leaves_internal_batch = len(nodes_batch)
-            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
-            indexes[0] = True #re-add the nodes names
-            patristic_matrix = patristic_matrix_full[indexes]
-            patristic_matrix = patristic_matrix[:,indexes]
+        # if use_test or use_test2:# Only Marginal posterior available when batching
+        #     assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+        #     #Highlight: Slice out the train sequences and only a batch from the test sequences
+        #     if batch_idx[1] is None:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+        #     else:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+        #     self.n_internal_batch = len(self.internal_nodes_batch)
+        #     self.leaves_nodes = map_estimates["train_leaves_nodes"] if "train_leaves_nodes" in map_estimates.keys() else self.leaves_nodes
+        #     self.n_leaves = len(self.leaves_nodes)
+        #     nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch)) #this needs to contain only the leave nodes on
+        #     self.n_leaves_internal_batch = len(nodes_batch)
+        #     indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+        #     indexes[0] = True #re-add the nodes names
+        #     patristic_matrix = patristic_matrix_full[indexes]
+        #     patristic_matrix = patristic_matrix[:,indexes]
+        #     latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+        #     n_nodes = self.n_internal_batch
+        # else: #training/leaves
+        #     n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+        #     latent_space = map_estimates["latent_z"].T
+        #     latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        #
+        #     assert latent_space.shape == (n_nodes, self.z_dim)
 
 
-            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
-            n_nodes = self.n_internal_batch
-        else: #training/leaves
-            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
-            latent_space = map_estimates["latent_z"].T
-            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
-
-            assert latent_space.shape == (n_nodes, self.z_dim)
+        latent_space, n_nodes = self.prediction_batching_preprocessing(map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,
+                                          use_test, use_test2)
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
-        # blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
-        # blosum = self.embed(blosum)
-        # latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
 
-        #with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2):
         logits = self.decoder.forward(
             input=latent_space_,
             hidden=decoder_hidden)
@@ -1196,28 +1232,31 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
     def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
         """Batched sampling for large data sets"""
 
-        if use_test or use_test2:# Only Marginal posterior available when batching
-            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
-            #Highlight: Slice out the train sequences and only a batch from the test sequences
-            if batch_idx[1] is None:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
-            else:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
-            self.n_internal_batch = len(self.internal_nodes_batch)
-            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
-            self.n_leaves_internal_batch = len(nodes_batch)
-            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
-            indexes[0] = True #re-add the nodes names
-            patristic_matrix = patristic_matrix_full[indexes]
-            patristic_matrix = patristic_matrix[:,indexes]
-            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
-            n_nodes = self.n_internal_batch
-        else: #training/leaves
-            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
-            latent_space = map_estimates["latent_z"].T
-            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        # if use_test or use_test2:# Only Marginal posterior available when batching
+        #     assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+        #     #Highlight: Slice out the train sequences and only a batch from the test sequences
+        #     if batch_idx[1] is None:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+        #     else:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+        #     self.n_internal_batch = len(self.internal_nodes_batch)
+        #     nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
+        #     self.n_leaves_internal_batch = len(nodes_batch)
+        #     indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+        #     indexes[0] = True #re-add the nodes names
+        #     patristic_matrix = patristic_matrix_full[indexes]
+        #     patristic_matrix = patristic_matrix[:,indexes]
+        #     latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+        #     n_nodes = self.n_internal_batch
+        # else: #training/leaves
+        #     n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+        #     latent_space = map_estimates["latent_z"].T
+        #     latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        #
+        #     assert latent_space.shape == (n_nodes, self.z_dim)
 
-            assert latent_space.shape == (n_nodes, self.z_dim)
+        latent_space, n_nodes = self.prediction_batching_preprocessing(map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,
+                                          use_test, use_test2)
 
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
@@ -1369,28 +1408,31 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
     def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
         """Batched sampling for large data sets"""
 
-        if use_test or use_test2:# Only Marginal posterior available when batching
-            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
-            #Highlight: Slice out the train sequences and only a batch from the test sequences
-            if batch_idx[1] is None:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
-            else:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
-            self.n_internal_batch = len(self.internal_nodes_batch)
-            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
-            self.n_leaves_internal_batch = len(nodes_batch)
-            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
-            indexes[0] = True #re-add the nodes names
-            patristic_matrix = patristic_matrix_full[indexes]
-            patristic_matrix = patristic_matrix[:,indexes]
-            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
-            n_nodes = self.n_internal_batch
-        else: #training/leaves
-            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
-            latent_space = map_estimates["latent_z"].T
-            latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        # if use_test or use_test2:# Only Marginal posterior available when batching
+        #     assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+        #     #Highlight: Slice out the train sequences and only a batch from the test sequences
+        #     if batch_idx[1] is None:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+        #     else:
+        #         self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+        #     self.n_internal_batch = len(self.internal_nodes_batch)
+        #     nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
+        #     self.n_leaves_internal_batch = len(nodes_batch)
+        #     indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+        #     indexes[0] = True #re-add the nodes names
+        #     patristic_matrix = patristic_matrix_full[indexes]
+        #     patristic_matrix = patristic_matrix[:,indexes]
+        #     latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+        #     n_nodes = self.n_internal_batch
+        # else: #training/leaves
+        #     n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+        #     latent_space = map_estimates["latent_z"].T
+        #     latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])]
+        #
+        #     assert latent_space.shape == (n_nodes, self.z_dim)
 
-            assert latent_space.shape == (n_nodes, self.z_dim)
+        latent_space, n_nodes = self.prediction_batching_preprocessing(map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,
+                                          use_test, use_test2)
 
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
@@ -1435,6 +1477,7 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
         #self.decoder_attention = RNNAttentionDecoder(self.n_leaves, self.max_seq_len, self.aa_prob, self.gru_hidden_dim,self.input_size,self.embedding_dim, self.z_dim, self.kappa_addition)
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
         self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
+
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         #batch_nodes = datasets["int"][:, 0, 1]
@@ -1533,31 +1576,35 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
                                       kappa_phi=None,
                                       kappa_psi=None)
         return sampling_out
+
     def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
         """Batched sampling based on clade membership"""
 
-        if use_test or use_test2:# Only Marginal posterior available when batching
-            assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
-            #Highlight: Slice out the train sequences and only a batch from the test sequences
-            self.internal_nodes_batch = torch.tensor(batch_idx)
-            self.n_internal_batch = len(self.internal_nodes_batch)
-            nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
-            self.n_leaves_internal_batch = len(nodes_batch)
-            indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
-            indexes[0] = True #re-add the nodes names
-            patristic_matrix = patristic_matrix_full[indexes]
-            patristic_matrix = patristic_matrix[:,indexes]
-            latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
-            n_nodes = self.n_internal_batch
-        else: #training/leaves
-            #Highlight: In clade-batching nodes_batch = batch_idx !
-            n_nodes = len(batch_idx)
-            latent_space = map_estimates["latent_z"].T
-            indexes = (self.leaves_nodes[..., None] == torch.tensor(batch_idx)).any(-1)
-            #indexes = torch.eq(self.leaves_nodes, torch.tensor(batch_idx))
-            #Highlight: pick the latent space correspondant to the nodes in the clade
-            latent_space = latent_space[indexes]
-            assert latent_space.shape == (n_nodes, self.z_dim)
+        # if use_test or use_test2:# Only Marginal posterior available when batching
+        #     assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
+        #     #Highlight: Slice out the train sequences and only a batch from the test sequences
+        #     self.internal_nodes_batch = torch.tensor(batch_idx)
+        #     self.n_internal_batch = len(self.internal_nodes_batch)
+        #     nodes_batch = torch.cat((self.leaves_nodes,self.internal_nodes_batch))
+        #     self.n_leaves_internal_batch = len(nodes_batch)
+        #     indexes = (patristic_matrix_full[:, 0][..., None] == nodes_batch).any(-1)
+        #     indexes[0] = True #re-add the nodes names
+        #     patristic_matrix = patristic_matrix_full[indexes]
+        #     patristic_matrix = patristic_matrix[:,indexes]
+        #     latent_space = self.conditional_sampling_batch(map_estimates,patristic_matrix)
+        #     n_nodes = self.n_internal_batch
+        # else: #training/leaves
+        #     #Highlight: In clade-batching nodes_batch = batch_idx !
+        #     n_nodes = len(batch_idx)
+        #     latent_space = map_estimates["latent_z"].T
+        #     indexes = (self.leaves_nodes[..., None] == torch.tensor(batch_idx)).any(-1)
+        #     #indexes = torch.eq(self.leaves_nodes, torch.tensor(batch_idx))
+        #     #Highlight: pick the latent space correspondant to the nodes in the clade
+        #     latent_space = latent_space[indexes]
+        #     assert latent_space.shape == (n_nodes, self.z_dim)
+
+        latent_space, n_nodes = self.prediction_batching_preprocessing(map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,
+                                          use_test, use_test2)
 
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
@@ -1587,6 +1634,9 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
 
         return sampling_out
 
+
+
+#todo: delete from down here
 class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):
     """Leaves training and testing. Train on full leave latent space (train + test), only observe the pre-selected train leaves"""
     def __init__(self,ModelLoad):
