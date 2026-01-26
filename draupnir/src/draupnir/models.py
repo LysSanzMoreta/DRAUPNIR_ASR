@@ -71,11 +71,9 @@ class DRAUPNIRModelClass(nn.Module):
     @abstractmethod
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,map_estimates):
         raise NotImplementedError
-
     @abstractmethod
     def model(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum,map_estimates):
         raise NotImplementedError
-
     @abstractmethod
     def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix, cladistic_matrix, use_test=True):
         raise NotImplementedError
@@ -147,7 +145,6 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
         latent_space = latent_space.T
         return latent_space
-
     def prediction_batching_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_test,batch_idx,use_test,use_test2):
         """Correction of a few parameters to be able to carry on with the batched sampling"""
         if use_test or use_test2:# internal nodes. Only Marginal posterior available when batching
@@ -313,19 +310,9 @@ class DRAUPNIRModelClass(nn.Module):
             # Highlight: Λab
             inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
             inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
-
-
-            print("inverse internal leaves shape")
-            print(inverse_internal_leaves.shape)
-
-
-
             assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
             # Highlight: xb
             xb = map_estimates["latent_z"]  # [z_dim,n_train] # ok, so we need to get the map estimates for all the train latents
-
-            print("xb",xb.shape)
-            print("n_leaves",self.n_leaves)
             # if self.leaves_testing:
             #     leaves_indexes = (patristic_matrix[1:, 0][..., None] == self.leaves_nodes).any(-1) #only the indexes of the training leaves
             #     xb = xb[:,leaves_indexes]
@@ -340,8 +327,6 @@ class DRAUPNIRModelClass(nn.Module):
             # residual = torch.matmul(inverse_internal, inverse_internal_bis) - internal_identity  # should be close to zero
             # max_err = residual.abs().max()
             # print(f"max err: {max_err}")
-
-
             part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
             part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
             OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
@@ -816,11 +801,6 @@ class DRAUPNIRModel_batching(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior_batched(patristic_matrix_sorted)
 
-        print("latent space")
-
-        print(latent_space.shape)
-
-        exit()
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
         blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #Highlight: it workedwith the entire blosum weighted matrix

@@ -1067,7 +1067,8 @@ def start_sampling_new(args,
     if args.select_guide == "variational":
         #map_estimates_dict = defaultdict()
         print("Variational approach: Re-sampling from the guide")
-        args.__dict__["n_samples"] = int(args.n_samples/len(blocks_train)) #we can always generate all the samples, however, since we will generate n_batches consitionally sampled test sequences, it would be a lot
+        n_train_batches = len(blocks_train)
+        args.__dict__["n_samples"] = int(args.n_samples/n_train_batches) #we can always generate all the samples, however, since we will generate n_batches consitionally sampled test sequences, it would be a lot
 
         print(args.n_samples)
         map_estimates_dict = defaultdict()
@@ -1076,21 +1077,30 @@ def start_sampling_new(args,
         aa_sequences_train_samples = torch.zeros((args.n_samples, train_load.dataset_train.shape[0], train_load.dataset_train.shape[1] - 2)).detach()
         latent_space_train_samples = torch.zeros((args.n_samples, train_load.dataset_train.shape[0], int(params_config["z_dim"]))).detach()
         logits_train_samples = torch.zeros((args.n_samples, train_load.dataset_train.shape[0], train_load.dataset_train.shape[1] - 2, build_config.aa_probs)).detach()
+
+
+
         # Highlight: Test storage
         aa_sequences_test_samples = torch.zeros((args.n_samples, test_load.patristic_matrix_test[1:].shape[0], train_load.dataset_train.shape[1] - 2)).detach()
         latent_space_test_samples = torch.zeros((args.n_samples, test_load.patristic_matrix_test[1:].shape[0], int(params_config["z_dim"]))).detach()
         logits_test_samples = torch.zeros((args.n_samples, test_load.patristic_matrix_test[1:].shape[0], train_load.dataset_train.shape[1] - 2, build_config.aa_probs)).detach()
 
+        print("aa_sequences_samples_test", aa_sequences_test_samples.shape)
+        print("aa_sequences_samples_train", aa_sequences_train_samples.shape)
+
+
         if blocks_train is not None:  #batched sampling
             blocks_test = blocks_train.copy()
             blocks_test[-1] = (blocks_test[-1][0], None)  # correcting the indexes of the test, this trick works by re-using blocks train, but this approach is more flexible
             print("Recalculating train map estimates")
+            start_idx = 0
+            end_idx = n_train_batches
             for sample_idx, sample in enumerate(samples_names):
-
                 print("sample idx {}".format(sample_idx))
                 for batch_idx_test in blocks_test: #each test batch is conditionally sampled on each train batch, so we generate n_test*n_train_batches(*n_samples)
+                    batch_test = test_load.dataset_test[batch_idx_test[0]:batch_idx_test[1]] if batch_idx_test[1] is not None else test_load.dataset_test[batch_idx_test[0]:]
                     #batch_storage
-                    conditional_samples_storage = defaultdict(lambda: defaultdict(list))
+                    #conditional_samples_storage = defaultdict(lambda: defaultdict(list))
                     for batch_idx_train in blocks_train:
 
                         datasets_train_batch = {key: data[batch_idx_train[0]:batch_idx_train[1]] for key, data in datasets_train.items()}
@@ -1109,8 +1119,6 @@ def start_sampling_new(args,
                             map_estimates_test_batch = guide(datasets_test_batch, test_load.patristic_matrix_test, test_load.cladistic_matrix_test, dataset_test_blosum,batch_blosum=None)
                             map_estimates_batch_train["test"] = {val: key.detach() for val, key in map_estimates_test_batch.items() if key is not None}
 
-
-
                         batch_train_sample = Draupnir.sample_batched(map_estimates_batch_train,
                                                                      1,
                                                                      train_load.dataset_train[batch_idx_train[0]:batch_idx_train[1]],
@@ -1122,9 +1130,10 @@ def start_sampling_new(args,
                                                                      use_test=False,
                                                                      use_test2=False)
 
-                        conditional_samples_storage["train"]["aa_sequences"].append(batch_train_sample.aa_sequences.detach().cpu()) #predicted sequences
-                        conditional_samples_storage["train"]["latent_space"].append(batch_train_sample.latent_space.detach().cpu())
-                        conditional_samples_storage["train"]["logits"].append(batch_train_sample.logits.detach().cpu())
+                        # conditional_samples_storage["train"]["aa_sequences"].append(batch_train_sample.aa_sequences.detach().cpu()) #predicted sequences
+                        # conditional_samples_storage["train"]["latent_space"].append(batch_train_sample.latent_space.detach().cpu()[None,:])
+                        # conditional_samples_storage["train"]["logits"].append(batch_train_sample.logits.detach().cpu()[None,:])
+                        # conditional_samples_storage["train"]["train_leaves_nodes"].append(map_estimates_batch_train["train_leaves_nodes"])
 
 
                         batch_test_sample = Draupnir.sample_batched(map_estimates_batch_train,
@@ -1137,37 +1146,75 @@ def start_sampling_new(args,
                                                               use_test=True,
                                                               use_test2=False)
 
-                        conditional_samples_storage["test"]["aa_sequences"].append(batch_test_sample.aa_sequences.detach().cpu()) #predicted sequences
-                        conditional_samples_storage["test"]["latent_space"].append(batch_test_sample.latent_space.detach().cpu())
-                        conditional_samples_storage["test"]["logits"].append(batch_test_sample.logits.detach().cpu())
+                        # conditional_samples_storage["test"]["aa_sequences"].append(batch_test_sample.aa_sequences.detach().cpu()) #predicted sequences
+                        # conditional_samples_storage["test"]["latent_space"].append(batch_test_sample.latent_space.detach().cpu()[None,:])
+                        # conditional_samples_storage["test"]["logits"].append(batch_test_sample.logits.detach().cpu()[None,:])
+
+                        #Highlight: for the train sequences we obtain 1 sample for all the train sequences
+                        aa_sequences_train_samples[sample_idx, batch_idx_train[0]:batch_idx_train[1]] = batch_train_sample.aa_sequences.detach().cpu()
+                        latent_space_train_samples[sample_idx, batch_idx_train[0]:batch_idx_train[1]] = batch_train_sample.latent_space.detach().cpu()
+                        logits_train_samples[sample_idx, batch_idx_train[0]:batch_idx_train[1]] = batch_train_sample.logits.detach().cpu()
+
+                        #Highlight: for the test sequences we have obatined -n_train_batches- number of samples for 1 batch of the test sequences
+                        print(batch_idx_test[1])
+                        if batch_idx_test[1] is None:  # last batch
+                            print(aa_sequences_test_samples[start_idx:, int(batch_idx_test[0]):].shape)
+
+                            aa_sequences_test_samples[start_idx:, int(batch_idx_test[0]):] =batch_test_sample.aa_sequences.detach().cpu()
+                            latent_space_test_samples[start_idx, int(batch_idx_test[0]):] = batch_test_sample.latent_space.detach().cpu()[None,:]
+                            logits_test_samples[start_idx, int(batch_idx_test[0]):] = batch_test_sample.logits.detach().cpu()[None,:]
+
+                        else:
+                            aa_sequences_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = batch_test_sample.aa_sequences.detach().cpu()
+                            latent_space_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = batch_test_sample.latent_space.detach().cpu()[None,:]
+                            logits_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = batch_test_sample.logits.detach().cpu()[None,:]
+
+
                         del batch_test_sample,batch_train_sample
                         gc.collect()
 
 
+                # print("dataset train shape",datasets_train["int"].shape)
+                # conditional_samples_storage["test"]["test_internal_nodes"].append(batch_test[:, 0, 1]) #we only add them once
+                # #Highlight: Correctly concatenate
+                # for param,vals in conditional_samples_storage["train"].items():
+                #     if param in ["train_leaves_nodes"]:
+                #         conditional_samples_storage["train"][param] = torch.concat(vals, axis=0)
+                #     else:
+                #         conditional_samples_storage["train"][param] = torch.concat(vals,axis=1) #for the train, we concatenate at the sequence level, since we have obtained 1 sample for each sequence
+                #
+                # for param,vals in conditional_samples_storage["test"].items():
+                #     conditional_samples_storage["test"][param] = torch.concat(vals,axis=0) #for the test, we concatenate at the sample level, since we have obtained n_train_batches samples for this test batch
+                #
+                #
+                # aa_sequences_train_samples[sample_idx] = conditional_samples_storage["train"]["aa_sequences"].detach().cpu()
+                # latent_space_train_samples[sample_idx] = conditional_samples_storage["train"]["latent_space"].detach().cpu()
+                # logits_train_samples[sample_idx] = conditional_samples_storage["train"]["logits"].detach().cpu()
 
+                # print(batch_idx_test)
+                # print("aa_sequences_samples_test",aa_sequences_test_samples.shape)
+                # print("start_idx ",start_idx) #this one is been inherited as None from the last loop
+                # if batch_idx_test[1] is None:  # last batch
+                #     print(aa_sequences_test_samples[start_idx:, int(batch_idx_test[0]):].shape)
+                #     print(conditional_samples_storage["test"]["aa_sequences"].shape)
+                #     aa_sequences_test_samples[start_idx:, int(batch_idx_test[0]):] = conditional_samples_storage["test"]["aa_sequences"].detach().cpu()
+                #     latent_space_test_samples[start_idx, int(batch_idx_test[0]):] = conditional_samples_storage["test"]["latent_space"].detach().cpu()
+                #     logits_test_samples[start_idx, int(batch_idx_test[0]):] = conditional_samples_storage["test"]["logits"].detach().cpu()
+                #
+                # else:
+                #     aa_sequences_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = conditional_samples_storage["test"]["aa_sequences"].detach().cpu()
+                #     latent_space_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = conditional_samples_storage["test"]["latent_space"].detach().cpu()
+                #     logits_test_samples[start_idx:end_idx, int(batch_idx_test[0]):int(batch_idx_test[1])] = conditional_samples_storage["test"]["logits"].detach().cpu()
 
-                    print(conditional_samples_storage)
-
-                    #todo: here we have collected for 1 test batch, all the conditional subsamples for each train batch
-                    exit()
-
-                    aa_sequences_train_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = batch_train_sample.aa_sequences.detach().cpu()
-                    latent_space_train_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = batch_train_sample.latent_space.detach().cpu()
-                    logits_train_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = batch_train_sample.logits.detach().cpu()
-
-
-                    if batch_idx_train[1] is None:  # last batch
-                        aa_sequences_test_samples[sample_idx, int(batch_idx_train[0]):] = test_sample.aa_sequences.detach().cpu()
-                        latent_space_test_samples[sample_idx, int(batch_idx_train[0]):] = test_sample.latent_space.detach().cpu()
-                        logits_test_samples[sample_idx, int(batch_idx_train[0]):] = test_sample.logits.detach().cpu()
-
-                    else:
-                        aa_sequences_test_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = test_sample.aa_sequences.detach().cpu()
-                        latent_space_test_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = test_sample.latent_space.detach().cpu()
-                        logits_test_samples[sample_idx, int(batch_idx_train[0]):int(batch_idx_train[1])] = test_sample.logits.detach().cpu()
+                start_idx = end_idx
+                end_idx += n_train_batches
 
                 torch.cuda.empty_cache()
                 gc.collect()
+            print("Done sampling")
+
+            exit()
+
         else:
             print("Recalculating train map estimates")
             map_estimates = guide(datasets_train,
