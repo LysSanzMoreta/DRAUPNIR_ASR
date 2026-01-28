@@ -65,6 +65,7 @@ class DRAUPNIRModelClass(nn.Module):
         self.n_internal = len(self.internal_nodes)
         self.n_all = self.n_leaves + self.n_internal
         self.num_layers = 1
+        self.max_root_leaf_dist = ModelLoad.max_root_leaf_dist
         self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
         if ModelLoad.args.use_cuda:
             self.cuda()
@@ -958,9 +959,7 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
         batch_nodes = datasets["int"][:, 0, 1]
 
         self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
-
-
-        batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
+        #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
         # Highlight: Register GRU module
         pyro.module("embeddings",self.embed)
         pyro.module("decoder", self.decoder)
@@ -1613,7 +1612,6 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
 
 
 #todo: delete from down here

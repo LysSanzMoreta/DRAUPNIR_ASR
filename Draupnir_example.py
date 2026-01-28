@@ -136,7 +136,12 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
-    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=5, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
+                        help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
+                             'test_batched_train_full: The batched test is sampled conditionally on all the map estimates from the train leaves \n'
+                             'test_batched_train_batched: The batched test is sampled conditionally on each of the train batches (slower, breaks some correlations, less memory consumption '
+                        )
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
@@ -207,6 +212,7 @@ if __name__ == "__main__":
 
         if torch.cuda.is_available():
             device = "cuda"
+            torch.set_default_tensor_type(torch.cuda.DoubleTensor)
         else:
             device= "cpu"
             raise warnings.warn("Cuda not found, falling back to cpu")

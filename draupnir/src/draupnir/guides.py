@@ -491,12 +491,13 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         DRAUPNIRGUIDES.__init__(self,draupnir_model,ModelLoad, Draupnir)
 
-        self.encoder = miniGRUEncoder(depth=2,
-                                      dim=self.draupnir.z_dim)
 
         self.embeddingencoder = EmbedComplexEncoder(input_dim=self.draupnir.aa_probs,
                                                     embedding_dim=self.draupnir.gru_hidden_dim,
                                                     out_dim=self.draupnir.z_dim)
+        self.encoder = miniGRUEncoder(depth=2,
+                                      dim=self.draupnir.z_dim)
+
 
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
         """
@@ -524,7 +525,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
             aminoacid_embeddings_0 = self.embeddingencoder(aa_sequences_blosum)
 
             aminoacid_embeddings_0 = aminoacid_embeddings_0 + encoder_1_output["embeddings"]
-            encoder_2_output = self.encoder2(aminoacid_embeddings_0,encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+            encoder_2_output = self.encoder(aminoacid_embeddings_0,map_estimates["embeddings"])  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
 
             z_loc,z_scale = encoder_2_output["z_loc"],encoder_2_output["z_scale"]
@@ -540,7 +541,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
-                "embeddings": encoder_1_output["embeddings"],
+                "embeddings": map_estimates["embeddings"],
                 "batch_nodes" :batch_nodes
                 }
 

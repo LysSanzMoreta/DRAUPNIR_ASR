@@ -737,7 +737,7 @@ class miniGRUEncoder(nn.Module):
 
 
         return {"logits": logits,
-                "next_prev_hiddens":next_prev_hiddens,
+                "embeddings":next_prev_hiddens,#todo: embeddings?
                 "z_loc":z_loc,
                 "z_scale":z_scale
                 }

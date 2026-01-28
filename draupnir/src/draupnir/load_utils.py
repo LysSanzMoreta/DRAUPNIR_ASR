@@ -5,7 +5,7 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 =======================
 """
 from collections import defaultdict
-import os,sys
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -18,9 +18,8 @@ import draupnir.datasets as DraupnirDatasets
 from collections import namedtuple
 from torch.utils.data import Dataset, DataLoader
 from dill import Unpickler
-import ntpath
 from typing import Union
-import json
+
 
 
 SamplingOutput = namedtuple("SamplingOutput",["aa_sequences","latent_space","logits","phis","psis","mean_phi","mean_psi","kappa_phi","kappa_psi"])
@@ -466,6 +465,8 @@ def processing(args:namedtuple,
     patristic_matrix_full = DraupnirUtils.symmetrize(patristic_matrix)
     patristic_matrix_full = DraupnirUtils.rename_axis(patristic_matrix_full, nodes, name_file=name)
     patristic_matrix_full = DraupnirUtils.pandas_to_numpy(patristic_matrix_full)
+
+
 
     if cladistic_matrix is not None:
         cladistic_matrix_full = DraupnirUtils.symmetrize(cladistic_matrix)

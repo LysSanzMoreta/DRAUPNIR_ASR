@@ -951,7 +951,7 @@ def create_dataset(name_file,
 
     internal_nodes_names = [node.name for node in tree.traverse() if not node.is_leaf()]
 
-    ancestors_all =[]
+    ancestors_all =[] #extract the amcestors (only intenal nodes), of each node
     for node in tree.traverse(): #traverse the tree in tree level order (root first)
         ancestors_node =[node.name.replace("'","")]+[node.dist] +[ancestor.name.replace("'","") for ancestor in node.get_ancestors()]
         ancestors_all.append(ancestors_node)

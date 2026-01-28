@@ -11,6 +11,9 @@ from .draw_tree import *
 from .mutual_information import *
 from .plots import *
 from .load_utils import *
+from .predictive_sampling import *
+
+
 
 #from .models_utils import *
 #from .guides import *
