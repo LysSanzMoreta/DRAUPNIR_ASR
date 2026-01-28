@@ -127,6 +127,7 @@ class DRAUPNIRModelClass(nn.Module):
         sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.z_dim, ]).to_event(0))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
         sigma_n = pyro.sample("sigma_n", dist.HalfNormal(alpha[1]).expand_by([self.z_dim, ]).to_event(0))  # Gaussian noise
         lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.z_dim, ]).to_event(0))  # characteristic length-scale
+
         sigma_f = DraupnirUtils.squeeze_tensor(1, sigma_f) + 1e-6 #TODO: Cannot make the OU process parameters squeeze
         sigma_n = DraupnirUtils.squeeze_tensor(1, sigma_n) + 1e-6
         lambd = DraupnirUtils.squeeze_tensor(1, lambd) + 1e-6
