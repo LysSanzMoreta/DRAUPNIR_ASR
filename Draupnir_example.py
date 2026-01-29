@@ -53,7 +53,6 @@ def main():
                                                            tree_file=args.tree_file,
                                                            alignment_file=args.alignment_file)
 
-
     #Highlight: Creates image of the estimated tree coloured by clades (clades are also estimated)
     draw_tree = False
     if draw_tree:
@@ -77,10 +76,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        #default="simulations_src_sh3_3", #200
+                        default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
-                        default="simulations_src_sh3_2", #800
-                        #default="simulations_calcitonin_1",  #50 #todo: make esm embeddings
+                        #default="simulations_src_sh3_2", #800
+                        #default="simulations_calcitonin_1",  #50
                         #default="simulations_blactamase_1", #32
                         #default="simulations_PIGBOS_1", #300 #todo: fix weird error
                         #default="simulations_1GMM", #1000 #todo: add gdrive link
@@ -91,7 +90,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=30, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -105,13 +104,13 @@ if __name__ == "__main__":
                         default=None,
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/simulations_1GMM/1GMM_seq_True_Rooted_tree_node_labels.tre",
                         help='Path to newick tree (in format 1 from ete3) (use with args.use_custom = True).'
-                             'PLEASE make sure that the fasta header names and the names in the tree are the same'
+                             'PLEASE make sure that the fasta header names and the names in the tree are exactly the same'
                              'Set to None for the -default- datasets')
     parser.add_argument('--fasta-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/unaligned_wo_slash.fa",
                         default=None,
                         help='Path to fasta file (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
-                             'PLEASE make sure that the fasta header names and the names in the tree are the same'
+                             'PLEASE make sure that the fasta header names and the names in the tree are exactly the same'
                              'Set to None for the -default- datasets')
 
     parser.add_argument('--embeddings', type=str2None, nargs='?',
@@ -127,7 +126,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=100, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -137,6 +136,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('-n-samples','-n_samples', default=5, type=int, help='Number of samples (sequences sampled) per node')
+
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
                              'test_batched_train_full: The batched test is sampled conditionally on all the map estimates from the train leaves \n'
@@ -189,6 +189,8 @@ if __name__ == "__main__":
     parser.add_argument('-pdb_folder', default=None, type=str,
                         help='Path to folder of PDB structures. The engine can read them and parse them into a dataset that the model can use.')
     parser.add_argument('-angles','--infer-angles', type=str2bool, nargs='?', default=False,help='Experimental. Additional Inference of angles. Use only with sequences associated PDB structures and their angles.')
+
+
     parser.add_argument('-kappa-addition', default=5, type=int, help='lower bound on the angles distribution parameters')
     parser.add_argument('-plate','--plating',  type=str2bool, nargs='?', default=False, help='Plating/Subsampling the mapping of the sequences (ONLY the sequences, not the latent space, '
                                                                                              'see example in DRAUPNIRModel_classic_plating under models.py).\n'
@@ -197,14 +199,11 @@ if __name__ == "__main__":
                                                                     'If set to None it automatically suggests a plate size, only if args.plating is TRUE!. Otherwise it remains as None and no plating occurs\n '
                                                                     'Else it sets the plate size to a given integer')
     parser.add_argument('-plate-idx-shuffle','--plate-unordered', type=str2bool, nargs='?',const=None, default=False,help='When subsampling/plating, shuffle (True) or not (False) the idx of the sequences which are given in tree level order')
-    parser.add_argument('-position-embedding-dim', default=30, type=int, help='Tree position embedding dimension size')
-    parser.add_argument('-max-indel-size', default=5, type=int, help='maximum insertion deletion size (not used)')
     parser.add_argument('-activate-elbo-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the elbo loss is met')
     parser.add_argument('-activate-entropy-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the sequence entropy is met')
-
-
     parser.add_argument('-d', '--config-dict', default=None,type=str, help="Used with parameter search")
     parser.add_argument('--parameter-search', type=str2bool, default=False, help="Activates a mini grid search for parameter search. TODO: Improve") #TODO: Change to something that makes more sense
+
     args = parser.parse_args()
     if args.use_cuda:
         #torch.set_default_tensor_type(torch.cuda.DoubleTensor)

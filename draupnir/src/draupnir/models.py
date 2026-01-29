@@ -25,7 +25,6 @@ class DRAUPNIRModelClass(nn.Module):
         self.num_epochs = ModelLoad.args.num_epochs
         self.gru_hidden_dim = ModelLoad.gru_hidden_dim
         self.embedding_dim = ModelLoad.args.embedding_dim #blosum embedding dim
-        self.position_embedding_dim= ModelLoad.args.position_embedding_dim
         self.pretrained_params = ModelLoad.pretrained_params
         self.z_dim = ModelLoad.z_dim
         self.leaves_nodes = ModelLoad.leaves_nodes
@@ -39,7 +38,6 @@ class DRAUPNIRModelClass(nn.Module):
         self.closest_leaves_dict = ModelLoad.closest_leaves_dict
         self.descendants_dict = ModelLoad.descendants_dict
         self.clades_dict_all = ModelLoad.clades_dict_all
-        self.max_indel_size = ModelLoad.args.max_indel_size
         self.input_size = self.z_dim
         self.use_attention = False
         self.batch_first = True
@@ -1613,7 +1611,6 @@ class DRAUPNIRModel_cladebatching(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
 
 #todo: delete from down here
 class DRAUPNIRModel_leaftesting(DRAUPNIRModelClass):

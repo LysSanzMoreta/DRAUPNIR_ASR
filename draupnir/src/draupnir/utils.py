@@ -1143,6 +1143,9 @@ def convert_to_letters(seq,aa_probs):
         seq_letters = [aa_names_dict_reverse[position] for position in seq if position in aa_names_dict_reverse]
 
     return ''.join(seq_letters)
+
+
+
 def score_match(pair, matrix):
     """Returns the corresponding blosum scores between the pair of amino acids
     :param tuple pair: pair of amino acids to compare

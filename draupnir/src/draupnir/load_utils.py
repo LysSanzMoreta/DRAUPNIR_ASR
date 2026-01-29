@@ -333,7 +333,7 @@ def processing(args:namedtuple,
                 if one_hot_encoding:
                     sequence_to_translate = np.argmax(sequence[3:,0:21],axis=1)
                 else:
-                    sequence_to_translate = sequence[3:,0] #TODO: is this correct?
+                    sequence_to_translate = sequence[3:,0]
                 train_sequence = DraupnirUtils.convert_to_letters(sequence_to_translate, aa_probs) #TODO: vectorize
                 record = SeqRecord(Seq(''.join(train_sequence).replace("-", "")),
                                    annotations={"molecule_type": "protein"},

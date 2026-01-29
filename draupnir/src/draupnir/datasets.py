@@ -391,7 +391,7 @@ def benchmark_randalls_dataset_train(name,args,storage_folder,aa_prob):
     """Processing of the leaves dataset from "An experimental phylogeny to benchmark ancestral sequence reconstruction"
     :param str name: project dataset name
     :param int aa_prob: amino acid probabilities"""
-    observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] #I have this in a list for a series of past reasons
+    observed_nodes = [19,18,17,16,15,14,13,12,11,10,9,8,7,6,4,5,3,2,1] # manually derived from the tree
     sequences_file = "benchmark_randall_original_naming/original_data/RandallExperimentalPhylogenyAASeqs.fasta"
     #Select the sequences of only the observed nodes
     full_fasta = SeqIO.parse(sequences_file, "fasta")

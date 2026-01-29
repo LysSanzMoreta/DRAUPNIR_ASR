@@ -27,7 +27,7 @@ def index_generator(indexes):
         i = (i + 1) % len(indexes)
         return i ##?
 
-# def fill_estimates(guide_map_estimates,map_estimates,batching=False):
+# def fill_estimates(guide_map_estimates,map_estimates,batching=False): #old which did not work
 #     for key, val in guide_map_estimates.items():
 #         if key in ["latent_z"]:
 #             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2, tensor=val)
@@ -68,7 +68,7 @@ def index_generator(indexes):
 #                 #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
 #     return  guide_map_estimates, map_estimates
 
-def fill_estimates(guide_map_estimates,map_estimates,batching=True):
+def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: examine one by one and see which one breaks it
     for key, val in guide_map_estimates.items():
         if key in ["latent_z"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=2, tensor=val)
@@ -117,9 +117,6 @@ def train_batch_new(svi,training_function_input):
     seq_lens = []
     map_estimates = defaultdict()
 
-
-
-
     for batch_number, dataset in enumerate(train_loader):
 
         if args.use_cuda:
@@ -127,24 +124,6 @@ def train_batch_new(svi,training_function_input):
             for batch_name, *extra  in zip(*dataset.values()) : #we have to this trick to unpack, otherwise one extra dimension is added
                 for key, val in zip(list(dataset.keys())[1:],extra): #we skip the batch_name key
                     dataset_batch[key] = val.cuda() if isinstance(val,torch.Tensor) else val
-
-
-
-
-        # for batch_name, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_data_embedding in zip(
-        #         dataset["batch_name"],
-        #         dataset["batch_data"],
-        #         dataset["batch_patristic"],
-        #         dataset["batch_blosum_weighted"],
-        #         dataset["batch_data_blosum"],
-        #         dataset["batch_embedding"]
-        # ):
-        #     if args.use_cuda:
-        #         batch_dataset = batch_dataset.cuda()
-        #         batch_blosum_weighted = batch_blosum_weighted.cuda()
-        #         batch_patristic = batch_patristic.cuda()
-        #         batch_data_blosum = batch_data_blosum.cuda()
-        #         batch_data_embedding = batch_data_embedding.cuda()
 
             batch_datasets = {"int":dataset_batch["batch_data_int"],
                               "blosum":dataset_batch["batch_data_blosum"],
@@ -233,7 +212,6 @@ def train_batch(svi,training_function_input):
                                   dataset_train_blosum,
                                   batch_blosum=None,
                                   map_estimates=None)  # only saving 1 sample
-
 
             guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
             #map_estimates["annealing_factor"] = torch.Tensor([min(1,0.1 + ((training_function_input["epoch"] +1) / 50))]).to(args.device) #until epoch 49 rampage
