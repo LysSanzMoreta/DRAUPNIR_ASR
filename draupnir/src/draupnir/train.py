@@ -95,7 +95,7 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: exam
             else:
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
         elif key in ["embeddings","batch_nodes"]:
-            map_estimates[key] =val
+            map_estimates[key] = val
     return  guide_map_estimates, map_estimates
 
 def train_batch_new(svi,training_function_input):

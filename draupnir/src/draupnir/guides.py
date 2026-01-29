@@ -41,10 +41,9 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
         self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
 
-
-
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
+
     def get_class(self):
         full_name = self.__class__
         name = str(full_name).split(".")[-1].replace("'>","")
@@ -57,29 +56,29 @@ class DRAUPNIRGUIDES(EasyGuide):
         :param data_blosum : data encoded with blosum vectors
         :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
 
-
-        if self.batch_size == None or self.batch_size > 1:
-            if self.batch_by_clade:
-                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                                 batch_blosum)
-            else:
-                if self.args.draupnir_version == "2":
-                    return self.guide_batch_transformer(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
-                elif self.args.draupnir_version == "3a":
-                    return self.guide_batch_zesm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
-                elif self.args.draupnir_version == "3b":
-                    return self.guide_batch_esm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
-
-
-                else:
-                    return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
-        else:
-            return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                        batch_blosum=None,map_estimates=map_estimates)
+        raise NotImplementedError
+        # if self.batch_size == None or self.batch_size > 1:
+        #     if self.batch_by_clade:
+        #         return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                          batch_blosum)
+        #     else:
+        #         if self.args.draupnir_version == "2":
+        #             return self.guide_batch_transformer(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                     batch_blosum=None,map_estimates=map_estimates)
+        #         elif self.args.draupnir_version == "3a":
+        #             return self.guide_batch_zesm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                     batch_blosum=None,map_estimates=map_estimates)
+        #         elif self.args.draupnir_version == "3b":
+        #             return self.guide_batch_esm(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                     batch_blosum=None,map_estimates=map_estimates)
+        #
+        #
+        #         else:
+        #             return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                     batch_blosum=None,map_estimates=map_estimates)
+        # else:
+        #     return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+        #                                 batch_blosum=None,map_estimates=map_estimates)
 
         raise NotImplementedError
 
@@ -494,9 +493,10 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
 
         self.embeddingencoder = EmbedComplexEncoder(input_dim=self.draupnir.aa_probs,
                                                     embedding_dim=self.draupnir.gru_hidden_dim,
-                                                    out_dim=self.draupnir.z_dim)
+                                                    out_dim=self.draupnir.z_dim) #todo: can be bigger
         self.encoder = miniGRUEncoder(depth=2,
-                                      dim=self.draupnir.z_dim)
+                                      input_dim = self.draupnir.z_dim,
+                                      output_dim = self.draupnir.z_dim)
 
 
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
@@ -508,7 +508,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingencoder", self.embeddingencoder)
-        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        aa_sequences_int = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
         aa_sequences_blosum = datasets["blosum"]#blosum does not contain the indexes
         nseqs = aa_sequences_blosum.shape[0]
@@ -522,13 +522,11 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
             lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
             # Highlight: embed the amino acids represented by their respective blosum scores
 
-            aminoacid_embeddings_0 = self.embeddingencoder(aa_sequences_blosum)
+            aminoacid_embeddings = self.embeddingencoder(aa_sequences_blosum)
+            prev_embeddings = map_estimates["embeddings"] if map_estimates is not None else None
+            encoder_output = self.encoder(aminoacid_embeddings)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
-            aminoacid_embeddings_0 = aminoacid_embeddings_0 + encoder_1_output["embeddings"]
-            encoder_2_output = self.encoder(aminoacid_embeddings_0,map_estimates["embeddings"])  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
-
-
-            z_loc,z_scale = encoder_2_output["z_loc"],encoder_2_output["z_scale"]
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
             latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
 
 
@@ -541,7 +539,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
-                "embeddings": map_estimates["embeddings"],
+                "embeddings": encoder_output["embeddings"],
                 "batch_nodes" :batch_nodes
                 }
 

@@ -1766,7 +1766,7 @@ def draupnir_train_batching(train_load,
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None) # we need the
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-                if args.draupnir_version in ["2","4"]:
+                if args.draupnir_version in ["2","4","5"]:
                     map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
                     map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
                     map_estimates["test"] = map_estimates_test

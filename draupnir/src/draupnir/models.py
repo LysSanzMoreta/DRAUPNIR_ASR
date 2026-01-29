@@ -1239,14 +1239,8 @@ class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
         if map_estimates is not  None:
-            if use_test or use_test2:
-                embeddings = map_estimates["test"]["embeddings"]
-            else:
-                embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
-            if batch_idx[1] is None:
-                embeddings = embeddings[int(batch_idx[0]):]
-            else:
-                embeddings = embeddings[int(batch_idx[0]):int(batch_idx[1])]
+            embeddings = map_estimates["test"]["embeddings"] if use_test or use_test2 else  map_estimates["embeddings"]
+            embeddings = embeddings[int(batch_idx[0]):] if batch_idx[1] is None else embeddings[int(batch_idx[0]):int(batch_idx[1])]
             latent_space_ = embeddings + latent_space_
 
         logits = self.decoder.forward(
@@ -1276,15 +1270,14 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.input_size = self.z_dim #+ self.aa_probs
-        self.decoder = xLSTMDecoder(max_len=self.align_seq_len,
-                                  input_size=self.z_dim,
-                                  z_dim = self.z_dim,
-                                  output_size = self.aa_probs)
-
+        self.decoder = miniGRUDecoder(depth=3,
+                                      input_dim=self.z_dim,
+                                      output_dim=self.aa_probs)
         self.internal_nodes_batch = None
         self.n_leaves_internal_batch = None
+
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
-        raise ValueError("not implemented")
+        raise ValueError("not implemented/cannot be implemented")
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
@@ -1306,12 +1299,12 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
 
     def model_variational(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
 
+        pyro.module("decoder", self.decoder)
         aminoacid_sequences = datasets["int"][:, 2:, 0]
         batch_nodes = datasets["int"][:, 0, 1]
+
         self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
         batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
-        # Highlight: Register GRU module
-        pyro.module("decoder", self.decoder)
 
         # Highlight: GP prior over the latent space
         latent_space = self.gp_prior_batched(patristic_matrix_sorted)
@@ -1322,16 +1315,16 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
             embeddings = map_estimates["embeddings"]
             latent_space = embeddings + latent_space #independent vectors
 
+
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
         with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
             logits = self.decoder.forward(
-                    input=latent_space,
-                    #hidden=decoder_hidden
+                    x=latent_space,
+                    #prev_hiddens=embeddings
             )
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
 
         self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
-
 
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
         if self.args.select_guide == "delta_map":
@@ -1414,19 +1407,13 @@ class DRAUPNIRModel_batching_no_blosum_miniRNN(DRAUPNIRModelClass):
 
         #decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
         latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
-        if map_estimates is not  None:
-            if use_test or use_test2:
-                embeddings = map_estimates["test"]["embeddings"]
-            else:
-                embeddings = map_estimates["embeddings"] #todo: when we do not calculate all the embeddings simulataneously, we need to guarantee that it is in order
-            if batch_idx[1] is None:
-                embeddings = embeddings[int(batch_idx[0]):]
-            else:
-                embeddings = embeddings[int(batch_idx[0]):int(batch_idx[1])]
+        if map_estimates is not None:
+            embeddings = map_estimates["test"]["embeddings"] if use_test or use_test2 else  map_estimates["embeddings"]
+            embeddings = embeddings[int(batch_idx[0]):] if batch_idx[1] is None else embeddings[int(batch_idx[0]):int(batch_idx[1])]
             latent_space_ = embeddings + latent_space_
 
         logits = self.decoder.forward(
-            input=latent_space_)
+            x=latent_space_)
 
         if use_argmax:
             #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1

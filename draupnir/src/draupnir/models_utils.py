@@ -674,7 +674,8 @@ def FeedForward(dim, mult=4):
 class miniGRUEncoder(nn.Module):
     def __init__(self,
                  depth,
-                 dim,
+                 input_dim,
+                 output_dim,
                  enable_conv=False,
                  conv_kernel_size=3,
                  expansion=1.5,
@@ -682,18 +683,24 @@ class miniGRUEncoder(nn.Module):
                  dropout=0
                  ):
       super(miniGRUEncoder, self).__init__()
+      self.input_dim = input_dim
+      self.output_dim = output_dim
+      self.layers = ModuleList([])
       for _ in range(depth):
           self.layers.append(ModuleList([
-              CausalDepthWiseConv1d(dim, conv_kernel_size) if enable_conv else None,
-              RMSNorm(dim),
-              minGRU(dim, expansion_factor=expansion),
-              RMSNorm(dim),
-              FeedForward(dim, mult=ff_mult),
+              CausalDepthWiseConv1d(self.input_dim, conv_kernel_size) if enable_conv else None,
+              RMSNorm(self.input_dim),
+              minGRU(self.input_dim, expansion_factor=expansion),
+              RMSNorm(self.input_dim),
+              FeedForward(self.input_dim, mult=ff_mult),
               nn.Dropout(dropout) if dropout > 0. else None
           ]))
-      self.linear_means = nn.Linear(self.nndim, self.z_dim)
-      self.linear_std = nn.Linear(self.nndim, self.z_dim)
-      self.softplus = nn.Softplus(dim=-1)
+
+      self.norm = RMSNorm(self.input_dim)
+      self.logits_probs = nn.Linear(self.input_dim, self.output_dim)
+      self.linear_means = nn.Linear(self.input_dim, self.output_dim)
+      self.linear_std = nn.Linear(self.input_dim, self.output_dim)
+      self.softplus = nn.Softplus()
 
     def forward(self,
                 x,
@@ -709,7 +716,7 @@ class miniGRUEncoder(nn.Module):
                 assert len(list(prev_hiddens)) == 0, 'caching not supported for conv version'
                 x = conv(x) + x
             # min gru
-            prev_hidden = next(prev_hiddens, None)
+            prev_hidden = next(iter(prev_hiddens), None)
             min_gru_out, next_prev_hidden = mingru(
                 norm(x),
                 prev_hidden,
@@ -726,21 +733,84 @@ class miniGRUEncoder(nn.Module):
                 x = dropout(x)
 
         embed = self.norm(x)
-        logits = self.to_logits(embed)
+        logits = self.logits_probs(embed)
 
-        print(logits.shape)
+        latent = x.mean(dim=1)
 
-        print(next_prev_hiddens.shape)
-        z_loc = self.linear_means(x)
-        z_scale = self.softplus(self.linear_std(x))
+        z_loc = self.linear_means(latent)
+        z_scale = self.softplus(self.linear_std(latent))
 
-
-
-        return {"logits": logits,
-                "embeddings":next_prev_hiddens,#todo: embeddings?
+        return {"prev_hiddens": prev_hiddens, #todo: do something with this? not used in the example
+                "embeddings":logits,
                 "z_loc":z_loc,
                 "z_scale":z_scale
                 }
+
+class miniGRUDecoder(nn.Module):
+    def __init__(self,
+                 depth,
+                 input_dim,
+                 output_dim,
+                 enable_conv=False,
+                 conv_kernel_size=3,
+                 expansion=1.5,
+                 ff_mult=4,
+                 dropout=0
+                 ):
+      super(miniGRUDecoder, self).__init__()
+      self.input_dim = input_dim
+      self.output_dim = output_dim
+      self.layers = ModuleList([])
+      for _ in range(depth):
+          self.layers.append(ModuleList([
+              CausalDepthWiseConv1d(self.input_dim, conv_kernel_size) if enable_conv else None,
+              RMSNorm(self.input_dim),
+              minGRU(self.input_dim, expansion_factor=expansion),
+              RMSNorm(self.input_dim),
+              FeedForward(self.input_dim, mult=ff_mult),
+              nn.Dropout(dropout) if dropout > 0. else None
+          ]))
+      self.norm = RMSNorm(self.input_dim)
+      self.logits_probs = nn.Linear(self.input_dim,self.output_dim)
+      self.logsoftmax = nn.LogSoftmax(dim=-1)
+
+
+    def forward(self,
+                x,
+                prev_hiddens=None):
+        if prev_hiddens is not None:
+            x = x[:, -1:]
+        next_prev_hiddens = []
+        prev_hiddens = prev_hiddens if prev_hiddens is not None else []
+
+        for conv, norm, mingru, ff_norm, ff, dropout in self.layers:
+            # conv
+            if conv is not None:
+                assert len(list(prev_hiddens)) == 0, 'caching not supported for conv version'
+                x = conv(x) + x
+            # min gru
+            prev_hidden = next(iter(prev_hiddens), None)
+            min_gru_out, next_prev_hidden = mingru(
+                norm(x),
+                prev_hidden,
+                return_next_prev_hidden=True
+            )
+
+            x = min_gru_out + x
+            next_prev_hiddens.append(next_prev_hidden)
+
+            # feedforward
+            x = ff(ff_norm(x)) + x
+            # dropout
+            if dropout is not None:
+                x = dropout(x)
+
+        embed = self.norm(x)
+        logits = self.logsoftmax(self.logits_probs(embed))
+
+        return logits
+
+
 
 
 class GPKernel(ABC):

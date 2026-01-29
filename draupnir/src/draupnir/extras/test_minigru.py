@@ -148,7 +148,10 @@ class minLM(Module):
 
         # handle previous hiddens, for recurrent decoding
 
+
+
         if exists(prev_hiddens):
+            print("prev hiddens 1111111: ",sum(1 for _ in prev_hiddens))
             x = x[:, -1:]
 
         next_prev_hiddens = []
@@ -177,6 +180,11 @@ class minLM(Module):
             # dropout
             if exists(dropout):
                 x = dropout(x)
+
+        print("prev hiddens: ",sum(1 for _ in prev_hiddens))
+        print("self layers: ",len(self.layers))
+
+
 
         embed = self.norm(x)
         logits = self.to_logits(embed)
@@ -322,7 +330,10 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.0, desc = "training"):
     for _ in range(GRAD_ACCUM_EVERY):
         data = next(enumerate(train_loader))[1]
 
-        loss = model(data, return_loss = True)
+        loss = model(data,
+                     return_loss = True,
+                     return_prev_hiddens=False, #to returne these ones we need return loss to be false
+                     prev_hiddens=None)
 
         accelerator.backward(loss / GRAD_ACCUM_EVERY)
 
