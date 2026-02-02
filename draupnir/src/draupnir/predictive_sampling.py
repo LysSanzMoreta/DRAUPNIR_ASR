@@ -558,7 +558,7 @@ def predictive_test_batched_train_batched(args,
                         #
                         # print("------------------------------------")
                         if batch_idx_test[1] is None:  # last batch
-                            print(aa_sequences_test_samples[test_sample_idx + train_block_idx, batch_idx_test[0]:].shape)
+
 
                             aa_sequences_test_samples[test_sample_idx + train_block_idx, batch_idx_test[
                                                                                              0]:] = batch_test_sample.aa_sequences.detach().cpu()

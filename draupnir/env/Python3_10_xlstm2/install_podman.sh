@@ -3,5 +3,5 @@ podman image rm draupnir_esm --force #remove image completely
 podman rm -v -f $(podman ps -qa)
 podman builder prune #delete cache
 podman rmi $(podman images -f "dangling=true" -q) #remove untagged/uncompleted images
-podman build --no-cache --tag draupnir_esm . #build new image with same name ignoring cache
+podman build --no-cache --tag draupnir_xlstm2 . #build new image with same name ignoring cache
 #podman-compose up --build

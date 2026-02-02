@@ -481,38 +481,59 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_train
         else: #partial inference of the leaves latent space
             patristic_matrix_model = patristic_matrix_full
-    elif args.batch_size == 1 and args.draupnir_version == "1":#Not batching, training on all leaves, testing on internal nodes & training on leaves but only using the latent space of the training leaves
-        assert args.plating_size == None, "Please set to None the plate size. If you want to plate, use args.plate = True; if you want to batch, set batch_size to some number"
+
+    elif args.draupnir_version != "1" and args.batch_size > 1:
         if args.use_blosum:
-            Draupnir = DraupnirModels.DRAUPNIRModel_classic(model_load)
+            draupnir_dict = {
+                "2": DraupnirModels.DRAUPNIRModel_transformer,
+            }
         else:
-            Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
+            draupnir_dict= {"1b": DraupnirModels.DRAUPNIRModel_classic_no_blosum_1b,
+                        "2": DraupnirModels.DRAUPNIRModel_transformer_no_blosum,
+                        "3a": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
+                        "3b": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
+                        "4": DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm,
+                        "5": DraupnirModels.DRAUPNIRModel_batching_no_blosum_miniRNN
+                        }
+        Draupnir = draupnir_dict[args.draupnir_version](model_load)
         patristic_matrix_model = patristic_matrix_train
-    elif args.draupnir_version == "2":
-        if args.use_blosum:
-            Draupnir = DraupnirModels.DRAUPNIRModel_transformer(model_load)
-        else:
-            Draupnir = DraupnirModels.DRAUPNIRModel_transformer_no_blosum(model_load)
-        patristic_matrix_model = patristic_matrix_train
-    elif args.draupnir_version in  ["3a","3b"]:
-        Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
-        patristic_matrix_model = patristic_matrix_train
-    elif args.draupnir_version in ["4"]:
-        Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm(model_load)
-        patristic_matrix_model = patristic_matrix_train
-    elif args.draupnir_version in ["5"]:
-        Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_miniRNN(model_load)
-        patristic_matrix_model = patristic_matrix_train
-    else:  # batching
-        print("Batching! (currently batch_size == None or batch_size != 1)")
-        assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
-        if args.use_blosum:
-            warnings.warn("Using pre-computed blosum weighted average encoding")
-            Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
-        else:
-            print("Not using pre-computed weighted blosum average, version 2!!")
-            Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
-        patristic_matrix_model = patristic_matrix_train
+
+    # elif args.draupnir_version == "2":
+    #     if args.use_blosum:
+    #         Draupnir = DraupnirModels.DRAUPNIRModel_transformer(model_load)
+    #     else:
+    #         Draupnir = DraupnirModels.DRAUPNIRModel_transformer_no_blosum(model_load)
+    #     patristic_matrix_model = patristic_matrix_train
+    # elif args.draupnir_version in  ["3a","3b"]:
+    #     Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
+    #     patristic_matrix_model = patristic_matrix_train
+    # elif args.draupnir_version in ["4"]:
+    #     Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm(model_load)
+    #     patristic_matrix_model = patristic_matrix_train
+    # elif args.draupnir_version in ["5"]:
+    #     Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum_miniRNN(model_load)
+    #     patristic_matrix_model = patristic_matrix_train
+
+    elif args.draupnir_version == "1":
+        if args.batch_size == 1: #Not batching, training on all leaves, testing on internal nodes & training on leaves but only using the latent space of the training leaves
+            assert args.plating_size == None, "Please set to None the plate size. If you want to plate, use args.plate = True; if you want to batch, set batch_size to some number"
+            if args.use_blosum:
+                Draupnir = DraupnirModels.DRAUPNIRModel_classic(model_load)
+            else:
+                Draupnir = DraupnirModels.DRAUPNIRModel_classic_no_blosum(model_load)
+            patristic_matrix_model = patristic_matrix_train
+        else:  # batching
+            print("Batching! (currently batch_size == None or batch_size != 1)")
+            assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
+            if args.use_blosum:
+                warnings.warn("Using pre-computed blosum weighted average encoding")
+                Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
+            else:
+                print("Not using pre-computed weighted blosum average!!")
+                Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
+            patristic_matrix_model = patristic_matrix_train
+    else:
+        raise ValueError("Model not found")
     #print(DraupnirUtils.get_method_arguments(Draupnir,"model"))
     #Highlight: initialize weights
     #Draupnir = Draupnir.apply(init_weights)
@@ -2718,9 +2739,6 @@ def config_build(args):
             "z_dim": 30,
             "gru_hidden_dim": 60, #60
         }
-
-    print(config)
-
 
 
     json.dump(config,open(config_dict_path,"w"),indent=2)

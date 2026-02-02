@@ -810,9 +810,6 @@ class miniGRUDecoder(nn.Module):
 
         return logits
 
-
-
-
 class GPKernel(ABC):
     @abstractmethod
     def preforward(self, t1: torch.Tensor,t2: torch.Tensor) -> torch.Tensor:
@@ -877,6 +874,8 @@ class OUKernel_Fast(GPKernel):
         noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
         sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
         return first_term * second_term + sigma_n ** 2 * noise
+
+
 
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf

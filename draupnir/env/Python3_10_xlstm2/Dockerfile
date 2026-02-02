@@ -17,9 +17,7 @@ RUN apt-get update && apt-get install -y wget
 RUN apt-get install --yes nano
 RUN apt-get install --yes less
 RUN apt-get install --yes cmake ninja-build
-RUN apt-get install nvidia-cuda-toolkit
-
-
+RUN apt-get install --yes nvidia-cuda-toolkit
 
 
 #Install R packages
