@@ -250,7 +250,7 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         DRAUPNIRGUIDES.__init__(self,draupnir_model,ModelLoad, Draupnir)
 
-        self.encoder = RNNEncoder(align_seq_len=self.draupnir.align_seq_len,
+        self.encoder = RNNEncoder_1b(align_seq_len=self.draupnir.align_seq_len,
                                   aa_prob=self.draupnir.aa_probs,
                                   n_leaves=self.draupnir.n_leaves,
                                   gru_hidden_dim=self.draupnir.gru_hidden_dim,
@@ -259,9 +259,10 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
                                   kappa_addition=self.draupnir.kappa_addition,
                                   num_layers=self.draupnir.num_layers,
                                   pretrained_params=self.draupnir.pretrained_params)
-        self.embeddingencoder = EmbedComplexEncoder(input_dim=self.draupnir.aa_probs,
+        self.embeddingencoder = EmbedComplexEncoder_1b(input_dim=self.draupnir.aa_probs,
                                                     embedding_dim=self.draupnir.embedding_dim,
                                                     out_dim=self.draupnir.aa_probs)
+
 
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
         """
@@ -273,15 +274,11 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
 
         if self.batch_size == None or self.batch_size > 1:
             if self.batch_by_clade:
-                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                                 batch_blosum)
+                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum)
             else:
-
-                return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
+                return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None,map_estimates=map_estimates)
         else:
-            return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                        batch_blosum=None,map_estimates=map_estimates)
+            return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None,map_estimates=map_estimates)
 
     def guide_noplating(self,datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
         """

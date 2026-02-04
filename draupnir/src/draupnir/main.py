@@ -369,21 +369,36 @@ def save_samples(dataset,patristic,samples_out,entropies,correspondence_dict,res
     :param dict correspondence_dict: dictionary that contains the correspondence upon the node indexes (integers) and the tree nodes names (ordered in tree level order)
     :param str results_dir
     """
-    info_dict = { "dataset": dataset,
-                  "patristic":patristic,
-                  "correspondence_dict":correspondence_dict,
-                  "aa_predictions": samples_out.aa_sequences,
-                  "latent_space": samples_out.latent_space,
-                  "logits": samples_out.logits,
-                  "entropies": entropies,
-                  "phis" : samples_out.phis,
-                  "psis": samples_out.psis,
-                  "mean_phi":samples_out.mean_phi,
-                  "mean_psi":samples_out.mean_psi,
-                  "kappa_phi":samples_out.kappa_phi,
-                  "kappa_psi": samples_out.kappa_psi}
 
-    torch.save(info_dict, results_dir)
+    dtype = torch.float16
+
+    if samples_out.phis is not None:
+        info_dict = { "dataset": dataset.to(dtype),
+                      "patristic":patristic.to(dtype),
+                      "correspondence_dict":correspondence_dict,
+                      "aa_predictions": samples_out.aa_sequences.to(dtype),
+                      "latent_space": samples_out.latent_space.to(dtype),
+                      "logits": samples_out.logits.to(dtype),
+                      "entropies": entropies.to(dtype),
+                      "phis" : samples_out.phis.to(dtype),
+                      "psis": samples_out.psis.to(dtype),
+                      "mean_phi":samples_out.mean_phi.to(dtype),
+                      "mean_psi":samples_out.mean_psi.to(dtype),
+                      "kappa_phi":samples_out.kappa_phi.to(dtype),
+                      "kappa_psi": samples_out.kappa_psi.to(dtype)}
+    else:
+
+        info_dict = { "dataset": dataset.to(dtype),
+                      "patristic":patristic.to(dtype),
+                      "correspondence_dict":correspondence_dict,
+                      "aa_predictions": samples_out.aa_sequences.to(dtype),
+                      "latent_space": samples_out.latent_space.to(dtype),
+                      "logits": samples_out.logits.to(dtype),
+                      "entropies": entropies.to(dtype)}
+
+    #output_dir = results_dir.replace(".torch",".lz4")
+    torch.save(info_dict, results_dir,pickle_protocol=4)
+
 def visualize_latent_space(latent_space_train,latent_space_test,patristic_matrix_train,patristic_matrix_test,additional_load,build_config,args,results_dir):
     """Joins the latent spaces of the test (internal) and train (leaves) to visualize them divided by clades
     :param tensor latent_space_train: tensor [n_leaves,z_dim]
@@ -481,14 +496,13 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_train
         else: #partial inference of the leaves latent space
             patristic_matrix_model = patristic_matrix_full
-
     elif args.draupnir_version != "1" and args.batch_size > 1:
         if args.use_blosum:
             draupnir_dict = {
                 "2": DraupnirModels.DRAUPNIRModel_transformer,
             }
         else:
-            draupnir_dict= {"1b": DraupnirModels.DRAUPNIRModel_classic_no_blosum_1b,
+            draupnir_dict= {"1b": DraupnirModels.DRAUPNIRModel_batching_no_blosum_1b,
                         "2": DraupnirModels.DRAUPNIRModel_transformer_no_blosum,
                         "3a": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
                         "3b": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
@@ -515,6 +529,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     #     patristic_matrix_model = patristic_matrix_train
 
     elif args.draupnir_version == "1":
+        print("hererrrr2")
         if args.batch_size == 1: #Not batching, training on all leaves, testing on internal nodes & training on leaves but only using the latent space of the training leaves
             assert args.plating_size == None, "Please set to None the plate size. If you want to plate, use args.plate = True; if you want to batch, set batch_size to some number"
             if args.use_blosum:
@@ -534,11 +549,14 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_train
     else:
         raise ValueError("Model not found")
+
+
     #print(DraupnirUtils.get_method_arguments(Draupnir,"model"))
     #Highlight: initialize weights
     #Draupnir = Draupnir.apply(init_weights)
     plating_info = "WITH PLATING" if args.plating else "WITHOUT plating"
     print("Using model {} {}".format(Draupnir.get_class(),plating_info))
+
     text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
     text_file.write("Model Class:  {} \n".format(Draupnir.get_class()))
     text_file.close()
@@ -600,13 +618,14 @@ def select_quide(Draupnir,model_load,args):
                    #"variational": DraupnirGuides.DRAUPNIRGUIDES(Draupnir.model,model_load,Draupnir)
                    }
     print("Using {} as guide".format(args.select_guide))
-    #return guide_types[choice]
     if args.select_guide in guide_types.keys():
         guide = guide_types[args.select_guide]
         return guide.to(args.devcie)
     else:
 
-        guide_dict = {"1": DraupnirGuides.DRAUPNIRGuides_classic,
+        guide_dict = {
+                      "1": DraupnirGuides.DRAUPNIRGuides_classic,
+                      "1b": DraupnirGuides.DRAUPNIRGuides_classic_1b,
                       "2": DraupnirGuides.DRAUPNIRGuides_transformer,
                       "3a": DraupnirGuides.DRAUPNIRGuides_z_esm,
                       "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm,
@@ -620,6 +639,7 @@ def select_quide(Draupnir,model_load,args):
 
         #guide = guide.apply(init_weights)
         return guide.to(args.device)
+
 def transform_to_integers(sample_out,build_config):
     """Transform the one-hot encoded sequences embedded in a namedtuple back to integers
     :param namedtuple sample_out: contains the tensors produced by Draupnir.sample
@@ -1787,7 +1807,7 @@ def draupnir_train_batching(train_load,
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None) # we need the
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-                if args.draupnir_version in ["2","4","5"]:
+                if args.draupnir_version in ["1b","2","4","5"]:
                     map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
                     map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
                     map_estimates["test"] = map_estimates_test
@@ -1840,14 +1860,11 @@ def draupnir_train_batching(train_load,
                                                       use_test=False,
                                                       use_test2=True)
 
-            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),
-                                                                         test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0]) #slice the test nodes, use only the first "batch_size" nodes while training
-            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),
-                                                                          test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0])
+            test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0]) #slice the test nodes, use only the first "batch_size" nodes while training
+            test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test2.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:(int(blocks_train[0][1])+1), 0])
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
-            save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train, train_entropy_epoch,
-                         additional_load.correspondence_dict, "{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
+            save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train, train_entropy_epoch,additional_load.correspondence_dict, "{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
             save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropy_epoch,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(results_dir + "/Train_argmax_Plots"))
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test2, test_entropies2, additional_load.correspondence_dict,"{}/test_info_dict2.torch".format(results_dir + "/Test2_Plots"))
             save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax2, test_entropies2,additional_load.correspondence_dict,"{}/test2_argmax_info_dict.torch".format(results_dir + "/Test2_argmax_Plots"))
@@ -1889,8 +1906,7 @@ def draupnir_train_batching(train_load,
     end_total = time.time()
     print('Final timing: {}'.format(str(datetime.timedelta(seconds=end_total - start_total))))
     print("Added epochs : {}".format(added_epochs))
-    text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),
-                                                                 args.num_epochs), "a")
+    text_file = open("{}/Hyperparameters_{}_{}epochs.txt".format(results_dir, now.strftime("%Y_%m_%d_%Hh%Mmin%Ss%fms"),args.num_epochs), "a")
     text_file.write("Running time: {}\n".format(str(datetime.timedelta(seconds=end_total - start_total))))
     text_file.write("Total epochs (+added epochs): {}\n".format(args.num_epochs + added_epochs))
 

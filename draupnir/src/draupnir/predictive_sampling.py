@@ -286,7 +286,7 @@ def predictive_test_batched_train_full(args,
             map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
             for sample_idx, sample in enumerate(samples_names):
                 print("sample idx {}".format(sample_idx))
-                if args.draupnir_version in ["2", "4","5"]:
+                if args.draupnir_version in ["1b","2", "4","5"]:
                     map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test,test_load.cladistic_matrix_test, dataset_test_blosum,batch_blosum=None)  # i extracted the "test" estimates here for some experiment
                     map_estimates["test"] = {val: key.detach() for val, key in map_estimates_test.items() if
                                              key is not None}
@@ -493,7 +493,7 @@ def predictive_test_batched_train_batched(args,
                         datasets_train["int"][batch_idx_train[0]:batch_idx_train[1]][
                             :, 0, 1]  # todo: if batch_idx_train is out of range thsi needs to be corrected
 
-                        if args.draupnir_version in ["2", "4","5"]:
+                        if args.draupnir_version in ["1b","2", "4","5"]:
                             datasets_test_batch = {key: data[batch_idx_train[0]:batch_idx_train[1]] for key, data in
                                                    datasets_test}
                             map_estimates_test_batch = guide(datasets_test_batch, test_load.patristic_matrix_test,

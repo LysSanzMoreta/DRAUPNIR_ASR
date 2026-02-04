@@ -86,11 +86,12 @@ if __name__ == "__main__":
                         #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
+    parser.add_argument('-output-path', '--output-path', default=f"{script_dir}", type=str, help='Folder where to output the results')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=5, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=2000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -114,8 +115,7 @@ if __name__ == "__main__":
                              'Set to None for the -default- datasets')
 
     parser.add_argument('--embeddings', type=str2None, nargs='?',
-                        #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/unaligned_wo_slash.fa",
-                        default=None,
+                        default=None, #todo: make the script use it, right now is in the air
                         help='Path to numpy array containing precomputed embeddings with shape [Nseqs, max_len + 1, feat_dim] (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
                              'In position data[:,0,0] place the node names of the leaves as specified in the fasta file and the tree') #todo: experimental
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
                              'test_batched_train_full: The batched test is sampled conditionally on all the map estimates from the train leaves \n'
-                             'test_batched_train_batched: The batched test is sampled conditionally on each of the train batches (slower, breaks some correlations, less memory consumption '
+                             'test_batched_train_batched: The batched test is sampled conditionally on each of the train batches (slower, breaks some correlations, less memory consumption) '
                         )
     parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
@@ -168,9 +168,10 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="1b", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
+                             '1b: experiments with draupnir model 1'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'

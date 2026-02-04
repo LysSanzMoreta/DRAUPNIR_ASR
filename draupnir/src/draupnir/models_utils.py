@@ -87,8 +87,93 @@ class RNNEncoder(nn.Module):
                  "rnn_final_forward_backward_sum":rnn_final_forward_backward_sum.unsqueeze(0), #not transformed
                  "rnn_hidden_states":rnn_hidden_states,
                  "rnn_final_hidden_state":rnn_final_hidden_state}
+class RNNEncoder_1b(nn.Module):
+    def __init__(self, align_seq_len,
+                 aa_prob,n_leaves,
+                 gru_hidden_dim,
+                 z_dim,
+                 input_size,
+                 kappa_addition,
+                 num_layers,
+                 pretrained_params):
+        super(RNNEncoder_1b, self).__init__()
+        self.gru_hidden_dim = gru_hidden_dim
+        self.z_dim = z_dim
+        self.n_leaves = n_leaves
+        self.input_size = input_size
+        self.align_seq_len = align_seq_len
+        self.aa_prob = aa_prob
+        self.num_layers = num_layers
+        self.kappa_addition = kappa_addition
+        self.softmax = nn.Softmax()
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+        self.nndim = int(self.gru_hidden_dim/2)
 
-        #return output_means,output_std
+        self.linear_hidden1 = nn.Linear(int(self.gru_hidden_dim*2),self.gru_hidden_dim)
+        self.linear_hidden2 = nn.Linear(self.gru_hidden_dim,self.z_dim)
+        self.fc1 = nn.Linear(self.z_dim, self.z_dim)
+        self.linear_means = nn.Linear(self.z_dim, self.z_dim)
+        self.linear_std = nn.Linear(self.z_dim, self.z_dim)
+
+        self.layernorm0 = nn.LayerNorm(self.gru_hidden_dim)
+        self.layernorm1 = nn.LayerNorm(int(self.gru_hidden_dim*2))
+        self.layernorm2 = nn.LayerNorm(self.gru_hidden_dim)
+        self.layernorm3 = nn.LayerNorm(self.z_dim)
+        self.layernorm4 = nn.LayerNorm(self.z_dim)
+        self.layernorm5 = nn.LayerNorm(self.z_dim)
+        self.layernorm6 = nn.LayerNorm(self.z_dim)
+
+        self.softplus = nn.Softplus()
+
+        self.rnn = nn.GRU(input_size=self.input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
+
+        #todo: necessary? maybe
+        #self.init_gru_bias()
+    def init_gru_bias(self): #some funky suggestion by llm
+        for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
+            if "bias_ih_l0" in name:
+                param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
+    def forward(self, input, hidden):
+
+
+        rnn_hidden_states, rnn_final_bidirectional = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim*2] | [num_layers*2,n_nodes,gru_dim]
+        # print("Encoder rnn states")
+        # print(rnn_final_bidirectional.var(dim=0).mean())  # should not be tiny
+        # print(rnn_hidden_states.var(dim=0).mean())  # should not be tiny
+
+
+        rnn_hidden_states, rnn_final_bidirectional = self.layernorm1(rnn_hidden_states), self.layernorm0(rnn_final_bidirectional)
+        rnn_hidden_states = self.layernorm2(self.linear_hidden1(rnn_hidden_states))
+        rnn_hidden_states = self.layernorm3(self.linear_hidden2(rnn_hidden_states))
+
+        #forward_out_r,backward_out_r = rnn_hidden_states[:,:,:self.gru_hidden_dim],rnn_hidden_states[:,:,self.gru_hidden_dim:]
+
+        #rnn_hidden_states = forward_out_r + backward_out_r #original
+        rnn_final_forward_backward_sum = rnn_hidden_states[:,-1] #original takes the last state of the forward and the first state of the backward
+
+        #rnn_final_forward_backward_sum = forward_out_r[:,-1] + backward_out_r[:,0] #pick the last state forward and the first state from backwards
+        #todo:
+        # the hidden states need to be transformed to the zdim state
+
+
+        rnn_final_hidden_state = self.layernorm4(self.fc1(rnn_final_forward_backward_sum))
+        z_loc = self.layernorm5(self.linear_means(rnn_final_hidden_state))
+        z_scale = self.softplus(self.layernorm6(self.linear_std(rnn_final_hidden_state)))
+
+
+        return  {"z_loc":z_loc,
+                 "z_scale":z_scale,
+                 "rnn_final_bidirectional":rnn_final_bidirectional,
+                 "rnn_final_forward_backward_sum":rnn_final_forward_backward_sum.unsqueeze(0), #not transformed
+                 "rnn_hidden_states":rnn_hidden_states,
+                 "rnn_final_hidden_state":rnn_final_hidden_state}
 
 class FCLEncoder(nn.Module):
     def __init__(self, align_seq_len,aa_prob,n_leaves,gru_hidden_dim, z_dim,input_size, num_layers):
@@ -358,6 +443,81 @@ class RNNDecoder_Tiling(nn.Module):
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
 
         return output_logits
+class RNNDecoder_Tiling_1b(nn.Module):
+    def __init__(self,
+                 align_seq_len,
+                 aa_probs,
+                 gru_hidden_dim,
+                 z_dim,
+                 input_size,
+                 kappa_addition,
+                 num_layers,
+                 pretrained_params):
+        super(RNNDecoder_Tiling_1b, self).__init__()
+        self.gru_hidden_dim = gru_hidden_dim
+        self.z_dim = z_dim
+        self.input_size = input_size
+        self.align_seq_len = align_seq_len
+        self.aa_probs = aa_probs
+        self.num_layers = num_layers
+        self.kappa_addition = kappa_addition
+        self.softmax = nn.Softmax()
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
+        self.tanh = nn.Tanh()
+        #self.layernorm = nn.LayerNorm(self.input_size)
+        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_probs)
+        self.rnn = nn.GRU(input_size=self.input_size,
+                          hidden_size=self.gru_hidden_dim,
+                          batch_first=True,
+                          bidirectional=True,
+                          num_layers=self.num_layers,
+                          dropout=0.0)
+        self.layernorm1 = nn.LayerNorm(self.gru_hidden_dim*2)
+        self.layernorm2 = nn.LayerNorm(self.gru_hidden_dim)
+        self.layernorm3 = nn.LayerNorm(self.aa_probs)
+        #todo: necessary? does not seem to hurt
+
+        #self.init_gru_bias()
+
+    def init_gru_bias(self):
+        for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
+            if "bias_ih_l0" in name:
+                param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
+
+
+    # def forward(self, input, hidden): #old function for RNNDecoder_Tiling_new
+    #     rnn_hidden_states, rnn_final_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
+    #     forward_hidden_states = rnn_hidden_states[:, :, :self.gru_hidden_dim]
+    #     backward_hidden_states = rnn_hidden_states[:, :, self.gru_hidden_dim:]
+    #     rnn_hidden_states = forward_hidden_states + backward_hidden_states
+    #     #rnn_final_hidden = rnn_hidden_states[:,-1]
+    #
+    #     rnn_final_hidden = self.fc1(rnn_hidden_states)
+    #     output_logits = self.logsoftmax(self.linear_probs(rnn_final_hidden))  # [n_nodes,align_seq_len,aa_probs]
+    #     #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
+    #     return output_logits
+
+    def forward(self, input, hidden):
+        """One-shot, non-autoregressive sequence generation"""
+
+
+        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
+
+        # print("Decoder rnn states")
+        # print(rnn_output.var(dim=0).mean())  # should not be tiny
+        # print(rnn_hidden.var(dim=0).mean())  # should not be tiny
+        #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
+        #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
+        #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
+        rnn_output = self.layernorm1(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
+        rnn_output = self.layernorm2(self.fc1(rnn_output))
+        rnn_output = self.layernorm3(self.linear_probs(rnn_output))
+        output_logits = self.logsoftmax(rnn_output)  # [n_nodes,align_seq_len,aa_probs]
+
+        return output_logits
+
 class RNNDecoder_Tiling_Angles(nn.Module):
     def __init__(self, align_seq_len,aa_prob,gru_hidden_dim, z_dim,input_size, kappa_addition,num_layers,pretrained_params):
         super(RNNDecoder_Tiling_Angles, self).__init__()
@@ -552,16 +712,7 @@ class RNNDecoder_TeacherForcing(nn.Module): #Highlight: faster learning for some
 
         else:
             return self.forward_normal(input,hidden,mode)
-class Embed(nn.Module):
-    def __init__(self,aa_probs,embedding_dim,pretrained_params):
-        super(Embed, self).__init__()
-        self.aa_probs = aa_probs
-        self.embedding_dim = embedding_dim
-        self.fc1 = nn.Linear(self.aa_probs,self.aa_probs)
-        self.softmax = nn.Softmax(dim=-1)
-    def forward(self,input):
-        output = self.fc1(input) #.type(torch.cuda.IntTensor)
-        return output
+
 class EmbedComplex(nn.Module):
     def __init__(self,aa_probs,embedding_dim,pretrained_params):
         super(EmbedComplex, self).__init__()
@@ -574,6 +725,26 @@ class EmbedComplex(nn.Module):
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.softmax(self.fc2(output))
         return output
+
+class EmbedComplex_1b(nn.Module):
+    def __init__(self,aa_probs,embedding_dim,pretrained_params):
+        super(EmbedComplex_1b, self).__init__()
+        self.aa_probs = aa_probs
+        self.embedding_dim = embedding_dim
+        self.softmax = nn.Softmax(dim=-1)
+        self.fc1 = nn.Linear(self.aa_probs,self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim,self.aa_probs)
+        self.layernorm1 = nn.LayerNorm(self.embedding_dim)
+        self.layernorm2 = nn.LayerNorm(self.aa_probs)
+
+    def forward(self,input):
+
+        output = self.fc1(input) #.type(torch.cuda.IntTensor)
+        output = self.layernorm1(output)
+        output = self.softmax(self.layernorm2(self.fc2(output)))
+
+        return output
+
 class EmbedComplexEncoder(nn.Module):
     def __init__(self,input_dim,embedding_dim,out_dim):
         super(EmbedComplexEncoder, self).__init__()
@@ -588,6 +759,66 @@ class EmbedComplexEncoder(nn.Module):
 
         output = self.fc1(input) #.type(torch.cuda.IntTensor)
         output = self.softmax(self.fc2(output))
+
+        return output
+
+class EmbedComplexEncoder_1b(nn.Module):
+    def __init__(self,input_dim,embedding_dim,out_dim):
+        super(EmbedComplexEncoder_1b, self).__init__()
+        self.input_dim = input_dim
+        self.out_dim = out_dim
+        self.embedding_dim = embedding_dim
+        self.softmax = nn.Softmax(dim=-1)
+        self.fc1 = nn.Linear(self.input_dim,self.embedding_dim)
+        self.layernorm1 = nn.LayerNorm(self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim,self.out_dim)
+        self.layernorm2 = nn.LayerNorm(self.out_dim)
+
+    def forward(self,input):
+        output = self.fc1(input) #.type(torch.cuda.IntTensor)
+        output = self.layernorm1(output)
+        output = self.softmax(self.layernorm2(self.fc2(output)))
+
+        return output
+
+class FCFilm(nn.Module):
+    def __init__(self, input_dim, embedding_dim, out_dim):
+        super(FCFilm, self).__init__()
+        self.input_dim = input_dim
+        self.out_dim = out_dim
+        self.embedding_dim = embedding_dim
+
+        self.mlp = nn.Sequential(
+            nn.Linear(self.input_dim, self.embedding_dim),
+            nn.LayerNorm(self.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(self.embedding_dim, self.embedding_dim),
+            nn.LayerNorm(self.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(self.embedding_dim, self.out_dim),
+            nn.LayerNorm(self.out_dim),
+            nn.Softmax(dim=-1)
+        )
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
+
+
+    def forward(self, input, latent_space):
+        """
+        Transform the hidden states conditioned by the latent space
+        :input: [N, L , feat_dim] , hidden states
+        :latent_space : [N, z_dim]
+        """
+
+
+        gamma_beta = self.mlp(latent_space)
+        gamma, beta = gamma_beta.chunk(2, dim=-1) #split into 2 chuncks
+
+        gamma = gamma.unsqueeze(1)           # (N, 1, featdim)
+        beta  = beta.unsqueeze(1)            # (N, 1, featdim)
+
+        output = gamma * input + beta
+
+        output = self.logsoftmax(output)
 
         return output
 
@@ -874,8 +1105,6 @@ class OUKernel_Fast(GPKernel):
         noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
         sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
         return first_term * second_term + sigma_n ** 2 * noise
-
-
 
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf

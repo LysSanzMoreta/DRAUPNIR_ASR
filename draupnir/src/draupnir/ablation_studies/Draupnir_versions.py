@@ -261,7 +261,7 @@ folders_dict = {
         "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_14h44min01s395934ms_10000epochs_variational",
     },
     "simulations_src_sh3_3": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_21_11h17min03s195319ms_10000epochs_variational",
+        "draupnir_classic_blosum": "",
         "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_16h29min59s341296ms_10000epochs_variational",
         "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_17h35min55s614522ms_10000epochs_variational",
         "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_18h19min00s229714ms_10000epochs_variational",
@@ -273,17 +273,17 @@ folders_dict = {
         "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_21_01h08min11s963248ms_10000epochs_variational",
     },
     "simulations_calcitonin_1": {
-                                "draupnir_classic_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_18h43min49s404503ms_10000epochs_variational",
-                                "draupnir_classic_no_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h01min07s450467ms_10000epochs_variational",
-                                "draupnir_z_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h17min09s563094ms_10000epochs_variational",
-                                "draupnir_hidden_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h29min23s604870ms_10000epochs_variational",
+        "draupnir_classic_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_18h43min49s404503ms_10000epochs_variational",
+        "draupnir_classic_no_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h01min07s450467ms_10000epochs_variational",
+        "draupnir_z_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h17min09s563094ms_10000epochs_variational",
+        "draupnir_hidden_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h29min23s604870ms_10000epochs_variational",
                                  },
-    # "simulations_sirtuins_1": {
-    #     #"draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_21h01min46s029776ms_10000epochs_variational",
-    #     "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_23h39min47s797048ms_10000epochs_variational",
-    #     "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_01h59min03s763175ms_10000epochs_variational",
-    #     "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_03h18min33s750688ms_10000epochs_variational",
-    # },
+    "simulations_sirtuins_1": {
+        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_21h01min46s029776ms_10000epochs_variational",
+        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_23h39min47s797048ms_10000epochs_variational",
+        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_01h59min03s763175ms_10000epochs_variational",
+        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_03h18min33s750688ms_10000epochs_variational",
+    },
     "simulations_1GMM": {
         "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
         "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_00h59min19s996824ms_10000epochs_variational",
@@ -334,21 +334,21 @@ def analyze(results_dict=None):
                 results_dict[dataset_name][f"{mode}_test"] = metrics_dict
                 results_dict[dataset_name][f"{mode}_consensus"] = metrics_dict["consensus_metrics"]
                 del results_dict[dataset_name][f"{mode}_test"]["consensus_metrics"] #otherwise it is saved twice
-                torch.save(results_dict,"draupnir_models/metrics/results_dict.torch")
+                torch.save(results_dict,"draupnir_models/metrics/results_dict2.torch")
             else:
                 print(f"{mode} found")
 
 
-    torch.save(results_dict,"draupnir_models/metrics/results_dict.torch")
+    torch.save(results_dict,"draupnir_models/metrics/results_dict2.torch")
     print("Finished analysis and saved results")
     return results_dict
 
 
 #results_dict = torch.load("draupnir_models/metrics/results_dict.torch",weights_only=False)
-#analyze(None)
+analyze(None)
 #analyze(results_dict)
 
-
+exit()
 
 
 def build_metrics_table(results_dict,name):
