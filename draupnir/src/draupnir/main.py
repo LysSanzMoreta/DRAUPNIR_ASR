@@ -1706,6 +1706,9 @@ def draupnir_train_batching(train_load,
                 "embedding": None,
                 "sequences_representations": None
                 }
+
+
+
     train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train,
                                                         train_load.patristic_matrix_train,
                                                         clades_dict,
@@ -1722,6 +1725,7 @@ def draupnir_train_batching(train_load,
     #                                                            cladistic_matrix_full, dataset_train_blosum,
     #                                                            train_loader, args, map_estimates)
     map_estimates = None
+    total_n_steps= args.num_epochs * (n_train_seqs / build_config.batch_size)
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":additional_load.cladistic_matrix_full,
                    "cladistic_matrix_train":train_load.cladistic_matrix_train,
@@ -1729,7 +1733,9 @@ def draupnir_train_batching(train_load,
                    "train_loader":train_loader,
                    "map_estimates":map_estimates,
                    "guide":guide,
-                   "args":args}
+                   "args":args,
+                   "temp_anneal" : total_n_steps*0.8,
+                   "step": 0}
 
 
     # test_function_input = {"patristic_matrix_model":patristic_matrix_model,
@@ -1919,6 +1925,7 @@ def draupnir_train_batching(train_load,
     text_file.close()
     print("Final Sampling...using variational guide")
     print("Sampling is also divided in batches")
+
 
     start_sampling(args,
                    train_load,
@@ -2752,7 +2759,7 @@ def config_build(args):
             "weight_decay": 0,#weight_decay: weight decay (L2 penalty) (default: 0)
             "clip_norm": 10,#clip_norm: magnitude of norm to which gradients are clipped (default: 10.0)
             "lrd": 1, #rate at which learning rate decays (default: 1.0)
-            "z_dim": 30,
+            "z_dim": args.z_dim,
             "gru_hidden_dim": 60, #60
         }
 

@@ -1212,7 +1212,6 @@ class DRAUPNIRModel_batching_no_blosum(DRAUPNIRModelClass):
 
         return sampling_out
 
-
 class DRAUPNIRModel_batching_no_blosum_1b(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
     It uses batched Blosum weighted average embeddings."""
@@ -1235,8 +1234,6 @@ class DRAUPNIRModel_batching_no_blosum_1b(DRAUPNIRModelClass):
                               embedding_dim = self.z_dim*3,
                               out_dim = self.aa_probs*2)
         self.pos_emb = nn.Embedding(self.align_seq_len,self.z_dim)
-
-
 
     def model_delta_map(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates=None):
 
@@ -1282,56 +1279,59 @@ class DRAUPNIRModel_batching_no_blosum_1b(DRAUPNIRModelClass):
         pyro.module("fc_film", self.fc_film)
         pyro.module("pos_emb", self.pos_emb)
 
-        # Highlight: GP prior over the latent space
-        latent_space_2d = self.gp_prior_batched(patristic_matrix_sorted)
 
 
-        positional_embeddings = self.pos_emb(torch.arange(self.align_seq_len,device=latent_space_2d.device)[None,:]).repeat(latent_space_2d.shape[0],1,1)
+        with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([0.])):
 
-        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space_2d.shape[0],
-                                               self.gru_hidden_dim).contiguous()  # bidirectional
-
-
-        if map_estimates is not None:
-            encoder_context_vector = map_estimates["rnn_hidden_states"] #[N,L,zdim]
-            x = torch.cat([positional_embeddings, encoder_context_vector], dim=-1)
-
-        else:
-            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
-            #latent_space_3d = latent_space_2d.repeat(1, self.align_seq_len).reshape(latent_space_2d.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
-
-            x = torch.cat([positional_embeddings,positional_embeddings],dim=-1)
-
-        print(x.shape)
-        print(latent_space_2d.shape)
+            # Highlight: GP prior over the latent space
+            latent_space_2d = self.gp_prior_batched(patristic_matrix_sorted)
 
 
-        """variational autoencoder seq2seq model issue. The model works if the the gru from the encoder and the decoder do not communicate , meaning, for example, the initial state from the decoder is not the last state from the encoder or the encoder's hidden states are not seen by the decoder. I am doing one-shot prediction, autoregressive did not work either. It pnly works with initial hidden states separated for both encoder and decoder, and not shared hidden states. When I say it works, it means that it has good reconstruction and meaningful latent space. However, I would like to work with embeddings (context vectors) and not just summarizations (latent representations). The expressiveness of the decoder's hidden states is not very large since it is just looking at the latent space vector (small)"""
+            positional_embeddings = self.pos_emb(torch.arange(self.align_seq_len,device=latent_space_2d.device)[None,:]).repeat(latent_space_2d.shape[0],1,1)
 
-        """
-        TODO:
-        
-        lower zdim
-        free_bits = 0.5  # nats per dimension (try 0.25–1.0)
-
-        kl_per_dim = -0.5 * (1 + logvar - mu**2 - logvar.exp())
-        kl = torch.clamp(kl_per_dim, min=free_bits).sum(dim=1).mean()"""
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space_2d.shape[0],
+                                                   self.gru_hidden_dim).contiguous()  # bidirectional
 
 
-        #TODO: add KL warmup
+            if map_estimates is not None:
+                encoder_context_vector = map_estimates["rnn_hidden_states"] #[N,L,zdim]
+                x = torch.cat([positional_embeddings, encoder_context_vector], dim=-1)
+
+            else:
+                # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+                #latent_space_3d = latent_space_2d.repeat(1, self.align_seq_len).reshape(latent_space_2d.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
+
+                x = torch.cat([positional_embeddings,positional_embeddings],dim=-1)
+
+            """variational autoencoder seq2seq model issue. The model works if the the gru from the encoder and the decoder do not communicate , meaning, for example, 
+            the initial state from the decoder is not the last state from the encoder or the encoder's hidden states are not seen by the decoder. 
+            I am doing one-shot prediction, autoregressive did not work either. It only works with initial hidden states separated for both encoder and decoder, and not shared hidden states.
+             When I say it works, it means that it has good reconstruction (> 80%) and meaningful latent space. However, I would like to work with embeddings (context vectors) and not just
+              summarizations (latent representations). The expressiveness of the decoder's hidden states is not very large since it is just looking at the latent space vector (small) and there is some sort of posterior collapse.
+              I have tried the FILM method ( 60% reconstruction accuracy, random latent space), what are the next suggestions?
+              
+              """
+
+            """
+            TODO:
+            
+            lower zdim
+            free_bits = 0.5  # nats per dimension (try 0.25–1.0)
+    
+            kl_per_dim = -0.5 * (1 + logvar - mu**2 - logvar.exp())
+            kl = torch.clamp(kl_per_dim, min=free_bits).sum(dim=1).mean()"""
+
         with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
 
             logits = self.decoder.forward(
                     input=x,
                     hidden=decoder_hidden)
 
-            print(logits.shape)
-
             logits = self.fc_film.forward(logits,latent_space_2d)
 
             pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
 
-        self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
+            self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
 
     def model(self, datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum,map_estimates):
         if self.args.select_guide == "delta_map":
@@ -1427,8 +1427,6 @@ class DRAUPNIRModel_batching_no_blosum_1b(DRAUPNIRModelClass):
                                       kappa_psi=None)
 
         return sampling_out
-
-
 
 class DRAUPNIRModel_batching_no_blosum_xlstm(DRAUPNIRModelClass):
     """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.

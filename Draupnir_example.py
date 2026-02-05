@@ -86,12 +86,12 @@ if __name__ == "__main__":
                         #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
                         help='Dataset project name, look at draupnir.available_datasets()')
-    parser.add_argument('-output-path', '--output-path', default=f"{script_dir}", type=str, help='Folder where to output the results')
+    parser.add_argument('-output-path', '--output-path', default=f"{script_dir}/results", type=str, help='Folder where to output the results')
     parser.add_argument('-use-custom','--use-custom', type=str2bool, nargs='?',
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=2000, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=2500, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -135,6 +135,7 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
+    parser.add_argument('--z-dim','-z-dim', default=10, type=int, help='Latent space dimension')
     parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,

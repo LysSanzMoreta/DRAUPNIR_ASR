@@ -177,6 +177,7 @@ def train_batch(svi,training_function_input):
     train_loader = training_function_input["train_loader"]
     guide = training_function_input["guide"]
     args = training_function_input["args"]
+    epoch = training_function_input["epoch"] + 1
     train_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
@@ -190,6 +191,8 @@ def train_batch(svi,training_function_input):
                 dataset["batch_embedding"],
                 dataset["batch_sequence_representation"],
         ):
+
+
             if args.use_cuda:
                 batch_dataset_int = batch_dataset_int.cuda()
                 batch_blosum_weighted = batch_blosum_weighted.cuda()
@@ -216,8 +219,10 @@ def train_batch(svi,training_function_input):
                                   map_estimates=None)  # only saving 1 sample
 
             guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
-            #map_estimates["annealing_factor"] = torch.Tensor([min(1,0.1 + ((training_function_input["epoch"] +1) / 50))]).to(args.device) #until epoch 49 rampage
-            map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
+
+            #map_estimates["annealing_factor"] = torch.Tensor([min(1,training_function_input["step"]/training_function_input["temp_anneal"])]).to(args.device)
+            #map_estimates["annealing_factor"] = torch.Tensor([0.3]).to(args.device) if epoch < 500 else torch.Tensor([1.]).to(args.device)
+            #print("step:",training_function_input["step"],"annealing factor",map_estimates["annealing_factor"])
 
             train_loss += svi.step(batch_datasets,
                                    batch_patristic,
@@ -225,6 +230,7 @@ def train_batch(svi,training_function_input):
                                    batch_data_blosum,
                                    batch_blosum_weighted,
                                    map_estimates)
+            training_function_input["step"] += 1
 
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?

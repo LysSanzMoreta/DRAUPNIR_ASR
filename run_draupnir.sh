@@ -3,10 +3,10 @@
 nepochs=15000
 nsamples=200
 
-python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
-python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 10 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
-python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3a -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
-python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3b -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+#python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+#python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 10 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+#python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3a -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+#python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3b -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 
 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
@@ -17,8 +17,8 @@ python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $n
 
 python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
-python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
-python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3a -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
+python Draupnir_example.py -name simulations_src_sh3_2 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3b -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 
 python Draupnir_example.py -name simulations_src_sh3_1 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 python Draupnir_example.py -name simulations_src_sh3_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full

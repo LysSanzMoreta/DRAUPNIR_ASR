@@ -152,7 +152,7 @@ class RNNEncoder_1b(nn.Module):
         rnn_hidden_states, rnn_final_bidirectional = self.layernorm1(rnn_hidden_states), self.layernorm0(rnn_final_bidirectional)
         rnn_hidden_states = self.layernorm2(self.linear_hidden1(rnn_hidden_states))
         rnn_hidden_states = self.layernorm3(self.linear_hidden2(rnn_hidden_states))
-
+        rnn_hidden_states = self.tanh(rnn_hidden_states)
         #forward_out_r,backward_out_r = rnn_hidden_states[:,:,:self.gru_hidden_dim],rnn_hidden_states[:,:,self.gru_hidden_dim:]
 
         #rnn_hidden_states = forward_out_r + backward_out_r #original
