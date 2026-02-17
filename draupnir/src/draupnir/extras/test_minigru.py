@@ -151,7 +151,7 @@ class minLM(Module):
 
 
         if exists(prev_hiddens):
-            print("prev hiddens 1111111: ",sum(1 for _ in prev_hiddens))
+            #print("prev hiddens 1111111: ",sum(1 for _ in prev_hiddens))
             x = x[:, -1:]
 
         next_prev_hiddens = []
@@ -181,9 +181,9 @@ class minLM(Module):
             if exists(dropout):
                 x = dropout(x)
 
-        print("prev hiddens: ",sum(1 for _ in prev_hiddens))
-        print("self layers: ",len(self.layers))
-
+        # print("prev hiddens: ",sum(1 for _ in prev_hiddens))
+        # print("self layers: ",len(self.layers))
+        #
 
 
         embed = self.norm(x)
@@ -203,7 +203,7 @@ class minLM(Module):
         return loss
 
 
-NUM_BATCHES = int(1e2)
+NUM_BATCHES = int(1e3)
 BATCH_SIZE = 4
 GRAD_ACCUM_EVERY = 4
 LEARNING_RATE = 1e-4
@@ -337,7 +337,7 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.0, desc = "training"):
 
         accelerator.backward(loss / GRAD_ACCUM_EVERY)
 
-    accelerator.print(f"training loss: {loss.item():.3f}")
+    #accelerator.print(f"training loss: {loss.item():.3f}")
 
     accelerator.clip_grad_norm_(model.parameters(), 0.5)
 
@@ -352,7 +352,8 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval = 10.0, desc = "training"):
             loss = model(valid_data, return_loss = True)
             accelerator.print(f"validation loss: {loss.item():.3f}")
 
-    if i % GENERATE_EVERY == 0:
+    #if i % GENERATE_EVERY == 0:
+    if i == NUM_BATCHES:
         model.eval()
 
         inp = random.choice(val_dataset)[:PRIME_LENGTH]

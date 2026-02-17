@@ -54,10 +54,25 @@ def main():
                                                            alignment_file=args.alignment_file)
 
     #Highlight: Creates image of the estimated tree coloured by clades (clades are also estimated)
-    draw_tree = False
+    draw_tree = False #todo: finish to make work for ultrametric, simply add to settings_config another arg
     if draw_tree:
         draupnir.draw_tree_simple(args.dataset_name,settings_config) #only colours shown
         draupnir.draw_tree_facets(args.dataset_name,settings_config) #coloured panels and names
+
+    # import sys
+    # import traceback
+    #
+    # class TracePrints(object):
+    #     def __init__(self):
+    #         self.stdout = sys.stdout
+    #
+    #     def write(self, s):
+    #         self.stdout.write("Writing %r\n" % s)
+    #         traceback.print_stack(file=self.stdout)
+    #
+    # sys.stdout = TracePrints()
+
+
 
     #Highlight: Runs draupnir
     draupnir.run(root_sequence_name,args,settings_config,build_config,script_dir)
@@ -91,7 +106,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=2500, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -121,7 +136,7 @@ if __name__ == "__main__":
 
 
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
-                        help='True: Create and store the dataset from a given alignment file/tree or the unaligned sequences;'
+                        help='True: Create and store the draupnir compatible dataset from a given alignment file/tree or the unaligned sequences;'
                              'False: Use previously stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
@@ -135,8 +150,8 @@ if __name__ == "__main__":
                                                                 ' 24: 23 amino acids, 1 gap'
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
-    parser.add_argument('--z-dim','-z-dim', default=10, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
+    parser.add_argument('-n-samples','-n_samples', default=3, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
@@ -173,13 +188,17 @@ if __name__ == "__main__":
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
                              '1b: experiments with draupnir model 1'
+                             '1c: experimental prior'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
-                             '4: xlsm embeddings'
+                             '4: xlstm embeddings'
                              '5: minigru embeddings'
                         ,
                         )
+    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="3", help="1: removed alpha and sigma_n \n"
+                                                                           "2: classic prior but tiled ou parameters,\n "
+                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left")
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '
@@ -221,6 +240,11 @@ if __name__ == "__main__":
     else:
         torch.set_default_tensor_type(torch.DoubleTensor)
         device = "cpu"
+
+    num_threads = torch.get_num_threads()
+    print(f"Current number of threads: {num_threads}")
+
+    torch.set_num_threads(4)
     args.__dict__["device"] = device
     #pyro.set_rng_seed(0) # torch is already running with different seeds
     #torch.manual_seed(0)

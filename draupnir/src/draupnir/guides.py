@@ -15,7 +15,7 @@ import torch.distributions.constraints as constraints
 import pyro.distributions as dist
 from draupnir.models_utils import *
 import draupnir.models_utils as DraupnirModelsUtils
-
+import draupnir.utils as DraupnirUtils
 
 
 class DRAUPNIRGUIDES(EasyGuide):
@@ -36,13 +36,25 @@ class DRAUPNIRGUIDES(EasyGuide):
         else:
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
-        self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]),constraint=constraints.positive,event_dim=0) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
-        self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
-        self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
-        self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+        if self.draupnir.args.draupnir_version == "1c":
+            if self.draupnir.args.prior_experiment == "1":
+                self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
+                self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
+            elif self.draupnir.args.prior_experiment == "2":
+                self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]), constraint=constraints.positive,event_dim=0)  # constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
+                self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
+                self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
+                self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
 
-        # self.r = PyroParam(dist.Gamma(torch.Tensor([2]),torch.Tensor([2])).sample([1]))
-        # self.alpha = PyroParam(dist.Exponential(torch.Tensor([1])).sample([1]))
+            elif self.draupnir.args.prior_experiment == "3":
+                self.po = PyroParam(dist.Beta(torch.tensor([8.]),torch.tensor([2.])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
+
+        else:
+            self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]),constraint=constraints.positive,event_dim=0) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
+            self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+            self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+            self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+
 
         if self.draupnir.plating:
             self.encoder_splitted_leaves_indexes = list(torch.tensor_split(torch.arange(self.draupnir.n_leaves), int(self.draupnir.n_leaves / self.draupnir.plate_size)) * self.draupnir.num_epochs)
@@ -60,7 +72,6 @@ class DRAUPNIRGUIDES(EasyGuide):
         :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
 
         raise NotImplementedError
-
 
 class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
@@ -92,9 +103,16 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                                  batch_blosum)
             else:
-
-                return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                            batch_blosum=None,map_estimates=map_estimates)
+                if self.draupnir.args.draupnir_version == "1c":
+                    if self.draupnir.args.prior_experiment == "1":
+                        return self.guide_batch_experiment1(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                    elif self.draupnir.args.prior_experiment == "2":
+                        return self.guide_batch_experiment2(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                    elif self.draupnir.args.prior_experiment == "3":
+                        return self.guide_batch_experiment3(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                else:
+                    return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+                                                batch_blosum=None,map_estimates=map_estimates)
         else:
             return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                         batch_blosum=None,map_estimates=map_estimates)
@@ -177,12 +195,131 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
                 }
 
+    def guide_batch_experiment1(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+        pyro.module("encoder", self.encoder)
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))  # rate of mean reversion/selection strength
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))  # characteristic length-scale
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+            # aminoacid_sequences = self.dataset_train_blosum
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+
+        return {
+                "sigma_f": sigma_f,
+                "lambd": lambd,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                "rnn_final_bidirectional":encoder_output["rnn_final_bidirectional"],
+                "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
+                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                }
+
+    def guide_batch_experiment2(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+        pyro.module("encoder", self.encoder)
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(0))
+            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(0))  # diagonal covariance noise
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(0)) # rate of mean reversion/selection strength
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(0))  # characteristic length-scale
+
+
+            #alpha = DraupnirUtils.squeeze_tensor(1, alpha) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+            sigma_f = DraupnirUtils.squeeze_tensor(1, sigma_f).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+            sigma_n = DraupnirUtils.squeeze_tensor(1, sigma_n).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+            lambd = DraupnirUtils.squeeze_tensor(1, lambd).repeat(self.draupnir.z_dim) + 1e-6
+
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+            # aminoacid_sequences = self.dataset_train_blosum
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+
+
+        return {
+                "alpha": alpha,
+                "sigma_n": sigma_n,
+                "sigma_f": sigma_f,
+                "lambd": lambd,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                "rnn_final_bidirectional":encoder_output["rnn_final_bidirectional"],
+                "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
+                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                }
+
+    def guide_batch_experiment3(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+        pyro.module("encoder", self.encoder)
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+
+        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+
+            po = pyro.sample("po", dist.Delta(self.po).to_event(1))  # characteristic length-scale
+            po = DraupnirUtils.squeeze_tensor(1, po)
+
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+            # aminoacid_sequences = self.dataset_train_blosum
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+
+
+        return {
+                "po": po,
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "latent_z": latent_z,
+                "rnn_final_bidirectional":encoder_output["rnn_final_bidirectional"],
+                "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
+                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                }
+
     def guide_batch_by_clade(self, datasets, patristic_matrix_sorted, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
 
         """
         :param tensor data_blosum here is the CLADE-BATCHED data in blosum vector form instead of integers
         :param batch_blosum is the weighted average of the blosum vectors for the clade per column site in the MSA"""
         # aminoacid_sequences = datasets[:, 2:, 0]
+
+        print("guide batch experiment")
+
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
@@ -227,6 +364,7 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
         self.embeddingencoder = EmbedComplexEncoder_1b(input_dim=self.draupnir.aa_probs,
                                                     embedding_dim=self.draupnir.embedding_dim,
                                                     out_dim=self.draupnir.aa_probs)
+        self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
 
     def guide(self, datasets, patristic_matrix, cladistic_matrix, data_blosum, batch_blosum=None,map_estimates=None):
@@ -290,7 +428,8 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-        with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([0.])):
+        print("Going through  guide")
+        with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([1.])):
             with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
                 # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
                 # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...

@@ -88,6 +88,28 @@ def plot_z(latent_space, children_dict, results_dir):
     plt.xlabel(r"$\mathcal{Z}$ dimensions",fontsize=40)
     plt.title(r"Latent space ($\mathcal{Z}$) vector coloured by ancestor and respective children nodes",fontsize=40)
     plt.savefig("{}/z_vector_plot".format(results_dir))
+def plot_ou_parameters(args,map_estimates,model_load):
+    """"""
+
+    fig, axs = plt.subplots(1, 5, sharey=True, figsize=(18,10))
+    for idx, ou_param_name in enumerate(["alpha","sigma_f","sigma_n","lambd","po"]):
+        if ou_param_name in map_estimates["sample_0"].keys():
+            #ou_param = torch.concatenate([map_estimates[sample][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
+            ou_param = DraupnirUtils.squeeze_tensor(1,map_estimates["sample_0"][ou_param_name].detach().cpu().numpy())#all samples have same result, it is deterministic
+            #ou_param_test = torch.concatenate([map_estimates[sample]["test"][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
+            axs[idx].bar(np.arange(ou_param.shape[0]),ou_param,label=ou_param_name)
+            axs[idx].set_title(ou_param_name)
+
+    bar_container =axs[-1].bar(np.array([1]),model_load.tree_height.detach().cpu().numpy(),label="Tree Height")
+    axs[-1].set_title("Tree Height")
+
+    for bar in bar_container:
+        axs[-1].text(bar.get_x() + bar.get_width() / 2, bar.get_height(),f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=12)
+
+
+    plt.savefig(f"{args.results_dir}/OU_parameters_values.png")
+
+
 def plot_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined
     :param namedtuple samples_out: contains the output from Draupnir.samples
@@ -288,6 +310,8 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
     node_info = dataset_test[:, 0, 1].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
     distance_info = dataset_test[:, 0, 2].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
     node_names = ["{}//{}".format(correspondence_dict[index], index) for index in dataset_test[:, 0, 1].tolist()]
+
+    print(aa_sequences_predictions.shape)
     aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
 
     percent_id_df,incorrectly_predicted_sites_df, alignment_length =percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory)

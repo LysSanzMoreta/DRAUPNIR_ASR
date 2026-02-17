@@ -181,61 +181,86 @@ def train_batch(svi,training_function_input):
     train_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
+    #from torch.profiler import profile, ProfilerActivity, record_function
+
     for batch_number, dataset in enumerate(train_loader):
-        for batch_name, batch_dataset_int, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_dataset_embedding, batch_sequences_representation in zip(
-                dataset["batch_name"],
-                dataset["batch_data_int"],
-                dataset["batch_patristic"],
-                dataset["batch_blosum_weighted"],
-                dataset["batch_data_blosum"],
-                dataset["batch_embedding"],
-                dataset["batch_sequence_representation"],
-        ):
+        # for batch_name, batch_dataset_int, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_dataset_embedding, batch_sequences_representation in zip(
+        #         dataset["batch_name"],
+        #         dataset["batch_data_int"],
+        #         dataset["batch_patristic"],
+        #         dataset["batch_blosum_weighted"],
+        #         dataset["batch_data_blosum"],
+        #         dataset["batch_embedding"],
+        #         dataset["batch_sequence_representation"],
+        # ):
+        #
+        #         if args.use_cuda:
+        #             batch_dataset_int = batch_dataset_int.cuda()
+        #             batch_blosum_weighted = batch_blosum_weighted.cuda()
+        #             batch_patristic = batch_patristic.cuda()
+        #             batch_data_blosum = batch_data_blosum.cuda()
+        #             batch_dataset_embedding = batch_dataset_embedding.cuda()
+        #             batch_sequences_representation = batch_sequences_representation.cuda()
+
+                if args.use_cuda:
+                    batch_dataset_int = dataset["batch_data_int"].squeeze(0).to('cuda', non_blocking=True)
+                    batch_blosum_weighted = dataset["batch_blosum_weighted"].squeeze(0).to('cuda', non_blocking=True)
+                    batch_patristic = dataset["batch_patristic"].squeeze(0).to('cuda', non_blocking=True)
+                    batch_data_blosum = dataset["batch_data_blosum"].squeeze(0).to('cuda', non_blocking=True)
+                    batch_dataset_embedding = dataset["batch_embedding"].squeeze(0).to('cuda', non_blocking=True)
+                    batch_sequences_representation = dataset["batch_sequence_representation"].squeeze(0).to('cuda', non_blocking=True)
+
+                batch_datasets = {"int":batch_dataset_int,
+                                  "blosum":batch_data_blosum,
+                                  "onehot":torch.ones(batch_dataset_int.shape[0]),
+                                  "mask":torch.ones_like(batch_dataset_int),
+                                  "embedding": batch_dataset_embedding,
+                                  "sequences_representations": batch_sequences_representation,
+                                  }
+                seq_lens += batch_dataset_int[:, 0, 0].tolist()
+
+                # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True,
+                #              with_stack=True) as prof:
 
 
-            if args.use_cuda:
-                batch_dataset_int = batch_dataset_int.cuda()
-                batch_blosum_weighted = batch_blosum_weighted.cuda()
-                batch_patristic = batch_patristic.cuda()
-                batch_data_blosum = batch_data_blosum.cuda()
-                batch_dataset_embedding = batch_dataset_embedding.cuda()
-                batch_sequences_representation = batch_sequences_representation.cuda()
 
-            batch_datasets = {"int":batch_dataset_int,
-                              "blosum":batch_data_blosum,
-                              "onehot":torch.ones(batch_dataset_int.shape[0]),
-                              "mask":torch.ones_like(batch_dataset_int),
-                              "embedding": batch_dataset_embedding,
-                              "sequences_representations": batch_sequences_representation,
-                              }
-            seq_lens += batch_dataset_int[:, 0, 0].tolist()
+                guide_map_estimates = guide(batch_datasets,
+                                      batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
+                                      cladistic_matrix_train,
+                                      dataset_train_blosum,
+                                      batch_blosum=None,
+                                      map_estimates=None)  # only saving 1 sample
 
+                guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
+                torch.cuda.synchronize()
 
-            guide_map_estimates = guide(batch_datasets,
-                                  batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
-                                  cladistic_matrix_train,
-                                  dataset_train_blosum,
-                                  batch_blosum=None,
-                                  map_estimates=None)  # only saving 1 sample
+                #map_estimates["annealing_factor"] = torch.Tensor([min(1,training_function_input["step"]/training_function_input["temp_anneal"])]).to(args.device)
+                #map_estimates["annealing_factor"] = torch.Tensor([0.3]).to(args.device) if epoch < 500 else torch.Tensor([1.]).to(args.device)
+                #print("step:",training_function_input["step"],"annealing factor",map_estimates["annealing_factor"])
 
-            guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
+                train_loss += svi.step(batch_datasets,
+                                       batch_patristic,
+                                       cladistic_matrix_full,
+                                       batch_data_blosum,
+                                       batch_blosum_weighted,
+                                       map_estimates)
 
-            #map_estimates["annealing_factor"] = torch.Tensor([min(1,training_function_input["step"]/training_function_input["temp_anneal"])]).to(args.device)
-            #map_estimates["annealing_factor"] = torch.Tensor([0.3]).to(args.device) if epoch < 500 else torch.Tensor([1.]).to(args.device)
-            #print("step:",training_function_input["step"],"annealing factor",map_estimates["annealing_factor"])
+                training_function_input["step"] += 1
+                torch.cuda.synchronize()
 
-            train_loss += svi.step(batch_datasets,
-                                   batch_patristic,
-                                   cladistic_matrix_full,
-                                   batch_data_blosum,
-                                   batch_blosum_weighted,
-                                   map_estimates)
-            training_function_input["step"] += 1
+                #
+                # print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+                # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+                # #
+                # #prof.export_chrome_trace("trace.json")
+                # #
+                # exit()
 
-            # Normalize loss
-            # torch.cuda.reset_max_memory_allocated() #necessary?
+                    # Normalize loss
+    torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
+
     return total_epoch_loss_train, map_estimates
 
 def train(svi,training_function_input):
@@ -289,7 +314,7 @@ def train_batch_clade(svi,training_function_input):
             dataset_batch = defaultdict()
             for batch_name, *extra in zip(*dataset.values()):  # we have to this trick to unpack, otherwise one extra dimension is added
                 for key, val in zip(list(dataset.keys())[1:], extra):  # we skip the batch_name key
-                    dataset_batch[key] = val.cuda() if isinstance(val, torch.Tensor) else val
+                    dataset_batch[key] = val.to('cuda', non_blocking=True) if isinstance(val, torch.Tensor) else val
         # for clade_name, clade_dataset, clade_patristic, clade_blosum_weighted, clade_data_blosum, clade_embedding, clade_seq_representation in zip(datasets["clade_name"],
         #                                                                                                 datasets["clade_data"],
         #                                                                                                 datasets["clade_patristic"],
@@ -382,8 +407,8 @@ def train_transformer(svi,training_function_input):
                 dataset["batch_blosum_weighted"],
                 dataset["batch_data_blosum"]):
             if args.use_cuda:
-                batch_dataset = batch_dataset.cuda()
-                batch_blosum_weighted = batch_blosum_weighted.cuda()
+                batch_dataset = batch_dataset.to('cuda', non_blocking=True)
+                batch_blosum_weighted = batch_blosum_weighted.to('cuda', non_blocking=True)
                 batch_patristic = batch_patristic.cuda()
                 batch_data_blosum = batch_data_blosum.cuda()
 

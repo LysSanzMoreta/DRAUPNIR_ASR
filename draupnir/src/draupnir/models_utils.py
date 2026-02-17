@@ -87,6 +87,7 @@ class RNNEncoder(nn.Module):
                  "rnn_final_forward_backward_sum":rnn_final_forward_backward_sum.unsqueeze(0), #not transformed
                  "rnn_hidden_states":rnn_hidden_states,
                  "rnn_final_hidden_state":rnn_final_hidden_state}
+
 class RNNEncoder_1b(nn.Module):
     def __init__(self, align_seq_len,
                  aa_prob,n_leaves,
@@ -443,6 +444,41 @@ class RNNDecoder_Tiling(nn.Module):
         output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_output)))  # [n_nodes,align_seq_len,aa_probs]
 
         return output_logits
+
+
+
+
+class SelfAttention(nn.Module):
+    def __init__(self, hidden_size):
+        super(SelfAttention, self).__init__()
+        self.hidden_size = hidden_size
+        self.query = nn.Linear(hidden_size, hidden_size)
+        self.key = nn.Linear(hidden_size, hidden_size)
+        self.value = nn.Linear(hidden_size, hidden_size)
+
+    def forward(self, hidden_states):
+        # hidden_states: [seq_len, batch_size, hidden_size]
+        hidden_states = hidden_states.transpose(0,1)
+        # Compute query, key, value
+
+        Q = self.query(hidden_states)  # [seq_len, batch_size, hidden_size]
+        K = self.key(hidden_states)    # [seq_len, batch_size, hidden_size]
+        V = self.value(hidden_states)  # [seq_len, batch_size, hidden_size]
+
+        # Compute attention scores
+        scores = torch.bmm(Q.transpose(0, 1), K.transpose(1, 0).transpose(2,1)) / (self.hidden_size ** 0.5)
+        # scores: [batch_size, seq_len, seq_len]
+
+
+        # Compute attention weights
+        attn_weights = F.softmax(scores, dim=-1)
+
+        # Apply attention to values
+        context = torch.bmm(attn_weights, V.transpose(0, 1))  # [batch_size, seq_len, hidden_size]
+        #context = context.transpose(0, 1)  # [seq_len, batch_size, hidden_size]
+
+        return context, attn_weights
+
 class RNNDecoder_Tiling_1b(nn.Module):
     def __init__(self,
                  align_seq_len,
@@ -477,9 +513,8 @@ class RNNDecoder_Tiling_1b(nn.Module):
         self.layernorm1 = nn.LayerNorm(self.gru_hidden_dim*2)
         self.layernorm2 = nn.LayerNorm(self.gru_hidden_dim)
         self.layernorm3 = nn.LayerNorm(self.aa_probs)
-        #todo: necessary? does not seem to hurt
+        self.attention = SelfAttention(self.gru_hidden_dim)
 
-        #self.init_gru_bias()
 
     def init_gru_bias(self):
         for name, param in self.rnn.named_parameters(): #initialization if the gru bias to avoid dominance
@@ -499,8 +534,30 @@ class RNNDecoder_Tiling_1b(nn.Module):
     #     #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
     #     return output_logits
 
-    def forward(self, input, hidden):
-        """One-shot, non-autoregressive sequence generation"""
+    # def forward(self, input, hidden):
+    #     """One-shot, non-autoregressive sequence generation"""
+    #
+    #
+    #     rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
+    #
+    #     # print("Decoder rnn states")
+    #     # print(rnn_output.var(dim=0).mean())  # should not be tiny
+    #     # print(rnn_hidden.var(dim=0).mean())  # should not be tiny
+    #     #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
+    #     #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
+    #     #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
+    #     rnn_output = self.layernorm1(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
+    #     rnn_output = self.layernorm2(self.fc1(rnn_output))
+    #     rnn_output = self.layernorm3(self.linear_probs(rnn_output))
+    #     output_logits = self.logsoftmax(rnn_output)  # [n_nodes,align_seq_len,aa_probs]
+    #
+    #     return output_logits
+    def forward(self, input, hidden,encoder_hidden_states= None):
+        """Autoregressive sequence generation"""
+
+        print(input.shape)
+        print(hidden.shape)
+
 
 
         rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
@@ -511,6 +568,18 @@ class RNNDecoder_Tiling_1b(nn.Module):
         #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
         #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
+        context, _ = self.attention(encoder_hidden_states)
+
+        last_context = context[:,-1]
+
+        print(last_context.shape)
+        print(rnn_output.shape)
+
+        exit()
+
+
+        rnn_output = torch.concat((rnn_output,last_context)) #todo:fix this and linear layer shapes
+
         rnn_output = self.layernorm1(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
         rnn_output = self.layernorm2(self.fc1(rnn_output))
         rnn_output = self.layernorm3(self.linear_probs(rnn_output))
@@ -809,9 +878,8 @@ class FCFilm(nn.Module):
         :latent_space : [N, z_dim]
         """
 
-
         gamma_beta = self.mlp(latent_space)
-        gamma, beta = gamma_beta.chunk(2, dim=-1) #split into 2 chuncks
+        gamma, beta = gamma_beta.chunk(2, dim=-1) #split into 2 chunks
 
         gamma = gamma.unsqueeze(1)           # (N, 1, featdim)
         beta  = beta.unsqueeze(1)            # (N, 1, featdim)
@@ -1105,6 +1173,43 @@ class OUKernel_Fast(GPKernel):
         noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
         sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
         return first_term * second_term + sigma_n ** 2 * noise
+
+
+class OUKernel_Fast_experiment(GPKernel):
+    """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
+    :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
+    :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
+    :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+    **References:**
+    "Ancestral Inference from Functional Data: Statistical Methods and Numerical Examples"
+    """
+    def __init__(self, sigma_f, lamb, sigma_n = None):
+        self.sigma_f = sigma_f
+        self.sigma_n = sigma_n
+        self.lamb = lamb
+    def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
+        """Not used function"""
+
+        return torch.zeros((1,))
+
+    def forward(self, t: torch.Tensor) -> torch.Tensor:
+        #cov_b = torch.exp(-distance_matrix / _lambd) * _sigma_f ** 2 + _sigma_n + torch.eye(self.n_b*2, device=self.device) * 1e-5
+        lamb = self.lamb.unsqueeze(-1).unsqueeze(-1) #self.lamb[:, None, None]
+        second_term = torch.exp(-t / lamb)
+
+        if self.sigma_f is not None:
+            first_term = self.sigma_f ** 2
+            first_term = first_term.unsqueeze(-1).unsqueeze(-1) #[:,None,None]
+
+            noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
+            if self.sigma_n is not None:
+                sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
+                return first_term * second_term + sigma_n ** 2 * noise
+            else:
+
+                return first_term * second_term + noise*1e-6
+        else: return  second_term
+
 
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf

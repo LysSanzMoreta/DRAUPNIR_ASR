@@ -639,9 +639,6 @@ def extract_percent_id(Dataset,aa_sequences_predictions,n_samples,results_direct
     percent_id_df["Std"] = percent_id_df.std(1).values.tolist()
     percent_id_df.to_csv("{}/PercentID_df.csv".format(results_directory), sep="\t")
     return percent_id_df, incorrectly_predicted_sites_df, align_lenght
-
-
-
 def draupnir_train(train_load,test_load,additional_load,additional_info,build_config,settings_config,n_samples,graph_coo=None,clades_dict=None):
 
     if not additional_load.correspondence_dict:

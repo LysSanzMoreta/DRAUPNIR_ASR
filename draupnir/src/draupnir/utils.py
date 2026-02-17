@@ -26,6 +26,8 @@ from scipy.sparse import coo_matrix
 import argparse
 import dill
 import ast
+from joblib import Parallel, delayed
+import functools
 import json
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
@@ -576,6 +578,43 @@ def calculate_pairwise_distance(name,alignment,storage_folder):
         print("Finish implementing for larger datasets")
         #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
         pass
+def calculate_patristic_cladistic_fast(tree,nodes_and_leafs_names):
+    """Parallel implementation of the patristic and cladistic matrices calculations"""
+    #nodes_and_leafs_names = [node.name for node in tree.traverse()]
+    print("Quick calculation of the patristic matrix")
+    n_elements = len(nodes_and_leafs_names)
+
+    I = pd.Index(nodes_and_leafs_names, name="rows")
+    C = pd.Index(nodes_and_leafs_names, name="columns")
+    patristic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
+    cladistic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
+
+    def calc_distance(t1,t2):
+        cladistic_dist =  tree.get_distance(t1, t2, topology_only=True)
+        patristic_dist = tree.get_distance(t1, t2, topology_only=False)
+        return ((t1,t2,cladistic_dist,patristic_dist))
+
+    nodes_and_leafs_names_i = []
+    nodes_and_leafs_names_j = []
+    for i, t1 in enumerate(nodes_and_leafs_names):
+        for j, t2 in enumerate(list(nodes_and_leafs_names)[i + 1:]):
+            nodes_and_leafs_names_i.append(t1)
+            nodes_and_leafs_names_j.append(t2)
+
+    results = Parallel(n_jobs=-2)(delayed(functools.partial(calc_distance))(t1,t2) for t1, t2 in itertools.zip_longest(nodes_and_leafs_names_i,nodes_and_leafs_names_j))
+
+    results_dict = defaultdict(list)
+    for result in results: #group results by leaf
+        results_dict[result[0]].append(result[1:])
+
+    for key,vals in results_dict.items(): #we only iterate the leaves
+        t2,cladistic_dist,patristic_dist = list(zip(*vals))
+        patristic_matrix.loc[key,t2] = patristic_dist
+        cladistic_matrix.loc[key,t2] = cladistic_dist
+
+
+    return patristic_matrix,cladistic_matrix
+
 def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,tree,tree_file, storage_folder):
     """Calculates the patristic distances or branch lengths across the nodes in a tree. It also saves the tree in different formats needed for benchmarking etc
     :param str name_file: data set project name
@@ -647,16 +686,17 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
         tree.write(outfile=new_tree_format7, format=7,format_root_node=True)
         tree.write(outfile=new_tree,format=1)  # save the renamed tree, format 9 to not save the internal nodes names. format 8 all nodes names
 
-        n_elements = len(nodes_and_leafs_names)
-        I = pd.Index(nodes_and_leafs_names, name="rows")
-        C = pd.Index(nodes_and_leafs_names, name="columns")
-        patristic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
-        cladistic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
         if not os.path.exists("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file)):
-            for i, t1 in enumerate(nodes_and_leafs_names):
-                for j, t2 in enumerate(list(nodes_and_leafs_names)[i + 1:]):
-                    cladistic_matrix.loc[[t1], [t2]] = tree.get_distance(t1, t2, topology_only=True)
-                    patristic_matrix.loc[[t1], [t2]] = tree.get_distance(t1, t2, topology_only=False)
+            # n_elements = len(nodes_and_leafs_names)
+            # I = pd.Index(nodes_and_leafs_names, name="rows")
+            # C = pd.Index(nodes_and_leafs_names, name="columns")
+            # patristic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
+            # cladistic_matrix = pd.DataFrame(data=np.zeros((n_elements, n_elements)), index=I, columns=C)
+            # for i, t1 in enumerate(nodes_and_leafs_names):
+            #     for j, t2 in enumerate(list(nodes_and_leafs_names)[i + 1:]):
+            #         cladistic_matrix.loc[[t1], [t2]] = tree.get_distance(t1, t2, topology_only=True)
+            #         patristic_matrix.loc[[t1], [t2]] = tree.get_distance(t1, t2, topology_only=False)
+            patristic_matrix,cladistic_matrix = calculate_patristic_cladistic_fast(tree,nodes_and_leafs_names)
             cladistic_matrix.to_csv("{}/{}_cladistic_distance_matrix.csv".format(storage_folder,name_file))
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
@@ -850,7 +890,13 @@ def create_dataset(name_file,
         if one_hot_encoding: where gap is [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
                Tensor with size: [Nsequences]x[Alignment length + 2]x[30] --> [[length,tree_position,dist_to_root,?,0,0,0...],[GIT vector],[aa1 one hot, phi, psi],[aa2 one hot, phi, psi],....[]]
         else: Amino acids are assigned numbers from 1-20, 0 means gap
-               Tensor with size: [Nsequences]x[Alignment length + 3]x[30] --> [[length,tree_position,dist_to_root,0,0,0,0...],[GIT vector],[aa1 number, phi, psi],[aa2 number, phi, psi],....[]]
+               Tensor with size: [Nsequences]x[Alignment length + 3]x[30] --> [[Node name, ...],
+                                                                               [length,tree_position,dist_to_root,0,0,0,0...],
+                                                                               [GIT vector], #not used at the moment
+                                                                               [aa1 number, phi, psi, ...],
+                                                                               [aa2 number, phi, psi, ...]
+                                                                               ...
+                                                                               []]
     """
 
     warnings.simplefilter('ignore', BiopythonWarning)
@@ -923,10 +969,6 @@ def create_dataset(name_file,
                       tree_file_name="{}/{}/{}.tree".format(storage_folder,name_file,name_file),
                       tree_file=tree_file,
                       storage_folder="{}/{}".format(storage_folder,name_file))
-
-
-
-
 
     max_lenght = alignment.get_alignment_length()
 
@@ -1025,6 +1067,15 @@ def create_dataset(name_file,
     tree_save.to_csv("{}/{}/{}_tree_levelorder_info.csv".format(storage_folder,name_file,name_file),sep="\t")
     nodes_and_leafs_names = internal_nodes_names + leafs_names
     calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,tree,tree_file,"{}/{}".format(storage_folder,name_file))
+
+    tree_ultrametric = tree.copy()
+    tree_ultrametric.convert_to_ultrametric(tree_length=1)
+    tree_ultrametric.write(outfile=tree_file.replace(".tre","_ultrametric.newick"),format=1)
+    patristic_matrix,cladistic_matrix = calculate_patristic_cladistic_fast(tree_ultrametric,nodes_and_leafs_names)
+    patristic_matrix.to_csv("{}/{}/{}_patristic_distance_matrix_ULTRAMETRIC.csv".format(storage_folder, name_file,name_file))
+    #cladistic_matrix.to_csv("{}/{}/{}_cladistic_distance_matrix_ULTRAMETRIC.csv".format(storage_folder, name_file,name_file))
+
+
     calculate_closest_leaves(name_file,tree,"{}/{}".format(storage_folder,name_file))
     calculate_directly_linked_nodes(name_file, tree,"{}/{}".format(storage_folder,name_file))
     calculate_descendants(name_file,tree,"{}/{}".format(storage_folder,name_file))
@@ -1143,9 +1194,6 @@ def convert_to_letters(seq,aa_probs):
         seq_letters = [aa_names_dict_reverse[position] for position in seq if position in aa_names_dict_reverse]
 
     return ''.join(seq_letters)
-
-
-
 def score_match(pair, matrix):
     """Returns the corresponding blosum scores between the pair of amino acids
     :param tuple pair: pair of amino acids to compare
@@ -1384,6 +1432,7 @@ def build_predicted_tree(index,sampled_sequences,leaf_names,name,results_directo
     dict_align,alignment = infer_alignment(input_name_file="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.fasta".format(results_directory, name,index),
                                            output_name_file="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.mafft".format(results_directory,name,index),alignment_file=None)
 
+    raise  ValueError("correct this to include ultrametric trees. In generak, not sure if this is working")
     #alignment, alignment_file_name,name,method=None,tree_file_name=None,tree_file=None,storage_folder=""
     tree = infer_tree(alignment=alignment,
                       alignment_file_name="{}/Tree_Alignment_Sampled/{}_combined_sample_index_{}.mafft".format(results_directory,name,index),

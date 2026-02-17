@@ -466,8 +466,6 @@ def processing(args:namedtuple,
     patristic_matrix_full = DraupnirUtils.rename_axis(patristic_matrix_full, nodes, name_file=name)
     patristic_matrix_full = DraupnirUtils.pandas_to_numpy(patristic_matrix_full)
 
-
-
     if cladistic_matrix is not None:
         cladistic_matrix_full = DraupnirUtils.symmetrize(cladistic_matrix)
         cladistic_matrix_full = DraupnirUtils.rename_axis(cladistic_matrix_full, nodes, name_file=name)
@@ -1030,6 +1028,7 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
     :param method: batching method
     NOTES: If a clade_dict is present it will Load each clade one at the time. Otherwise a predefined batch size is used"""
     # torch.manual_seed(0)    # For same random split of train/test set every time the code runs!
+    #kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
     kwargs = {'num_workers': 0, 'pin_memory': use_cuda}  # pin-memory has to do with transferring CPU tensors to GPU
     patristic_matrix_train = patristic_matrix_train.detach().cpu()  # otherwise it cannot be used with the train loader
     n_seqs = datasets["int"].shape[0]
@@ -1091,17 +1090,18 @@ def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_
                                                 batch_sequences_representations)
 
             train_loader = DataLoader(Splitted_Datasets, **kwargs)
-            for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
-                #train_loader = [ x.to('cuda', non_blocking=True) if isinstance(x,torch.Tensor) else x for x in dataset.values()]
-                for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum, batch_embedding, batch_seq_representation in zip(
-                        dataset["batch_name"], dataset["batch_data_int"], dataset["batch_patristic"],
-                        dataset["batch_blosum_weighted"], dataset["batch_data_blosum"], dataset["batch_embedding"], dataset["batch_sequence_representation"]):
-                    batch_dataset.to('cuda', non_blocking=True)
-                    batch_patristic.to('cuda', non_blocking=True)
-                    batch_blosum_weighted.to('cuda', non_blocking=True)
-                    batch_data_blosum.to('cuda', non_blocking=True)
-                    batch_embedding.to('cuda', non_blocking=True)
-                    batch_seq_representation.to('cuda', non_blocking=True)
+            # for batch_number, dataset in enumerate(train_loader): #TODO: not necessary, since in the end I opted to transfer everything in the training loop
+            #     #train_loader = [ x.to('cuda', non_blocking=True) if isinstance(x,torch.Tensor) else x for x in dataset.values()]
+            #     for batch_label, batch_dataset, batch_patristic, batch_blosum_weighted, batch_data_blosum, batch_embedding, batch_seq_representation in zip(
+            #             dataset["batch_name"], dataset["batch_data_int"], dataset["batch_patristic"],
+            #             dataset["batch_blosum_weighted"], dataset["batch_data_blosum"], dataset["batch_embedding"], dataset["batch_sequence_representation"]):
+            #
+            #         batch_dataset = batch_dataset.to('cuda', non_blocking=True)
+            #         batch_patristic = batch_patristic.to('cuda', non_blocking=True)
+            #         batch_blosum_weighted= batch_blosum_weighted.to('cuda', non_blocking=True)
+            #         batch_data_blosum=batch_data_blosum.to('cuda', non_blocking=True)
+            #         batch_embedding=batch_embedding.to('cuda', non_blocking=True)
+            #         batch_seq_representation=batch_seq_representation.to('cuda', non_blocking=True)
 
 
 

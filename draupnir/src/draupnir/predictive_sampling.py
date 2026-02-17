@@ -130,7 +130,16 @@ def predictive_test_full_train_full_delta_map(args,
                                                                                test_load.patristic_matrix_test.cpu().long()[
                                                                                    1:, 0])
 
-    return sample_out_train, sample_out_train_argmax, sample_out_test, sample_out_test_argmax, sample_out_test2, sample_out_test_argmax2, train_entropies, test_entropies, test_entropies2
+    return (sample_out_train,
+            sample_out_train_argmax,
+            sample_out_test,
+            sample_out_test_argmax,
+            sample_out_test2,
+            sample_out_test_argmax2,
+            train_entropies,
+            test_entropies,
+            test_entropies2,
+            map_estimates)
 
 def predictive_test_full_train_full_variational(args,
                                     train_load,
@@ -238,7 +247,16 @@ def predictive_test_full_train_full_variational(args,
         test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
         test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
 
-    return sample_out_train, sample_out_train_argmax, sample_out_test, sample_out_test_argmax, sample_out_test2, sample_out_test_argmax2, train_entropies, test_entropies, test_entropies2
+    return (sample_out_train,
+            sample_out_train_argmax,
+            sample_out_test,
+            sample_out_test_argmax,
+            sample_out_test2,
+            sample_out_test_argmax2,
+            train_entropies,
+            test_entropies,
+            test_entropies2,
+            map_estimates)
 
 
 def predictive_test_batched_train_full(args,
@@ -277,19 +295,20 @@ def predictive_test_batched_train_full(args,
         if blocks_train is not None:  # batched sampling
             blocks_test = blocks_train.copy()
             blocks_test[-1] = (blocks_test[-1][0],None)  # correcting the indexes of the test, this trick works by re-using blocks train, but this approach is more flexible
-            print("Recalculating train map estimates")
-            map_estimates = guide(datasets_train, train_load.patristic_matrix_train,
-                                  train_load.cladistic_matrix_train, dataset_train_blosum,
-                                  batch_blosum=None,
-                                  map_estimates=None)  # todo: ideally we we would load the pre.learnt map estimates, i need to make sure the right ones are saved
-
-            map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
             for sample_idx, sample in enumerate(samples_names):
+                print("Recalculating train map estimates")
+                map_estimates = guide(datasets_train, train_load.patristic_matrix_train,
+                                      train_load.cladistic_matrix_train, dataset_train_blosum,
+                                      batch_blosum=None,
+                                      map_estimates=None)  # todo: ideally we we would load the pre.learnt map estimates, i need to make sure the right ones are saved
+
+                map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 print("sample idx {}".format(sample_idx))
-                if args.draupnir_version in ["1b","2", "4","5"]:
-                    map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test,test_load.cladistic_matrix_test, dataset_test_blosum,batch_blosum=None)  # i extracted the "test" estimates here for some experiment
-                    map_estimates["test"] = {val: key.detach() for val, key in map_estimates_test.items() if
-                                             key is not None}
+                #if args.draupnir_version in ["1b","2", "4","5"]:
+                map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test,test_load.cladistic_matrix_test, dataset_test_blosum,batch_blosum=None)  # i extracted the "test" estimates here for some experiment
+                map_estimates["test"] = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
+
+                map_estimates_dict[sample] = map_estimates
 
                 for batch_idx, batch_idx_test in zip(blocks_train, blocks_test):
                     batch_train_sample = Draupnir.sample_batched(map_estimates,
@@ -413,7 +432,16 @@ def predictive_test_batched_train_full(args,
     test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
     test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
 
-    return sample_out_train, sample_out_train_argmax, sample_out_test, sample_out_test_argmax, sample_out_test2, sample_out_test_argmax2, train_entropies, test_entropies, test_entropies2
+    return (sample_out_train,
+            sample_out_train_argmax,
+            sample_out_test,
+            sample_out_test_argmax,
+            sample_out_test2,
+            sample_out_test_argmax2,
+            train_entropies,
+            test_entropies,
+            test_entropies2,
+            map_estimates_dict)
 
 def predictive_test_batched_train_batched(args,
                    train_load,
@@ -446,6 +474,7 @@ def predictive_test_batched_train_batched(args,
     warnings.warn("This batched sampling procedure has not been fully tested, latents seem well predicted though. Finish testing with the appending of the nodes")
 
     map_estimates_dict = defaultdict()
+    raise ValueError("fix how the map estimates ar stored")
     samples_names = ["sample_{}".format(i) for i in range(args.n_samples_batched)]
     # Highlight: Train storage
     n_train_leaves, train_dim1 = train_load.dataset_train.shape[0], train_load.dataset_train.shape[1]
@@ -490,8 +519,7 @@ def predictive_test_batched_train_batched(args,
                         map_estimates_batch_train = {val: key.detach() for val, key in map_estimates_batch_train.items() if
                                                      key is not None}
                         map_estimates_batch_train["train_leaves_nodes"] = \
-                        datasets_train["int"][batch_idx_train[0]:batch_idx_train[1]][
-                            :, 0, 1]  # todo: if batch_idx_train is out of range thsi needs to be corrected
+                        datasets_train["int"][batch_idx_train[0]:batch_idx_train[1]][:, 0, 1]  # todo: if batch_idx_train is out of range thsi needs to be corrected
 
                         if args.draupnir_version in ["1b","2", "4","5"]:
                             datasets_test_batch = {key: data[batch_idx_train[0]:batch_idx_train[1]] for key, data in
@@ -639,7 +667,16 @@ def predictive_test_batched_train_batched(args,
                                                                                test_load.patristic_matrix_test.cpu().long()[
                                                                                    1:, 0])
 
-    return sample_out_train, sample_out_train_argmax, sample_out_test, sample_out_test_argmax, sample_out_test2, sample_out_test_argmax2, train_entropies, test_entropies, test_entropies2
+    return (sample_out_train,
+            sample_out_train_argmax,
+            sample_out_test,
+            sample_out_test_argmax,
+            sample_out_test2,
+            sample_out_test_argmax2,
+            train_entropies,
+            test_entropies,
+            test_entropies2,
+            map_estimates_dict)
 
 
 
