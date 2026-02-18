@@ -236,6 +236,7 @@ def train_batch(svi,training_function_input):
 
                 #map_estimates["annealing_factor"] = torch.Tensor([min(1,training_function_input["step"]/training_function_input["temp_anneal"])]).to(args.device)
                 #map_estimates["annealing_factor"] = torch.Tensor([0.3]).to(args.device) if epoch < 500 else torch.Tensor([1.]).to(args.device)
+                map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
                 #print("step:",training_function_input["step"],"annealing factor",map_estimates["annealing_factor"])
 
                 train_loss += svi.step(batch_datasets,

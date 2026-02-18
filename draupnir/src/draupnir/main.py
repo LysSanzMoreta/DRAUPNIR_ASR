@@ -502,9 +502,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_full
     elif args.draupnir_version != "1" and args.batch_size > 1:
         if args.use_blosum:
-            draupnir_dict = {
-                "2": DraupnirModels.DRAUPNIRModel_transformer,
-            }
+            raise ValueError("Not implemented other models with blosum and not classic formula yet")
         else:
             draupnir_dict= {
                         "1b": DraupnirModels.DRAUPNIRModel_batching_no_blosum_1b,

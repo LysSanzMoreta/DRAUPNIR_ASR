@@ -446,40 +446,50 @@ class RNNDecoder_Tiling(nn.Module):
         return output_logits
 
 
+# ----------------------------
+# Bahdanau Attention
+# ----------------------------
+class Attention(nn.Module):
+    def __init__(self, enc_hid_dim, dec_hid_dim):
+        super().__init__()
+
+        self.W_enc = nn.Linear(enc_hid_dim, dec_hid_dim)
+        self.W_dec = nn.Linear(dec_hid_dim, dec_hid_dim)
+        self.v = nn.Linear(dec_hid_dim, 1, bias=False)
+
+    def forward(self, encoder_outputs, decoder_outputs):
+        """
+        encoder_outputs: [B, src_len, enc_hid_dim]
+        decoder_outputs: [B, tgt_len, dec_hid_dim]
+
+        Returns:
+            context: [B, tgt_len, enc_hid_dim]
+            attention_weights: [B, tgt_len, src_len]
+        """
 
 
-class SelfAttention(nn.Module):
-    def __init__(self, hidden_size):
-        super(SelfAttention, self).__init__()
-        self.hidden_size = hidden_size
-        self.query = nn.Linear(hidden_size, hidden_size)
-        self.key = nn.Linear(hidden_size, hidden_size)
-        self.value = nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, hidden_states):
-        # hidden_states: [seq_len, batch_size, hidden_size]
-        hidden_states = hidden_states.transpose(0,1)
-        # Compute query, key, value
-
-        Q = self.query(hidden_states)  # [seq_len, batch_size, hidden_size]
-        K = self.key(hidden_states)    # [seq_len, batch_size, hidden_size]
-        V = self.value(hidden_states)  # [seq_len, batch_size, hidden_size]
-
-        # Compute attention scores
-        scores = torch.bmm(Q.transpose(0, 1), K.transpose(1, 0).transpose(2,1)) / (self.hidden_size ** 0.5)
-        # scores: [batch_size, seq_len, seq_len]
+        B, src_len, _ = encoder_outputs.size()
+        tgt_len = decoder_outputs.size(1)
 
 
-        # Compute attention weights
-        attn_weights = F.softmax(scores, dim=-1)
+        # Expand for broadcasting
+        enc_proj = self.W_enc(encoder_outputs)  # [B, src_len, dec_hid_dim]
+        dec_proj = self.W_dec(decoder_outputs)  # [B, tgt_len, dec_hid_dim]
 
-        # Apply attention to values
-        context = torch.bmm(attn_weights, V.transpose(0, 1))  # [batch_size, seq_len, hidden_size]
-        #context = context.transpose(0, 1)  # [seq_len, batch_size, hidden_size]
+        enc_proj = enc_proj.unsqueeze(1)  # [B, 1, src_len, dec_hid_dim]
+        dec_proj = dec_proj.unsqueeze(2)  # [B, tgt_len, 1, dec_hid_dim]
+
+        energy = torch.tanh(enc_proj + dec_proj)  # [B, tgt_len, src_len, dec_hid_dim] #across the second dimension, each of the rows of the decoder broadcasts+sum those of the encoder
+
+        scores = self.v(energy).squeeze(-1)  # [B, tgt_len, src_len]
+
+        attn_weights = F.softmax(scores, dim=-1)  # [B, tgt_len, src_len]
+
+        context = torch.bmm(attn_weights, encoder_outputs)# [B, tgt_len, enc_hid_dim]
 
         return context, attn_weights
 
-class RNNDecoder_Tiling_1b(nn.Module):
+class RNNDecoder_CrossAttention(nn.Module):
     def __init__(self,
                  align_seq_len,
                  aa_probs,
@@ -489,7 +499,7 @@ class RNNDecoder_Tiling_1b(nn.Module):
                  kappa_addition,
                  num_layers,
                  pretrained_params):
-        super(RNNDecoder_Tiling_1b, self).__init__()
+        super(RNNDecoder_CrossAttention, self).__init__()
         self.gru_hidden_dim = gru_hidden_dim
         self.z_dim = z_dim
         self.input_size = input_size
@@ -502,7 +512,7 @@ class RNNDecoder_Tiling_1b(nn.Module):
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
         #self.layernorm = nn.LayerNorm(self.input_size)
-        self.fc1 = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        self.fc1 = nn.Linear(2*self.gru_hidden_dim, self.gru_hidden_dim)
         self.linear_probs = nn.Linear(self.gru_hidden_dim, self.aa_probs)
         self.rnn = nn.GRU(input_size=self.input_size,
                           hidden_size=self.gru_hidden_dim,
@@ -510,10 +520,10 @@ class RNNDecoder_Tiling_1b(nn.Module):
                           bidirectional=True,
                           num_layers=self.num_layers,
                           dropout=0.0)
-        self.layernorm1 = nn.LayerNorm(self.gru_hidden_dim*2)
+        self.layernorm1 = nn.LayerNorm(2*self.gru_hidden_dim)
         self.layernorm2 = nn.LayerNorm(self.gru_hidden_dim)
         self.layernorm3 = nn.LayerNorm(self.aa_probs)
-        self.attention = SelfAttention(self.gru_hidden_dim)
+        self.attention = Attention(self.gru_hidden_dim,self.gru_hidden_dim)
 
 
     def init_gru_bias(self):
@@ -521,64 +531,24 @@ class RNNDecoder_Tiling_1b(nn.Module):
             if "bias_ih_l0" in name:
                 param.data[self.gru_hidden_dim:2 * self.gru_hidden_dim] = -1.0  # reset gate bias
 
-
-    # def forward(self, input, hidden): #old function for RNNDecoder_Tiling_new
-    #     rnn_hidden_states, rnn_final_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim]
-    #     forward_hidden_states = rnn_hidden_states[:, :, :self.gru_hidden_dim]
-    #     backward_hidden_states = rnn_hidden_states[:, :, self.gru_hidden_dim:]
-    #     rnn_hidden_states = forward_hidden_states + backward_hidden_states
-    #     #rnn_final_hidden = rnn_hidden_states[:,-1]
-    #
-    #     rnn_final_hidden = self.fc1(rnn_hidden_states)
-    #     output_logits = self.logsoftmax(self.linear_probs(rnn_final_hidden))  # [n_nodes,align_seq_len,aa_probs]
-    #     #output_logits = self.logsoftmax(self.linear_probs(self.fc1(rnn_final_hidden)))  # [n_nodes,align_seq_len,aa_probs]
-    #     return output_logits
-
-    # def forward(self, input, hidden):
-    #     """One-shot, non-autoregressive sequence generation"""
-    #
-    #
-    #     rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
-    #
-    #     # print("Decoder rnn states")
-    #     # print(rnn_output.var(dim=0).mean())  # should not be tiny
-    #     # print(rnn_hidden.var(dim=0).mean())  # should not be tiny
-    #     #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
-    #     #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
-    #     #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
-    #     rnn_output = self.layernorm1(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
-    #     rnn_output = self.layernorm2(self.fc1(rnn_output))
-    #     rnn_output = self.layernorm3(self.linear_probs(rnn_output))
-    #     output_logits = self.logsoftmax(rnn_output)  # [n_nodes,align_seq_len,aa_probs]
-    #
-    #     return output_logits
     def forward(self, input, hidden,encoder_hidden_states= None):
         """Autoregressive sequence generation"""
 
-        print(input.shape)
-        print(hidden.shape)
 
+        decoder_hidden_states, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
 
-
-        rnn_output, rnn_hidden = self.rnn(input, hidden)  # [n_nodes,align_seq_len,gru_dim] | [1,n_nodes,gru_dim] #rnn_out is not expressive? whereas the hidden states are
 
         # print("Decoder rnn states")
         # print(rnn_output.var(dim=0).mean())  # should not be tiny
         # print(rnn_hidden.var(dim=0).mean())  # should not be tiny
-        #forward_out = rnn_output[:, :, :self.gru_hidden_dim]
-        #backward_out = rnn_output[:, :, self.gru_hidden_dim:]
+        forward_out = decoder_hidden_states[:, :, :self.gru_hidden_dim]
+        backward_out = decoder_hidden_states[:, :, self.gru_hidden_dim:]
+
+        decoder_hidden_states = forward_out + backward_out
         #rnn_output_out = torch.cat((forward_out, backward_out), dim=2)
-        context, _ = self.attention(encoder_hidden_states)
+        context, attn = self.attention(encoder_hidden_states,decoder_hidden_states)
 
-        last_context = context[:,-1]
-
-        print(last_context.shape)
-        print(rnn_output.shape)
-
-        exit()
-
-
-        rnn_output = torch.concat((rnn_output,last_context)) #todo:fix this and linear layer shapes
+        rnn_output = torch.concat((decoder_hidden_states,context),dim=-1) #[n_nodes,L,feat_dim]
 
         rnn_output = self.layernorm1(rnn_output) #worsens training, not necessary, since all the sequences an in the same "scale"
         rnn_output = self.layernorm2(self.fc1(rnn_output))

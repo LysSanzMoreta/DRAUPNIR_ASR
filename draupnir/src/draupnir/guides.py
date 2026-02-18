@@ -428,7 +428,6 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-        print("Going through  guide")
         with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([1.])):
             with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
                 # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
