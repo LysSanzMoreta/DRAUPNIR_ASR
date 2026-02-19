@@ -1643,6 +1643,8 @@ def draupnir_train_batching(train_load,
 
     #torch.save(additional_load.patristic_matrix_full,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/full_patristic_matrix.torch",pickle_protocol=4)
 
+
+
     root_index = (additional_load.patristic_matrix_full[:, 0][..., None] == torch.Tensor([0.])).any(-1)
     root_index[0] = False  #remove nodes names
 
@@ -1672,7 +1674,7 @@ def draupnir_train_batching(train_load,
                            leaves_testing=build_config.leaves_testing,
                            plate_unordered=args.plate_unordered,
                            one_hot_encoding=settings_config.one_hot_encoding,
-                           tree_height = additional_load.patristic_matrix_full[root_index].max()
+                           tree_height = additional_load.patristic_matrix_full[root_index].max(),
                            )
 
 

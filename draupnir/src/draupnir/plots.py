@@ -92,12 +92,17 @@ def plot_ou_parameters(args,map_estimates,model_load):
     """"""
 
     fig, axs = plt.subplots(1, 5, sharey=True, figsize=(18,10))
-    for idx, ou_param_name in enumerate(["alpha","sigma_f","sigma_n","lambd","po"]):
+
+    for idx, ou_param_name in enumerate(["alpha","sigma_f","sigma_n","lambd","rho"]):
         if ou_param_name in map_estimates["sample_0"].keys():
+
             #ou_param = torch.concatenate([map_estimates[sample][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
             ou_param = DraupnirUtils.squeeze_tensor(1,map_estimates["sample_0"][ou_param_name].detach().cpu().numpy())#all samples have same result, it is deterministic
             #ou_param_test = torch.concatenate([map_estimates[sample]["test"][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
-            axs[idx].bar(np.arange(ou_param.shape[0]),ou_param,label=ou_param_name)
+            if ou_param.ndim == 0:
+                axs[idx].bar(0, ou_param, label=ou_param_name)
+            else:
+                axs[idx].bar(np.arange(ou_param.shape[0]),ou_param,label=ou_param_name)
             axs[idx].set_title(ou_param_name)
 
     bar_container =axs[-1].bar(np.array([1]),model_load.tree_height.detach().cpu().numpy(),label="Tree Height")
@@ -108,8 +113,6 @@ def plot_ou_parameters(args,map_estimates,model_load):
 
 
     plt.savefig(f"{args.results_dir}/OU_parameters_values.png")
-
-
 def plot_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined
     :param namedtuple samples_out: contains the output from Draupnir.samples

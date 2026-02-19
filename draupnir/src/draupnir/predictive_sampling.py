@@ -301,7 +301,7 @@ def predictive_test_batched_train_full(args,
             blocks_test = blocks_train.copy()
             blocks_test[-1] = (blocks_test[-1][0],None)  # correcting the indexes of the test, this trick works by re-using blocks train, but this approach is more flexible
             for sample_idx, sample in enumerate(samples_names):
-                print("Recalculating train map estimates")
+                #print("Recalculating train map estimates")
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train,
                                       train_load.cladistic_matrix_train, dataset_train_blosum,
                                       batch_blosum=None,
@@ -500,7 +500,7 @@ def predictive_test_batched_train_batched(args,
             blocks_test = blocks_train.copy()
             blocks_test[-1] = (blocks_test[-1][0],
                                None)  # correcting the indexes of the test, this trick works by re-using blocks train, but this approach is more flexible
-            print("Recalculating train map estimates")
+            #print("Recalculating train map estimates")
             train_sample_idx = 0
             test_sample_idx = 0
             for sample_idx, sample in enumerate(samples_names):
@@ -575,8 +575,6 @@ def predictive_test_batched_train_batched(args,
                         # train_nodes_storage[train_sample_idx,batch_idx_train[0]:batch_idx_train[1]] = map_estimates_batch_train["train_leaves_nodes"][batch_idx_train[0]:batch_idx_train[1]] #todo: finish, to check that the sampling idx are correct
 
                         if batch_idx_test[1] is None:  # last batch
-
-
                             aa_sequences_test_samples[test_sample_idx + train_block_idx, batch_idx_test[0]:] = batch_test_sample.aa_sequences.detach().cpu()
                             latent_space_test_samples[test_sample_idx + train_block_idx, batch_idx_test[0]:] = batch_test_sample.latent_space.detach().cpu()[None, :]
                             logits_test_samples[test_sample_idx + train_block_idx, batch_idx_test[0]:] = batch_test_sample.logits.detach().cpu()[None, :]

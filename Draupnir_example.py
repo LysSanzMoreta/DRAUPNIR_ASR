@@ -151,7 +151,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=20, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
@@ -185,11 +185,11 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="1c", type=str,
                         help='Draupnir version.'
                              '1: first version as published and the batched version'
-                             '1b: experiments with draupnir model 1'
-                             '1c: experimental prior'
+                             '1b: experiments with draupnir model 1 decoder & encoder communication'
+                             '1c: experimental priors'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
@@ -197,9 +197,10 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
                         ,
                         )
-    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="3", help="1: removed alpha and sigma_n \n"
+    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="4", help="1: removed alpha and sigma_n \n"
                                                                            "2: classic prior but tiled ou parameters,\n "
-                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left")
+                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left"
+                                                                                               "4: only lambda + cholesky decomposition")
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '

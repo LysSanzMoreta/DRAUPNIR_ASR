@@ -76,21 +76,16 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: exam
                 map_estimates[key] = val
             else:
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
-        elif key in ["alpha", "sigma_n", "sigma_f", "lambd"]:
+        elif key in ["alpha", "sigma_n", "sigma_f", "lambd","rho"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
             map_estimates[key] = val
-        elif key in ["rnn_final_hidden_state", "z_scale", "z_loc"]:
+        elif key in ["rnn_final_hidden_state", "z_scale", "z_loc","eps_z"]:
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
         elif key in [ "rnn_hidden_states","rnn_final_bidirectional","rnn_final_forward_backward_sum"]:
             map_estimates[key] = val
-        # elif key in ["rnn_final_bidirectional","rnn_final_forward_backward_sum"]:
-        #     if key not in map_estimates:
-        #         map_estimates[key] = val
-        #     else:
-        #         map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
         elif key in ["context_vector","attention_scores","attention_logits","hidden_states"]:
             if key not in map_estimates:
                 map_estimates[key] = val
