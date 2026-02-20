@@ -1178,7 +1178,10 @@ class OUKernel_Fast_experiment(GPKernel):
             else:
 
                 return first_term * second_term + noise*1e-6
-        else: return  second_term
+        else:
+            noise = torch.eye(t.shape[0])  # distributes noise/stochascity to diagonal of the covariance
+
+            return  second_term + noise*1e-6
 
 
 class OUKernel_Fast_Sparse(GPKernel):

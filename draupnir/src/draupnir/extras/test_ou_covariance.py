@@ -172,6 +172,10 @@ tree_diameter = full_patristic[1:,1:].max() #maximum pairwise distance
 
 print("Tree Height",tree_height)
 print("Tree diameter",tree_diameter)
+print("Test diameter", test_patristic[1:,1:].max())
+
+
+exit()
 
 map_estimates = TestModel(test_patristic,tree_height).gp_prior_batched(train_patristic)
 

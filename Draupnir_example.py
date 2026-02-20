@@ -197,10 +197,11 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
                         ,
                         )
-    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="4", help="1: removed alpha and sigma_n \n"
+    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="5", help="1: removed alpha and sigma_n \n"
                                                                            "2: classic prior but tiled ou parameters,\n "
-                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left"
-                                                                                               "4: only lambda + cholesky decomposition")
+                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
+                                                                           "4: only lambda + cholesky decomposition \n "
+                                                                                               "5: like 4  new prior over lambda")
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '

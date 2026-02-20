@@ -76,7 +76,7 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: exam
                 map_estimates[key] = val
             else:
                 map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=1)
-        elif key in ["alpha", "sigma_n", "sigma_f", "lambd","rho"]:
+        elif key in ["alpha", "sigma_n", "sigma_f", "lambd","rho", "log_lambd"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
             map_estimates[key] = val
         elif key in ["rnn_final_hidden_state", "z_scale", "z_loc","eps_z"]:

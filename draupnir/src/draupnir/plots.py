@@ -91,7 +91,7 @@ def plot_z(latent_space, children_dict, results_dir):
 def plot_ou_parameters(args,map_estimates,model_load):
     """"""
 
-    fig, axs = plt.subplots(1, 5, sharey=True, figsize=(18,10))
+    fig, axs = plt.subplots(1, 6, sharey=True, figsize=(18,10))
 
     for idx, ou_param_name in enumerate(["alpha","sigma_f","sigma_n","lambd","rho"]):
         if ou_param_name in map_estimates["sample_0"].keys():
