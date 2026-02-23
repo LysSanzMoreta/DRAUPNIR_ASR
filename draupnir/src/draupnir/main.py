@@ -2559,6 +2559,7 @@ def send_to_plot(dataset_train,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
+                    plot_test=True,
                     no_testing=build_config.no_testing)
     print("test2")
     preparing_plots(sample_out_test2,
@@ -2574,6 +2575,7 @@ def send_to_plot(dataset_train,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
+                    plot_test=True,
                     no_testing=build_config.no_testing)
 
     if args.n_samples != sample_out_test_argmax.aa_sequences.shape[0]:  # most likely sequences ---> most voted sequence now?
@@ -2610,6 +2612,7 @@ def send_to_plot(dataset_train,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
+                    plot_test=True,
                     no_testing=build_config.no_testing)
     print("test_argmax 2")
     preparing_plots(sample_out_test_argmax2,
@@ -2625,6 +2628,7 @@ def send_to_plot(dataset_train,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
+                    plot_test = True,
                     no_testing=build_config.no_testing)
 
     stop_plots = time.time()
@@ -2672,13 +2676,12 @@ def preparing_plots(samples_out,
     else:
         correspondence_dict = additional_load.correspondence_dict
     if plot_test and no_testing:
-        print("Print no ancestral sequence testing!")
+        print("Print no ancestral sequence testing! There is no ancestral sequences available")
         DraupnirPlots.save_ancestors_predictions(name, dataset_true, samples_out.aa_sequences, n_samples, results_dir,
                                    correspondence_dict, build_config.aa_probs)
     elif plot_test and name in ["Douglas_SRC","Coral_Faviina","Coral_all"] or plot_test and name.endswith("_subtree"):
         #Highlight: select from the predictions only the sequences in the dataset_test. Remove gaps and align to the "observed"
-        DraupnirPlots.save_ancestors_predictions_coral(name, test_ordered_nodes, samples_out.aa_sequences, n_samples, results_dir,
-                                                 correspondence_dict, build_config.aa_probs)
+        DraupnirPlots.save_ancestors_predictions_coral(name, test_ordered_nodes, samples_out.aa_sequences, n_samples, results_dir,correspondence_dict, build_config.aa_probs)
         DraupnirPlots.clean_and_realign_train(name,
                                    dataset_true, #in this case it will always be the dataset_test with the ancestral sequences , because plot_test
                                    dataset_train,
@@ -2689,6 +2692,7 @@ def preparing_plots(samples_out,
                                    results_dir,
                                    additional_load,
                                    additional_info)
+
         DraupnirPlots.clean_and_realign_test(name,
                                    dataset_true, #in this case it will always be the dataset_test with the ancestral sequences , because plot_test
                                    samples_out.aa_sequences,#test predictions
@@ -2698,10 +2702,8 @@ def preparing_plots(samples_out,
                                    results_dir,
                                    additional_load,
                                    additional_info)
-
-
-
         DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
+
     elif args.infer_angles and plot_angles:
         DraupnirPlots.plot_angles(samples_out,dataset_true,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes)
         DraupnirPlots.plot_angles_per_aa(samples_out,dataset_true,results_dir,build_config,additional_load,additional_info,n_samples,test_ordered_nodes)
@@ -2717,6 +2719,8 @@ def preparing_plots(samples_out,
                                                                 additional_info,
                                                                 replacement_plots)
         DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
+
+        DraupnirPlots.plot_covariance(args,samples_out.covariance.detach().cpu().numpy())
 
 
         if overplapping_hist: #TODO: Fix or remove?
@@ -2829,7 +2833,6 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     #graph_coo = additional_info.graph_coo
     if args.generate_samples: #TODO: generate samples by batch for large data sets
         print("Generating samples not training!")
-
         draupnir_sample(train_load,
                         test_load,
                         additional_load,

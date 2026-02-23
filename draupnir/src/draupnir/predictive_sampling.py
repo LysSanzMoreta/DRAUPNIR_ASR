@@ -261,7 +261,7 @@ def predictive_test_full_train_full_variational(args,
             train_entropies,
             test_entropies,
             test_entropies2,
-            map_estimates)
+            map_estimates_dict)
 
 
 def predictive_test_batched_train_full(args,

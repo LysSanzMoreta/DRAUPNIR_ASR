@@ -113,6 +113,13 @@ def plot_ou_parameters(args,map_estimates,model_load):
 
 
     plt.savefig(f"{args.results_dir}/OU_parameters_values.png")
+
+
+def plot_covariance(args,covariance):
+
+    pass
+    #eigvals = np.linalg.eigvalsh(covariance)
+
 def plot_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined
     :param namedtuple samples_out: contains the output from Draupnir.samples

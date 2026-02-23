@@ -154,15 +154,15 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
-            aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
+        aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
 
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T)).to_event(1) #[z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T)).to_event(1) #[z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
 
 
         return {"alpha":alpha,
@@ -195,17 +195,17 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
         lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
 
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -231,19 +231,18 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         sigma_f = pyro.sample("sigma_f",dist.Delta(self.sigma_f).to_event(1))  # rate of mean reversion/selection strength
         lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))  # characteristic length-scale
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))  # rate of mean reversion/selection strength
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))  # characteristic length-scale
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
         return {
                 "sigma_f": sigma_f,
@@ -270,25 +269,25 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         sigma_f = pyro.sample("sigma_f",dist.Delta(self.sigma_f).to_event(0))  # rate of mean reversion/selection strength
         lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(0))  # characteristic length-scale
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
 
 
 
-            #alpha = DraupnirUtils.squeeze_tensor(1, alpha) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
-            sigma_f = DraupnirUtils.squeeze_tensor(1, sigma_f).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
-            sigma_n = DraupnirUtils.squeeze_tensor(1, sigma_n).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
-            lambd = DraupnirUtils.squeeze_tensor(1, lambd).repeat(self.draupnir.z_dim) + 1e-6
+        #alpha = DraupnirUtils.squeeze_tensor(1, alpha) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+        sigma_f = DraupnirUtils.squeeze_tensor(1, sigma_f).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+        sigma_n = DraupnirUtils.squeeze_tensor(1, sigma_n).repeat(self.draupnir.z_dim) + 1e-6  # TODO: Cannot make the OU process parameters squeeze
+        lambd = DraupnirUtils.squeeze_tensor(1, lambd).repeat(self.draupnir.z_dim) + 1e-6
 
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
 
         return {
@@ -313,21 +312,21 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
 
-            rho = pyro.sample("rho", dist.Delta(self.rho).to_event(1))  # characteristic length-scale
-            rho = DraupnirUtils.squeeze_tensor(1, rho)
+        rho = pyro.sample("rho", dist.Delta(self.rho).to_event(1))  # characteristic length-scale
+        rho = DraupnirUtils.squeeze_tensor(1, rho)
 
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
 
         return {
@@ -349,20 +348,20 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            rho = pyro.sample("rho", dist.Delta(self.rho))  # characteristic length-scale
-            rho = DraupnirUtils.squeeze_tensor(1, rho)
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        rho = pyro.sample("rho", dist.Delta(self.rho))  # characteristic length-scale
+        rho = DraupnirUtils.squeeze_tensor(1, rho)
 
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
 
-            assert eps_z.shape == ( aminoacid_sequences.shape[0],self.draupnir.z_dim)
+        assert eps_z.shape == ( aminoacid_sequences.shape[0],self.draupnir.z_dim)
 
 
         return {
@@ -387,21 +386,21 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd))  # characteristic length-scale
-        log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
+        log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd).expand_by([1]))  # characteristic length-scale
+        #log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
 
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-            # aminoacid_sequences = self.dataset_train_blosum
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+        # aminoacid_sequences = self.dataset_train_blosum
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
 
-            assert eps_z.shape == (aminoacid_sequences.shape[0], self.draupnir.z_dim)
+        assert eps_z.shape == (aminoacid_sequences.shape[0], self.draupnir.z_dim)
 
         return {
             "log_lambd": log_lambd.squeeze(),
@@ -427,19 +426,19 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
-            sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
-            lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(data_blosum)  # remember for the corals the aa_prob is 24
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],
-                                                self.draupnir.gru_hidden_dim).contiguous()
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+        sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
+        lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(data_blosum)  # remember for the corals the aa_prob is 24
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],
+                                            self.draupnir.gru_hidden_dim).contiguous()
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -502,16 +501,16 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
-            aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
+        aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
 
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T)).to_event(1) #[z_dim,n]
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T)).to_event(1) #[z_dim,n]
 
-            assert latent_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
+        assert latent_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
 
 
         return {"alpha":alpha,
@@ -534,25 +533,25 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
         with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([1.])):
-            with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-                # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-                # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
-                # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
-                # lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
-                #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
-                alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-                sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-                sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-                lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-                # Highlight: embed the amino acids represented by their respective blosum scores
-                aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
-                # aminoacid_sequences = self.dataset_train_blosum
-                encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-                # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-                encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-                z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-                latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-                assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+            #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
+            # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+            # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
+            # lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
+            #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
+            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+            # aminoacid_sequences = self.dataset_train_blosum
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -575,19 +574,19 @@ class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
         # aminoacid_sequences = datasets[:, 2:, 0]
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
-            sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
-            lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(data_blosum)  # remember for the corals the aa_prob is 24
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],
-                                                self.draupnir.gru_hidden_dim).contiguous()
-            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
-            assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+        sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
+        lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(data_blosum)  # remember for the corals the aa_prob is 24
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],
+                                            self.draupnir.gru_hidden_dim).contiguous()
+        encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        assert latent_z.shape == (self.draupnir.z_dim, aminoacid_sequences.shape[0])
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -626,31 +625,31 @@ class DRAUPNIRGuides_transformer(DRAUPNIRGUIDES):
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
         aa_sequences = datasets["blosum"]
         nseqs = aa_sequences.shape[0]
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
-            # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
-            # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
-            # lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
+        # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
+        # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
+        # lambd = pyro.sample("lambd", dist.HalfNormal(alpha[2]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # characteristic length-scale
 
-            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-            # Highlight: embed the amino acids represented by their respective blosum scores
-            aminoacid_sequences = self.embeddingencoder(aa_sequences)  # Highlight: i) Makes linear projection ii) Makes the feature dimensions even to be able to apply the rotational embeddings
-            #queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
-            # sinusoidal_encodings = self.positional_encodings.sinusoidal_encodings() #[1, L, feat_dim]
-            # aminoacid_sequences = aminoacid_sequences+ sinusoidal_encodings #sum because independent set of vectors with high likelihood
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+        # Highlight: embed the amino acids represented by their respective blosum scores
+        aminoacid_sequences = self.embeddingencoder(aa_sequences)  # Highlight: i) Makes linear projection ii) Makes the feature dimensions even to be able to apply the rotational embeddings
+        #queryw, keyw = self.positional_encodings.apply(aminoacid_sequences)
+        # sinusoidal_encodings = self.positional_encodings.sinusoidal_encodings() #[1, L, feat_dim]
+        # aminoacid_sequences = aminoacid_sequences+ sinusoidal_encodings #sum because independent set of vectors with high likelihood
 
-            #encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
+        #encoder_output = self.encoder.forward(queryw,keyw,aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
 
-            #todo: there is no start token here
-            encoder_output = self.encoder.forward(aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        #todo: there is no start token here
+        encoder_output = self.encoder.forward(aminoacid_sequences,None)  # [n,z_dim] #TODO: Introduce masking
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
 
 
-            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+        assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -692,24 +691,24 @@ class DRAUPNIRGuides_z_esm(DRAUPNIRGUIDES):
         esm_representations = datasets["sequences_representations"][:, 1:]  # the indexes are in [:,0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
-            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-            # Highlight: embed the amino acids represented by their respective blosum scores
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+        # Highlight: embed the amino acids represented by their respective blosum scores
 
-            # aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
-            # encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            # encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+        # aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
+        # encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        # encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
-            encoder_output = self.encoder(esm_representations, esm_representations)  # [n,z_dim]
+        encoder_output = self.encoder(esm_representations, esm_representations)  # [n,z_dim]
 
-            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
 
-            assert latent_z.shape == (self.draupnir.z_dim,
-                                      nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+        assert latent_z.shape == (self.draupnir.z_dim,
+                                  nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -753,25 +752,25 @@ class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
 
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
 
-            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-            # Highlight: embed the amino acids represented by their respective blosum scores
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+        # Highlight: embed the amino acids represented by their respective blosum scores
 
-            aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
-            encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+        aminoacid_embeddings = self.embeddingencoder(esm_embeddings) #i use the "aligned embeddings"
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_embeddings.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        encoder_output = self.encoder(aminoacid_embeddings, encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
-            #encoder_output = self.encoder(esm_representations,esm_representations) # [n,z_dim]
+        #encoder_output = self.encoder(esm_representations,esm_representations) # [n,z_dim]
 
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
 
 
-            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+        assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -820,29 +819,29 @@ class DRAUPNIRGuides_xlstm(DRAUPNIRGUIDES):
         nseqs = aa_sequences_blosum.shape[0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
 
-            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-            # Highlight: embed the amino acids represented by their respective blosum scores
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+        # Highlight: embed the amino acids represented by their respective blosum scores
 
-            aminoacid_embeddings_0 = self.embeddingencoder(aa_sequences_blosum)
+        aminoacid_embeddings_0 = self.embeddingencoder(aa_sequences_blosum)
 
-            encoder_1_output = self.encoder1(aminoacid_embeddings_0)
-            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder2.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+        encoder_1_output = self.encoder1(aminoacid_embeddings_0)
+        encoder_h_0 = self.h_0_GUIDE.expand(self.encoder2.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
 
-            #todo:
-            aminoacid_embeddings_0 = aminoacid_embeddings_0 + encoder_1_output["embeddings"]
-            encoder_2_output = self.encoder2(aminoacid_embeddings_0,encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
-
-
-            z_loc,z_scale = encoder_2_output["z_loc"],encoder_2_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        #todo:
+        aminoacid_embeddings_0 = aminoacid_embeddings_0 + encoder_1_output["embeddings"]
+        encoder_2_output = self.encoder2(aminoacid_embeddings_0,encoder_h_0)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
 
-            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+        z_loc,z_scale = encoder_2_output["z_loc"],encoder_2_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+
+
+        assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
@@ -883,23 +882,23 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
         nseqs = aa_sequences_blosum.shape[0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
 
-            alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
-            sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
-            sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
-            lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
-            # Highlight: embed the amino acids represented by their respective blosum scores
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+        # Highlight: embed the amino acids represented by their respective blosum scores
 
-            aminoacid_embeddings = self.embeddingencoder(aa_sequences_blosum)
-            prev_embeddings = map_estimates["embeddings"] if map_estimates is not None else None
-            encoder_output = self.encoder(aminoacid_embeddings)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
+        aminoacid_embeddings = self.embeddingencoder(aa_sequences_blosum)
+        prev_embeddings = map_estimates["embeddings"] if map_estimates is not None else None
+        encoder_output = self.encoder(aminoacid_embeddings)  # [n,z_dim] #todo: i need the seq lens if i use unaligned sequences
 
-            z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
-            latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
+        z_loc,z_scale = encoder_output["z_loc"],encoder_output["z_scale"]
+        latent_z = pyro.sample("latent_z", dist.Normal(z_loc.T, z_scale.T))  # [z_dim,n]
 
 
-            assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
+        assert latent_z.shape == (self.draupnir.z_dim, nseqs), f"expected shape ({self.draupnir.z_dim}, {nseqs}), found {latent_z.shape}"
 
         return {"alpha": alpha,
                 "sigma_n": sigma_n,
