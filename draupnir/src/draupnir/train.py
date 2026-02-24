@@ -103,7 +103,7 @@ def train_batch_new(svi,training_function_input):
     :param dataloader train_loader: Pytorch dataloader
     :param namedtuple args
     """
-    patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    patristic_matrix_train = training_function_input["patristic_matrix_train"] #in principle the train matrix
     cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
     cladistic_matrix_train = training_function_input["cladistic_matrix_train"]
     dataset_train_blosum = training_function_input["dataset_train_blosum"]
@@ -115,7 +115,6 @@ def train_batch_new(svi,training_function_input):
     map_estimates = defaultdict()
 
     for batch_number, dataset in enumerate(train_loader):
-
         if args.use_cuda:
             dataset_batch = defaultdict()
             for batch_name, *extra  in zip(*dataset.values()) : #we have to this trick to unpack, otherwise one extra dimension is added
@@ -146,7 +145,7 @@ def train_batch_new(svi,training_function_input):
 
             train_loss += svi.step(batch_datasets,
                                    dataset_batch["batch_patristic"],
-                                   cladistic_matrix_full,
+                                   patristic_matrix_train,
                                    dataset_batch["batch_data_blosum"],
                                    dataset_batch["batch_blosum_weighted"],
                                    map_estimates)
@@ -165,9 +164,8 @@ def train_batch(svi,training_function_input):
     :param dataloader train_loader: Pytorch dataloader
     :param namedtuple args
     """
-    patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    patristic_matrix_train = training_function_input["patristic_matrix_train"] #in principle the train matrix
     cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
-    cladistic_matrix_train = training_function_input["cladistic_matrix_train"]
     dataset_train_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
     guide = training_function_input["guide"]
@@ -221,7 +219,7 @@ def train_batch(svi,training_function_input):
 
                 guide_map_estimates = guide(batch_datasets,
                                       batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
-                                      cladistic_matrix_train,
+                                      patristic_matrix_train,
                                       dataset_train_blosum,
                                       batch_blosum=None,
                                       map_estimates=None)  # only saving 1 sample
@@ -236,7 +234,7 @@ def train_batch(svi,training_function_input):
 
                 train_loss += svi.step(batch_datasets,
                                        batch_patristic,
-                                       cladistic_matrix_full,
+                                       patristic_matrix_train,
                                        batch_data_blosum,
                                        batch_blosum_weighted,
                                        map_estimates)
@@ -267,8 +265,9 @@ def train(svi,training_function_input):
     :param dataloader train_loader: Pytorch dataloader
     """
 
-    patristic_matrix = training_function_input["patristic_matrix_model"]
-    cladistic_matrix = training_function_input["cladistic_matrix_full"]
+    patristic_matrix = training_function_input["patristic_matrix_model"] #in principle the train matrix
+    patristic_matrix_train = training_function_input["patristic_matrix_train"]
+    cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
     dataset_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
     map_estimates = training_function_input["map_estimates"]
@@ -282,7 +281,7 @@ def train(svi,training_function_input):
             seq_lens += data_int[:, 0, 0].tolist()
             if args.use_cuda:
                 datasets = {key:val.cuda() for key,val in datasets.items()}
-            train_loss += svi.step(datasets,patristic_matrix,cladistic_matrix,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
+            train_loss += svi.step(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
     # Normalize loss
     #normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss #/ normalizer_train
@@ -296,8 +295,9 @@ def train_batch_clade(svi,training_function_input):
     :param dataloader train_loader: Pytorch dataloader
     :param namedtuple args
     """
-    #patristic_matrix = training_function_input["patristic_matrix_model"]
-    cladistic_matrix = training_function_input["cladistic_matrix_full"]
+    patristic_matrix = training_function_input["patristic_matrix_model"]
+    patristic_matrix_train = training_function_input["patristic_matrix_train"] #in principle the train matrix
+    cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
     #dataset_blosum = training_function_input["dataset_train_blosum"]
     train_loader = training_function_input["train_loader"]
     map_estimates = training_function_input["map_estimates"]
@@ -343,7 +343,7 @@ def train_batch_clade(svi,training_function_input):
 
 
             seq_lens += clade_datasets["int"][:, 0, 0].tolist()
-            train_loss += svi.step(clade_datasets, dataset_batch["clade_patristic"], cladistic_matrix,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
+            train_loss += svi.step(clade_datasets, dataset_batch["clade_patristic"], patristic_matrix_train,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
 
 
     # Normalize loss
@@ -385,7 +385,8 @@ def train_transformer(svi,training_function_input):
 
 
     """
-    patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    #patristic_matrix_model = training_function_input["patristic_matrix_model"]
+    patristic_matrix_train = training_function_input["patristic_matrix_train"] #in principle the train matrix
     cladistic_matrix_full = training_function_input["cladistic_matrix_full"]
     cladistic_matrix_train = training_function_input["cladistic_matrix_train"]
     dataset_train_blosum = training_function_input["dataset_train_blosum"]
@@ -430,7 +431,7 @@ def train_transformer(svi,training_function_input):
 
             train_loss += svi.step(batch_datasets,
                                    batch_patristic,
-                                   cladistic_matrix_full,
+                                   patristic_matrix_train,
                                    batch_data_blosum,
                                    batch_blosum_weighted,
                                    map_estimates)  # TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?

@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--embeddings', type=str2None, nargs='?',
                         default=None, #todo: make the script use it, right now is in the air
                         help='Path to numpy array containing precomputed embeddings with shape [Nseqs, max_len + 1, feat_dim] (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
-                             'In position data[:,0,0] place the node names of the leaves as specified in the fasta file and the tree') #todo: experimental
+                             'In position data[:,0,0] place the node names of the leaves as specified in the fasta file and the tree') #todo: experimental, esm computed when building the dataset
 
 
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=25, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -151,7 +151,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=20, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
                         help='reduce_on_plateau \n'
                              'noam ')
-    parser.add_argument('-test-frequency', default=100, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
+    parser.add_argument('-test-frequency', default=10, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
     parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     #Highlight: Sample from a pre-trained model
     parser.add_argument('-load-pretrained-path',
@@ -185,16 +185,18 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1c", type=str,
+    parser.add_argument('-draupnir-version', default="1nbA", type=str,
                         help='Draupnir version.'
-                             '1: first version as published and the batched version'
-                             '1b: experiments with draupnir model 1 decoder & encoder communication'
-                             '1c: experimental priors'
+                             '1: first version as published (not batching) and the batched version'
+                             '1bA: experiments with draupnir model batched 1 decoder & encoder communication'
+                             '1bB: experimental priors over the batched version'
+                             '1nbA: experimental priors over the non-batched version with no blosum help'
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
                              '4: xlstm embeddings'
                              '5: minigru embeddings'
+
                         ,
                         )
     parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="5", help="1: removed alpha and sigma_n \n"

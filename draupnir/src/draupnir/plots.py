@@ -115,10 +115,28 @@ def plot_ou_parameters(args,map_estimates,model_load):
     plt.savefig(f"{args.results_dir}/OU_parameters_values.png")
 
 
-def plot_covariance(args,covariance):
+def plot_covariance(args,covariance,patristic_matrix):
 
-    pass
-    #eigvals = np.linalg.eigvalsh(covariance)
+    print("Analyzing covariance") #recall to re-activate the latent space plots
+
+    print(covariance.shape)
+    plt.close("all")
+
+    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(18, 10))
+
+    #eigvals = np.linalg.eigvalsh(covariance[0]) #this is slow, we only do for 1 sample or average?
+
+    #print(eigvals)
+    axs[0].imshow(covariance[0]) #place the patristic matrix also on the side
+    axs[1].imshow(patristic_matrix[1:,1:]) #place the patristic matrix also on the side
+    #axs[0].colorbar() #todo: fix,add titles and so
+
+    #plt.show()
+
+    #plt.savefig(f"{args.results_dir}/Covariance_vs_patristic.png") #todo: save in train or test accordingly
+
+
+
 
 def plot_angles(samples_out,dataset_test,results_dir,additional_load,additional_info,n_samples,test_ordered_nodes):
     """Plot Ramachandran plots of the predicted angles, both per individual amino acid and all amino acids combined

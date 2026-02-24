@@ -205,7 +205,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
     hyperparameters()
 
-    if args.prior_experiment in ["3"] and args.draupnir_version in ["1c"]:
+    if args.prior_experiment in ["3","4","5"] and args.draupnir_version in ["1bB","1nbA"]:
         warnings.warn(f"Prior experiment is {args.prior_experiment} and draupnir version is {args.draupnir_version}. Loading ULTRAMETRIC tree/patristic distance")
         patristic_matrix = pd.read_csv("{}/{}_patristic_distance_matrix_ULTRAMETRIC.csv".format(settings_config.data_folder,name,name), low_memory=False)
     else:
@@ -483,6 +483,7 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
     #TODO: Warnings/Raise errors for not allowed combinations
     #todo: HOW TO MAKE THIS SIMPLER
 
+
     if args.batch_by_clade:# clade batching #TODO: remove??, does not seem better than normal batching
         Draupnir = DraupnirModels.DRAUPNIRModel_cladebatching(model_load)
         patristic_matrix_model =patristic_matrix_train
@@ -504,15 +505,32 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
         if args.use_blosum:
             raise ValueError("Not implemented other models with blosum and not classic formula yet")
         else:
+            print("batch size",args.batch_size)
             draupnir_dict= {
-                        "1b": DraupnirModels.DRAUPNIRModel_batching_no_blosum_1b,
-                        "1c": DraupnirModels.DRAUPNIRModel_batching_no_blosum_1c,
-                        "2": DraupnirModels.DRAUPNIRModel_transformer_no_blosum,
-                        "3a": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
-                        "3b": DraupnirModels.DRAUPNIRModel_batching_no_blosum,
-                        "4": DraupnirModels.DRAUPNIRModel_batching_no_blosum_xlstm,
-                        "5": DraupnirModels.DRAUPNIRModel_batching_no_blosum_miniRNN
+                        "1bA": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum_1bA,
+                        "1bB": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum_1bB,
+                        "2": DraupnirModels.DRAUPNIRModel_transformer_batching_no_blosum,
+                        "3a": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum,
+                        "3b": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum,
+                        "4": DraupnirModels.DRAUPNIRModel_xlstm_batching_no_blosum,
+                        "5": DraupnirModels.DRAUPNIRModel_miniRNN_batching_no_blosum
                         }
+        if not args.draupnir_version in draupnir_dict.keys():
+            raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = {args.batch_size}, perhaps for batch_size == 1")
+        Draupnir = draupnir_dict[args.draupnir_version](model_load)
+        patristic_matrix_model = patristic_matrix_train
+
+    elif args.draupnir_version != "1" and args.batch_size == 1:
+        if args.use_blosum:
+            raise ValueError("Not implemented other models with blosum and not classic formula yet")
+        else:
+            draupnir_dict= {
+                        "1nbA": DraupnirModels.DRAUPNIRModel_classic_no_blosum_1nbA,
+                        }
+
+        if not args.draupnir_version in draupnir_dict.keys():
+            raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = 1, perhaps for batch_size > 1")
+
         Draupnir = draupnir_dict[args.draupnir_version](model_load)
         patristic_matrix_model = patristic_matrix_train
 
@@ -529,16 +547,17 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             assert args.select_guide == "variational", "Batching does not support args.select_guide == delta_map, please select args.select_guide== variational"
             if args.use_blosum:
                 warnings.warn("Using pre-computed blosum weighted average encoding")
-                Draupnir = DraupnirModels.DRAUPNIRModel_batching(model_load)
+                Draupnir = DraupnirModels.DRAUPNIRModel_classic_batching(model_load)
             else:
                 print("Not using pre-computed weighted blosum average!!")
-                Draupnir = DraupnirModels.DRAUPNIRModel_batching_no_blosum(model_load)
+                Draupnir = DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum(model_load)
             patristic_matrix_model = patristic_matrix_train
     else:
-        raise ValueError("Model not found")
-
+        raise ValueError(f"Model {args.draupnir_version} not found")
 
     #print(DraupnirUtils.get_method_arguments(Draupnir,"model"))
+
+
     #Highlight: initialize weights
     #Draupnir = Draupnir.apply(init_weights)
     plating_info = "WITH PLATING" if args.plating else "WITHOUT plating"
@@ -607,13 +626,14 @@ def select_quide(Draupnir,model_load,args):
     print("Using {} as guide".format(args.select_guide))
     if args.select_guide in guide_types.keys():
         guide = guide_types[args.select_guide]
-        return guide.to(args.devcie)
+        return guide.to(args.device)
     else:
 
         guide_dict = {
                       "1": DraupnirGuides.DRAUPNIRGuides_classic,
-                      "1c": DraupnirGuides.DRAUPNIRGuides_classic,
-                      "1b": DraupnirGuides.DRAUPNIRGuides_classic_1b,
+                      "1bA": DraupnirGuides.DRAUPNIRGuides_classic_1bA,
+                      "1bB": DraupnirGuides.DRAUPNIRGuides_classic, #experimental priors
+                      "1nbA": DraupnirGuides.DRAUPNIRGuides_classic, #experimental priors
                       "2": DraupnirGuides.DRAUPNIRGuides_transformer,
                       "3a": DraupnirGuides.DRAUPNIRGuides_z_esm,
                       "3b": DraupnirGuides.DRAUPNIRGuides_hidden_esm,
@@ -876,22 +896,22 @@ def start_sampling(args,
     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropies,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(args.results_dir + "/Train_argmax_Plots"))
 
     #TODO: reactivate
-    visualize_latent_space(sample_out_train_argmax.latent_space,
-                           sample_out_test_argmax.latent_space,
-                           train_load.patristic_matrix_train.detach().cpu(),
-                           test_load.patristic_matrix_test.detach().cpu(),
-                           additional_load,
-                           build_config,
-                           args,
-                           args.results_dir)
-    visualize_latent_space(sample_out_train_argmax.latent_space,
-                           sample_out_test_argmax2.latent_space,
-                           train_load.patristic_matrix_train.detach().cpu(),
-                           test_load.patristic_matrix_test.detach().cpu(),
-                           additional_load,
-                           build_config,
-                           args,
-                           "{}/Test2_Plots".format(args.results_dir))
+    # visualize_latent_space(sample_out_train_argmax.latent_space,
+    #                        sample_out_test_argmax.latent_space,
+    #                        train_load.patristic_matrix_train.detach().cpu(),
+    #                        test_load.patristic_matrix_test.detach().cpu(),
+    #                        additional_load,
+    #                        build_config,
+    #                        args,
+    #                        args.results_dir)
+    # visualize_latent_space(sample_out_train_argmax.latent_space,
+    #                        sample_out_test_argmax2.latent_space,
+    #                        train_load.patristic_matrix_train.detach().cpu(),
+    #                        test_load.patristic_matrix_test.detach().cpu(),
+    #                        additional_load,
+    #                        build_config,
+    #                        args,
+    #                        "{}/Test2_Plots".format(args.results_dir))
 
     if settings_config.one_hot_encoding: #TODO: has not been checked, simply change the model to have OneHotCategorical
         print("Transforming one-hot back to integers")
@@ -908,6 +928,7 @@ def start_sampling(args,
 
     send_to_plot(train_load.dataset_train.detach().cpu(),
                      test_load.dataset_test.detach().cpu(),
+                     train_load.patristic_matrix_train.detach().cpu(),
                      test_load.patristic_matrix_test.detach().cpu(),
                      train_entropies.detach().cpu(),
                      test_entropies.detach().cpu(),
@@ -1170,10 +1191,14 @@ def draupnir_train(train_load,
                 "sequences_representations": None
                 }
 
+
     train_loader = DraupnirLoadUtils.setup_data_loaders(datasets_train, train_load.patristic_matrix_train,clades_dict,additional_info.blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
 
+
     map_estimates = None
-    training_function_input = {"patristic_matrix_model":patristic_matrix_model,
+    training_function_input = {
+                   "patristic_matrix_model":patristic_matrix_model,
+                   "patristic_matrix_train":train_load.patristic_matrix_train,
                    "cladistic_matrix_full":additional_load.cladistic_matrix_full,
                    "cladistic_matrix_train":train_load.cladistic_matrix_train,
                    "dataset_train_blosum":dataset_train_blosum,
@@ -1227,7 +1252,7 @@ def draupnir_train(train_load,
                                            1,
                                            train_load.dataset_train,
                                            additional_load.patristic_matrix_full,
-                                           train_load.cladistic_matrix_train,
+                                           train_load.patristic_matrix_train,
                                            use_argmax=True,
                                            use_test=False,
                                            use_test2=False)
@@ -1246,7 +1271,7 @@ def draupnir_train(train_load,
                                               n_samples,
                                               test_load.dataset_test,
                                               additional_load.patristic_matrix_full,
-                                              additional_load.cladistic_matrix_full,
+                                              test_load.patristic_matrix_test,
                                               use_argmax=True,
                                               use_test=True,
                                               use_test2=False)
@@ -1254,7 +1279,7 @@ def draupnir_train(train_load,
                                                 n_samples,
                                                 test_load.dataset_test,
                                                 additional_load.patristic_matrix_full,
-                                                additional_load.cladistic_matrix_full,
+                                                test_load.patristic_matrix_test,
                                                 use_argmax=True,
                                                 use_test=True,
                                                 use_test2=False)
@@ -1262,7 +1287,7 @@ def draupnir_train(train_load,
                                                    n_samples,
                                                    train_load.dataset_train,
                                                    additional_load.patristic_matrix_full,
-                                                   additional_load.cladistic_matrix_full,
+                                                   train_load.patristic_matrix_train,
                                                    use_argmax=True,
                                                    use_test=False,
                                                    use_test2=False)
@@ -1270,7 +1295,7 @@ def draupnir_train(train_load,
                                                n_samples,
                                                test_load.dataset_test,
                                                additional_load.patristic_matrix_full,
-                                               additional_load.cladistic_matrix_full,
+                                               test_load.patristic_matrix_test,
                                                use_argmax=True,
                                                use_test=True,
                                                use_test2=False)
@@ -1278,7 +1303,7 @@ def draupnir_train(train_load,
                                                       n_samples,
                                                       test_load.dataset_test,
                                                       additional_load.patristic_matrix_full,
-                                                      additional_load.cladistic_matrix_full,
+                                                      test_load.patristic_matrix_test,
                                                       use_argmax=True,
                                                       use_test=False,
                                                       use_test2=True)
@@ -1361,241 +1386,6 @@ def draupnir_train(train_load,
                    model_load,
                    blocks_train=None)
 
-
-    # if args.select_guide == "variational":
-    #     map_estimates_dict = defaultdict()
-    #     samples_names = ["sample_{}".format(i) for i in range(n_samples)]
-    #     #Highlight: Train storage
-    #     n_seq_train,max_len = train_load.dataset_train.shape[0], train_load.dataset_train.shape[1]-2
-    #     aa_sequences_train_samples = torch.zeros((n_samples,n_seq_train,max_len)).detach()
-    #     latent_space_train_samples = torch.zeros((n_samples,n_seq_train,int(params_config["z_dim"]))).detach()
-    #     logits_train_samples = torch.zeros((n_samples,n_seq_train,max_len,build_config.aa_probs)).detach()
-    #     #Highlight: Test storage
-    #     n_seq_test = test_load.patristic_matrix_test[1:].shape[0]
-    #     aa_sequences_test_samples = torch.zeros((n_samples, n_seq_test, max_len)).detach()
-    #     latent_space_test_samples = torch.zeros((n_samples, n_seq_test, int(params_config["z_dim"]))).detach()
-    #     logits_test_samples = torch.zeros((n_samples, n_seq_test, max_len, build_config.aa_probs)).detach()
-    #
-    #     for sample_idx,sample in enumerate(samples_names):
-    #         map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train, dataset_train_blosum,batch_blosum=None)  # only saving 1 sample
-    #
-    #         map_estimates_dict[sample] = {val:key.detach() for val,key in map_estimates.items()}
-    #         #Highlight: Sample one train sequence
-    #         train_sample = Draupnir.sample(map_estimates,
-    #                                                   1,
-    #                                                   train_load.dataset_train,
-    #                                                   additional_load.patristic_matrix_full,
-    #                                                   train_load.cladistic_matrix_train,
-    #                                                   use_argmax=False,
-    #                                                   use_test=False,
-    #                                                   use_test2=False)
-    #
-    #         aa_sequences_train_samples[sample_idx] = train_sample.aa_sequences.detach()
-    #         latent_space_train_samples[sample_idx] = train_sample.latent_space.detach()
-    #         logits_train_samples[sample_idx] = train_sample.logits.detach()
-    #         del train_sample
-    #         # Highlight: Sample one test sequence
-    #         test_sample = Draupnir.sample(map_estimates,
-    #                                       1,
-    #                                       test_load.dataset_test,
-    #                                       additional_load.patristic_matrix_full,
-    #                                       additional_load.cladistic_matrix_full,
-    #                                       use_argmax=False,
-    #                                       use_test=True,
-    #                                       use_test2=False)
-    #         aa_sequences_test_samples[sample_idx] = test_sample.aa_sequences.detach()
-    #         latent_space_test_samples[sample_idx] = test_sample.latent_space.detach()
-    #         logits_test_samples[sample_idx] = test_sample.logits.detach()
-    #         del test_sample
-    #         del map_estimates
-    #         torch.cuda.empty_cache()
-    #
-    #     dill.dump(map_estimates_dict, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'))
-    #     sample_out_train = SamplingOutput(aa_sequences=aa_sequences_train_samples,
-    #                                   latent_space=latent_space_train_samples,
-    #                                   logits=logits_train_samples,
-    #                                   phis=None,
-    #                                   psis=None,
-    #                                   mean_phi=None,
-    #                                   mean_psi=None,
-    #                                   kappa_phi=None,
-    #                                   kappa_psi=None)
-    #     sample_out_test = SamplingOutput(aa_sequences=aa_sequences_test_samples,
-    #                                         latent_space=latent_space_test_samples,
-    #                                         logits=logits_test_samples,
-    #                                         phis=None,
-    #                                         psis=None,
-    #                                         mean_phi=None,
-    #                                         mean_psi=None,
-    #                                         kappa_phi=None,
-    #                                         kappa_psi=None)
-    #     warnings.warn("In variational method Test folder results = Test2 folder results = Variational results")
-    #     sample_out_test2 = sample_out_test
-    #     #Highlight: compute majority vote/ Argmax
-    #     sample_out_train_argmax = SamplingOutput(aa_sequences=torch.mode(sample_out_train.aa_sequences,dim=0)[0].unsqueeze(0), #I think is correct
-    #                                       latent_space=sample_out_train.latent_space[0], #TODO:Average?
-    #                                       logits=sample_out_train.logits[0],
-    #                                       phis=None,
-    #                                       psis=None,
-    #                                       mean_phi=None,
-    #                                       mean_psi=None,
-    #                                       kappa_phi=None,
-    #                                       kappa_psi=None)
-    #     sample_out_test_argmax = SamplingOutput(aa_sequences=torch.mode(sample_out_test.aa_sequences,dim=0)[0].unsqueeze(0),
-    #                                      latent_space=sample_out_test.latent_space[0],
-    #                                      logits=sample_out_test.logits[0],
-    #                                      phis=None,
-    #                                      psis=None,
-    #                                      mean_phi=None,
-    #                                      mean_psi=None,
-    #                                      kappa_phi=None,
-    #                                      kappa_psi=None)
-    #     sample_out_test_argmax2 = sample_out_test_argmax
-    #     # # Highlight: Compute sequences Shannon entropies per site
-    #     train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
-    #     test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-    #     test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-    #     #Highlight : save the samples
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test2, test_entropies2, additional_load.correspondence_dict,"{}/test_info_dict2.torch".format(results_dir + "/Test2_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax2, test_entropies2,additional_load.correspondence_dict,"{}/test2_argmax_info_dict.torch".format(results_dir + "/Test2_argmax_Plots"))
-    #     save_samples(train_load.dataset_train,train_load.patristic_matrix_train, sample_out_train, train_entropies, additional_load.correspondence_dict,"{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
-    #     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropies,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(results_dir + "/Train_argmax_Plots"))
-    # elif args.select_guide == "delta_map":
-    #     samples_names = ["sample_{}".format(i) for i in range(n_samples)]
-    #     #map_estimates = guide(dataset_train, patristic_matrix_train, cladistic_matrix_train, batch_blosum=None)
-    #     map_estimates = guide(datasets_train,train_load.patristic_matrix_train,train_load.cladistic_matrix_train,dataset_train_blosum,batch_blosum=None) #only saving 1 sample
-    #
-    #     pickle.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-    #     # Highlight: Test storage: Marginal
-    #     aa_sequences_test_samples = torch.zeros((n_samples, test_load.patristic_matrix_test[1:].shape[0], train_load.dataset_train.shape[1] - 2))
-    #     latent_space_test_samples = torch.zeros((n_samples, test_load.patristic_matrix_test[1:].shape[0], int(params_config["z_dim"])))
-    #     logits_test_samples = torch.zeros((n_samples, test_load.patristic_matrix_test[1:].shape[0], train_load.dataset_train.shape[1] - 2, build_config.aa_probs))
-    #     for sample_idx, sample in enumerate(samples_names):
-    #         # Highlight: Sample one test sequence (for Marginal)
-    #         test_sample = Draupnir.sample(map_estimates,
-    #                                       1, #n_samples
-    #                                       test_load.dataset_test,
-    #                                       additional_load.patristic_matrix_full,
-    #                                       additional_load.cladistic_matrix_full,
-    #                                       use_argmax=False,
-    #                                       use_test=True,
-    #                                       use_test2=False)
-    #         aa_sequences_test_samples[sample_idx] = test_sample.aa_sequences.detach()
-    #         latent_space_test_samples[sample_idx] = test_sample.latent_space.detach()
-    #         logits_test_samples[sample_idx] = test_sample.logits.detach()
-    #         del test_sample
-    #
-    #     sample_out_train = Draupnir.sample(map_estimates,
-    #                                        n_samples,
-    #                                        train_load.dataset_train,
-    #                                        additional_load.patristic_matrix_full,
-    #                                        train_load.cladistic_matrix_train,
-    #                                        use_argmax=False, #<----ATTENTION, not using most likely sequence, cause not conditional sampling
-    #                                        use_test=False,
-    #                                        use_test2=False)
-    #     sample_out_test = SamplingOutput(aa_sequences=aa_sequences_test_samples,
-    #                                      latent_space=latent_space_test_samples,
-    #                                      logits=logits_test_samples,
-    #                                      phis=None,
-    #                                      psis=None,
-    #                                      mean_phi=None,
-    #                                      mean_psi=None,
-    #                                      kappa_phi=None,
-    #                                      kappa_psi=None)
-    #     warnings.warn("With delta_map guide (Test folder results = Marginal) != (Test2 folder results = MAP)")
-    #     #Highlight = Sample MAP sequences
-    #     sample_out_test2 = Draupnir.sample(map_estimates,
-    #                                       n_samples,
-    #                                       test_load.dataset_test,
-    #                                       additional_load.patristic_matrix_full,
-    #                                       additional_load.cladistic_matrix_full,
-    #                                       use_argmax=False,
-    #                                       use_test2=True,
-    #                                       use_test=False)
-    #     #Highlight: Get the most likely sequence for the train
-    #     sample_out_train_argmax = Draupnir.sample(map_estimates,
-    #                                       n_samples,
-    #                                       train_load.dataset_train,
-    #                                       additional_load.patristic_matrix_full,
-    #                                       train_load.cladistic_matrix_train,
-    #                                       use_argmax=True,
-    #                                       use_test=False,
-    #                                       use_test2=False)
-    #     # Highlight: compute majority vote to get the "most likely sequence"
-    #     sample_out_test_argmax = SamplingOutput(aa_sequences=torch.mode(sample_out_test.aa_sequences,dim=0)[0].unsqueeze(0),
-    #                                             latent_space=sample_out_test.latent_space[0],
-    #                                             logits=sample_out_test.logits[0],
-    #                                             phis=None,
-    #                                             psis=None,
-    #                                             mean_phi=None,
-    #                                             mean_psi=None,
-    #                                             kappa_phi=None,
-    #                                             kappa_psi=None)
-    #     #Highlight = Sample MAP sequences
-    #     sample_out_test_argmax2 = Draupnir.sample(map_estimates,
-    #                                       n_samples,
-    #                                       test_load.dataset_test,
-    #                                       additional_load.patristic_matrix_full,
-    #                                       additional_load.cladistic_matrix_full,
-    #                                       use_argmax=True, #Attention!
-    #                                       use_test2=True, #Attention!
-    #                                       use_test=False)
-    #
-    #     # # Highlight: Compute sequences Shannon entropies per site
-    #     train_entropies, train_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_train_argmax.logits.cpu(),train_load.dataset_train.cpu().long()[:, 0, 1])
-    #     test_entropies, test_probs = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-    #     test_entropies2, test_probs2 = DraupnirModelsUtils.compute_sites_entropies(sample_out_test_argmax.logits.cpu(),test_load.patristic_matrix_test.cpu().long()[1:, 0])
-    #     # Highlight : save the samples
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test, test_entropies, additional_load.correspondence_dict,"{}/test_info_dict.torch".format(results_dir + "/Test_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax, test_entropies,additional_load.correspondence_dict,"{}/test_argmax_info_dict.torch".format(results_dir + "/Test_argmax_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test2, test_entropies2, additional_load.correspondence_dict,"{}/test_info_dict2.torch".format(results_dir + "/Test2_Plots"))
-    #     save_samples(test_load.dataset_test, test_load.patristic_matrix_test, sample_out_test_argmax2, test_entropies2,additional_load.correspondence_dict,"{}/test2_argmax_info_dict.torch".format(results_dir + "/Test2_argmax_Plots"))
-    #     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train, train_entropies, additional_load.correspondence_dict,"{}/train_info_dict.torch".format(results_dir + "/Train_Plots"))
-    #     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropies,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(results_dir + "/Train_argmax_Plots"))
-    #
-    # #Highlight: Concatenate leaves and internal latent space for plotting
-    # visualize_latent_space(sample_out_train_argmax.latent_space,
-    #                        sample_out_test_argmax.latent_space,
-    #                        train_load.patristic_matrix_train,
-    #                        test_load.patristic_matrix_test,
-    #                        additional_load,
-    #                        build_config,
-    #                        args,
-    #                        results_dir)
-    # visualize_latent_space(sample_out_train_argmax.latent_space,
-    #                        sample_out_test_argmax2.latent_space,
-    #                        train_load.patristic_matrix_train,
-    #                        test_load.patristic_matrix_test,
-    #                        additional_load,
-    #                        build_config,
-    #                        args,
-    #                        "{}/Test2_Plots".format(results_dir))
-    #
-    # if settings_config.one_hot_encoding:
-    #     print("Transforming one-hot back to integers")
-    #     sample_out_train_argmax = transform_to_integers(sample_out_train_argmax,build_config) #argmax sets directly the aa to the highest logit
-    #     sample_out_test_argmax = transform_to_integers(sample_out_test_argmax,build_config)
-    #     sample_out_test_argmax2 = transform_to_integers(sample_out_test_argmax2,build_config)
-    #     dataset_train = DraupnirUtils.convert_to_integers(train_load.dataset_train.cpu(),build_config.aa_probs,axis=2)
-    #     train_load._replace(dataset_train = dataset_train)
-    #     if build_config.leaves_testing: #TODO: Check that this works
-    #         dataset_test = DraupnirUtils.convert_to_integers(test_load.dataset_test.cpu(),build_config.aa_probs,axis=2) #no need to do it with the test of the simulations, never was one hot encoded. Only for testing leaves
-    #         test_load._replace(dataset_test=dataset_test)
-    #
-    # send_to_plot(n_samples,
-    #                  train_load.dataset_train,
-    #                  test_load.dataset_test,
-    #                  test_load.patristic_matrix_test,
-    #                  train_entropies,
-    #                  test_entropies,
-    #                  test_entropies2,
-    #                  sample_out_train,
-    #                  sample_out_train_argmax,
-    #                  sample_out_test, sample_out_test_argmax,
-    #                  sample_out_test2, sample_out_test_argmax2,
-    #                  additional_load, additional_info, build_config, args, results_dir)
 
 
 def draupnir_train_batching(train_load,
@@ -1736,6 +1526,7 @@ def draupnir_train_batching(train_load,
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":additional_load.cladistic_matrix_full,
                    "cladistic_matrix_train":train_load.cladistic_matrix_train,
+                   "patristic_matrix_train": train_load.patristic_matrix_train,
                    "dataset_train_blosum":dataset_train_blosum,
                    "train_loader":train_loader,
                    "map_estimates":map_estimates,
@@ -1819,7 +1610,7 @@ def draupnir_train_batching(train_load,
                 map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train,dataset_train_blosum, batch_blosum=None) # we need the
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 dill.dump(map_estimates, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(results_dir), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-                if args.draupnir_version in ["1b","2","4","5"]:
+                if args.draupnir_version in ["1bB","1nbA","2","4","5"]:
                     map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test, test_load.cladistic_matrix_test,dataset_test_blosum, batch_blosum=None)  # only used for embeddings
                     map_estimates_test = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
                     map_estimates["test"] = map_estimates_test
@@ -2100,6 +1891,7 @@ def draupnir_train_batch_by_clade(train_load,
 
     map_estimates = None
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
+                   "patristic_matrix_train": train_load.patristic_matrix_train,
                    "cladistic_matrix_full":additional_info.cladistic_matrix_full,
                    "dataset_train_blosum":dataset_train_blosum,
                    "train_loader":train_loader,
@@ -2421,7 +2213,8 @@ def draupnir_train_batch_by_clade(train_load,
     send_to_plot(
                  dataset_train,
                  dataset_test,
-                 test_load.patristic_matrix_test,
+                 train_load.patristic_matrix_train.detach().cpu(),
+                 test_load.patristic_matrix_test.detach().cpu(),
                  train_entropies,
                  test_entropies,
                  test_entropies2,
@@ -2435,6 +2228,7 @@ def draupnir_train_batch_by_clade(train_load,
 
 def send_to_plot(dataset_train,
                  dataset_test,
+                 patristic_matrix_train,
                  patristic_matrix_test,
                  train_entropies,
                  test_entropies,
@@ -2472,6 +2266,7 @@ def send_to_plot(dataset_train,
     :param str results_dir"""
 
     n_samples = args.n_samples
+    test_nodes = patristic_matrix_test[1:,0]
     start_plots = time.time()
 
     if n_samples != sample_out_test.aa_sequences.shape[0]:
@@ -2482,6 +2277,7 @@ def send_to_plot(dataset_train,
         preparing_plots(sample_out_train,
                         dataset_train,
                         dataset_train,
+                        patristic_matrix_train,
                         train_entropies,
                         args.results_dir + "/Train_Plots",
                         additional_load,
@@ -2497,6 +2293,7 @@ def send_to_plot(dataset_train,
         preparing_plots(sample_out_test,
                         dataset_test,
                         dataset_train,
+                        patristic_matrix_test,
                         test_entropies,
                         args.results_dir + "/Test_Plots",
                         additional_load,
@@ -2512,6 +2309,7 @@ def send_to_plot(dataset_train,
         preparing_plots(sample_out_test2,
                         dataset_test,
                         dataset_train,
+                        patristic_matrix_test,
                         test_entropies2,
                         args.results_dir + "/Test2_Plots",
                         additional_load,
@@ -2533,6 +2331,7 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_train,
                     dataset_train,
                     dataset_train,
+                    patristic_matrix_train,
                     train_entropies,
                     args.results_dir + "/Train_Plots",
                     additional_load,
@@ -2549,13 +2348,14 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_test,
                     dataset_test,
                     dataset_train,
+                    patristic_matrix_test,
                     test_entropies,
                     args.results_dir + "/Test_Plots",
                     additional_load,
                     additional_info,
                     build_config,
                     n_samples,
-                    patristic_matrix_test[1:, 0],
+                    test_nodes,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
@@ -2565,13 +2365,14 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_test2,
                     dataset_test,
                     dataset_train,
+                    patristic_matrix_test,
                     test_entropies2,
                     args.results_dir + "/Test2_Plots",
                     additional_load,
                     additional_info,
                     build_config,
                     n_samples,
-                    patristic_matrix_test[1:, 0],
+                    test_nodes,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
@@ -2586,6 +2387,7 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_train_argmax,
                     dataset_train,
                     dataset_train,
+                    patristic_matrix_train,
                     train_entropies,
                     args.results_dir + "/Train_argmax_Plots",
                     additional_load,
@@ -2602,13 +2404,14 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_test_argmax,
                     dataset_test,
                     dataset_train,
+                    patristic_matrix_test,
                     test_entropies,
                     args.results_dir + "/Test_argmax_Plots",
                     additional_load,
                     additional_info,
                     build_config,
                     n_samples,
-                    patristic_matrix_test[1:, 0],
+                    test_nodes,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
@@ -2618,13 +2421,14 @@ def send_to_plot(dataset_train,
     preparing_plots(sample_out_test_argmax2,
                     dataset_test,
                     dataset_train,
+                    patristic_matrix_test,
                     test_entropies2,
                     args.results_dir + "/Test2_argmax_Plots",
                     additional_load,
                     additional_info,
                     build_config,
                     n_samples,
-                    patristic_matrix_test[1:, 0],
+                    test_nodes,
                     args,
                     replacement_plots=False,
                     overplapping_hist=False,
@@ -2638,6 +2442,7 @@ def send_to_plot(dataset_train,
 def preparing_plots(samples_out,
                     dataset_true,
                     dataset_train,
+                    patristic_matrix_eval,
                     entropies,
                     results_dir,
                     additional_load,
@@ -2720,7 +2525,7 @@ def preparing_plots(samples_out,
                                                                 replacement_plots)
         DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
 
-        DraupnirPlots.plot_covariance(args,samples_out.covariance.detach().cpu().numpy())
+        DraupnirPlots.plot_covariance(args,samples_out.covariance.detach().cpu().numpy(),patristic_matrix_eval.numpy())
 
 
         if overplapping_hist: #TODO: Fix or remove?

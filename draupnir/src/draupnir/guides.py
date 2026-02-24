@@ -27,7 +27,8 @@ class DRAUPNIRGUIDES(EasyGuide):
         self.args = ModelLoad.args
         self.encoder_input_size = self.draupnir.aa_probs
         self.dataset_train_blosum = self.draupnir.dataset_train_blosum
-        self.batch_size = self.draupnir.batch_size
+        self.batch_size = self.draupnir.batch_size #comes from build config
+        self.args = self.draupnir.args
         self.batch_by_clade = self.draupnir.batch_by_clade
         #self.layernorm = nn.LayerNorm(self.draupnir.z_dim) #todo: should be embedding dim
 
@@ -36,7 +37,7 @@ class DRAUPNIRGUIDES(EasyGuide):
         else:
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
-        if self.draupnir.args.draupnir_version == "1c":
+        if self.draupnir.args.draupnir_version in ["1bB","1nbA"]:
             if self.draupnir.args.prior_experiment == "1":
                 self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
                 self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
@@ -102,12 +103,11 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
 
 
-        if self.batch_size == None or self.batch_size > 1:
+        if self.batch_size == None or self.args.batch_size > 1: #batch_size != args.batch_size
             if self.batch_by_clade:
-                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,
-                                                 batch_blosum)
+                return self.guide_batch_by_clade(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum)
             else:
-                if self.draupnir.args.draupnir_version == "1c":
+                if self.draupnir.args.draupnir_version == ["1bB","1nbA"]:
                     if self.draupnir.args.prior_experiment == "1":
                         return self.guide_batch_experiment1(datasets, patristic_matrix, cladistic_matrix, data_blosum,batch_blosum=None, map_estimates=map_estimates)
                     elif self.draupnir.args.prior_experiment == "2":
@@ -137,23 +137,38 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                     return self.guide_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                                 batch_blosum=None,map_estimates=map_estimates)
         else:
-            return self.guide_noplating(datasets, patristic_matrix, cladistic_matrix, data_blosum,
+            if self.draupnir.args.draupnir_version == "1nbA":
+                if self.draupnir.args.prior_experiment == "5":
+                    return self.guide_batch_experiment5(datasets,
+                                                        patristic_matrix,
+                                                        cladistic_matrix,
+                                                        data_blosum,
+                                                        batch_blosum=None,
+                                                        map_estimates=map_estimates)
+            else: #classic guide
+
+                return self.guide_not_batch(datasets, patristic_matrix, cladistic_matrix, data_blosum,
                                         batch_blosum=None,map_estimates=map_estimates)
 
-    def guide_noplating(self,datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
+    def guide_not_batch(self,datasets, patristic_matrix_sorted,cladistic_matrix,data_blosum,batch_blosum=None,map_estimates=None):
         """
         :param tensor data_blosum here is the ENTIRE data encoded in blosum vector form instead of integers ---> EQUAL to self.dataset_train_blosum
         """
-        #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-
-        alpha = self.alpha
-        sigma_n = self.sigma_n
-        sigma_f = self.sigma_f
-        lambd = self.lambd
-
-
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
+        #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+        # alpha = self.alpha
+        # sigma_n = self.sigma_n
+        # sigma_f = self.sigma_f
+        # lambd = self.lambd
+
+        alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
+        sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
+        sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
+        lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))
+
+
+
         #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
         #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
         aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
@@ -161,7 +176,8 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
         encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
         z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-        latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T)).to_event(1) #[z_dim,n]
+
+        latent_z = pyro.sample("latent_z",dist.Normal(z_loc.T,z_scale.T).to_event(1)) #[z_dim,n]
         assert latent_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
 
 
@@ -382,6 +398,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
 
+
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
@@ -452,7 +469,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"]
                 }
 
-class DRAUPNIRGuides_classic_1b(DRAUPNIRGUIDES):
+class DRAUPNIRGuides_classic_1bA(DRAUPNIRGUIDES):
     def __init__(self,draupnir_model,ModelLoad, Draupnir):
         DRAUPNIRGUIDES.__init__(self,draupnir_model,ModelLoad, Draupnir)
 
