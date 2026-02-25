@@ -139,7 +139,7 @@ def predictive_test_full_train_full_delta_map(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance= sample_out_train.covariance.detach().cpu()
+        covariance= sample_out_train.covariance[0].detach().cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
     )
     # Highlight: compute majority vote for "most likely sequence"
     sample_out_test_argmax = SamplingOutput(
@@ -152,7 +152,7 @@ def predictive_test_full_train_full_delta_map(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance=sample_out_test.covariance.detach().cpu()
+        covariance=sample_out_test.covariance[0].detach().cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
     )
 
     # Highlight = Sample MAP sequences
@@ -175,7 +175,7 @@ def predictive_test_full_train_full_delta_map(args,
                                      mean_psi=None,
                                      kappa_phi=None,
                                      kappa_psi=None,
-                                     covariance= sample_out_test_argmax2.covariance.detach().cpu()
+                                     covariance= sample_out_test_argmax2.covariance[0].detach().cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
                                      )
 
     # # Highlight: Compute sequences Shannon entropies per site
@@ -221,11 +221,11 @@ def predictive_test_full_train_full_variational(args,
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len, build_config.aa_probs)).detach().cpu()
 
     if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
-        covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train))
-        covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test))
+        covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
-        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_train, n_seq_train))
-        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_test, n_seq_test))
+        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_train, n_seq_train)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_test, n_seq_test)).detach().cpu()
 
     with torch.no_grad():
         for sample_idx, sample in enumerate(samples_names):
@@ -246,10 +246,10 @@ def predictive_test_full_train_full_variational(args,
                                            use_test=False,
                                            use_test2=False)
 
-            aa_sequences_train_samples[sample_idx] = train_sample.aa_sequences.detach()
-            latent_space_train_samples[sample_idx] = train_sample.latent_space.detach()
-            logits_train_samples[sample_idx] = train_sample.logits.detach()
-            covariance_train_samples[sample_idx] = train_sample.covariance.detach()
+            aa_sequences_train_samples[sample_idx] = train_sample.aa_sequences.detach().cpu()
+            latent_space_train_samples[sample_idx] = train_sample.latent_space.detach().cpu()
+            logits_train_samples[sample_idx] = train_sample.logits.detach().cpu()
+            covariance_train_samples[sample_idx] = train_sample.covariance.detach().cpu()
 
             del train_sample
             # Highlight: Sample one test sequence
@@ -261,10 +261,10 @@ def predictive_test_full_train_full_variational(args,
                                           use_argmax=False,
                                           use_test=True,
                                           use_test2=False)
-            aa_sequences_test_samples[sample_idx] = test_sample.aa_sequences.detach()
-            latent_space_test_samples[sample_idx] = test_sample.latent_space.detach()
-            logits_test_samples[sample_idx] = test_sample.logits.detach()
-            covariance_test_samples[sample_idx] = test_sample.covariance.detach()
+            aa_sequences_test_samples[sample_idx] = test_sample.aa_sequences.detach().cpu()
+            latent_space_test_samples[sample_idx] = test_sample.latent_space.detach().cpu()
+            logits_test_samples[sample_idx] = test_sample.logits.detach().cpu()
+            covariance_test_samples[sample_idx] = test_sample.covariance.detach().cpu()
 
             del test_sample
             del map_estimates
@@ -305,7 +305,7 @@ def predictive_test_full_train_full_variational(args,
             mean_psi=None,
             kappa_phi=None,
             kappa_psi=None,
-            covariance = sample_out_train.covariance[0].cpu()
+            covariance = sample_out_train.covariance[0].cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
         )
         sample_out_test_argmax = SamplingOutput(
             aa_sequences=torch.mode(sample_out_test.aa_sequences, dim=0)[0].unsqueeze(0).cpu(),
@@ -317,7 +317,7 @@ def predictive_test_full_train_full_variational(args,
             mean_psi=None,
             kappa_phi=None,
             kappa_psi=None,
-            covariance=sample_out_test.covariance[0].cpu()
+            covariance=sample_out_test.covariance[0].cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
         )
         sample_out_test_argmax2 = sample_out_test_argmax
         # # Highlight: Compute sequences Shannon entropies per site
@@ -370,12 +370,11 @@ def predictive_test_batched_train_full(args,
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len,build_config.aa_probs)).detach().cpu()
 
     if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
-        covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train))
-        covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test))
+        covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
-        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_train, n_seq_train))
-        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_test, n_seq_test))
-
+        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_train, n_seq_train)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_seq_test, n_seq_test)).detach().cpu()
 
     assert blocks_train is not None, "this is batched sampling there should always be batched indexes"
     with torch.no_grad():
@@ -412,6 +411,9 @@ def predictive_test_batched_train_full(args,
                     latent_space_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.latent_space.detach().cpu()
                     logits_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.logits.detach().cpu()
 
+                    #TODO: why this does not work when loading from pre-trained model
+
+
                     if covariance_train_samples.ndim == 4:
                         covariance_train_samples[sample_idx, :, int(batch_idx[0]):int(batch_idx[1]),int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.covariance.detach().cpu()  # we only subset once, because it is [n_train_batch,n_train]
                     else:
@@ -447,43 +449,6 @@ def predictive_test_batched_train_full(args,
 
                     del test_sample,batch_train_sample
                 torch.cuda.empty_cache()
-        # else:
-        #     print("Recalculating train map estimates")
-        #     map_estimates = guide(datasets_train,
-        #                           train_load.patristic_matrix_train,
-        #                           train_load.patristic_matrix_train,
-        #                           dataset_train_blosum,
-        #                           None,
-        #                           None)  # only saving 1 sample
-        #     for sample_idx, sample in enumerate(samples_names):
-        #         map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
-        #         # Highlight: Sample one train sequence
-        #         train_sample = Draupnir.sample(map_estimates,
-        #                                        1,
-        #                                        train_load.dataset_train,
-        #                                        additional_load.patristic_matrix_full,
-        #                                        train_load.patristic_matrix_train,
-        #                                        use_argmax=False,
-        #                                        use_test=False,
-        #                                        use_test2=False)
-        #         aa_sequences_train_samples[sample_idx] = train_sample.aa_sequences.detach()
-        #         latent_space_train_samples[sample_idx] = train_sample.latent_space.detach()
-        #         logits_train_samples[sample_idx] = train_sample.logits.detach()
-        #         del train_sample
-        #         # Highlight: Sample one test sequence
-        #         test_sample = Draupnir.sample(map_estimates,
-        #                                       1,
-        #                                       test_load.dataset_test,
-        #                                       additional_load.patristic_matrix_full,
-        #                                       test_load.patristic_matrix_test,
-        #                                       use_argmax=False,
-        #                                       use_test=True,
-        #                                       use_test2=False)
-        #         aa_sequences_test_samples[sample_idx] = test_sample.aa_sequences.detach()
-        #         latent_space_test_samples[sample_idx] = test_sample.latent_space.detach()
-        #         logits_test_samples[sample_idx] = test_sample.logits.detach()
-        #         del test_sample
-        #         del map_estimates
 
     dill.dump(map_estimates_dict, open('{}/Draupnir_Checkpoints/Map_estimates.p'.format(args.results_dir), 'wb'))
     sample_out_train = SamplingOutput(aa_sequences=aa_sequences_train_samples.detach().cpu(),
@@ -521,7 +486,7 @@ def predictive_test_batched_train_full(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance=sample_out_train.covariance[0].detach().cpu()
+        covariance=sample_out_train.covariance[0].detach().cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
     )
     sample_out_test_argmax = SamplingOutput(
         aa_sequences=torch.mode(sample_out_test.aa_sequences, dim=0)[0].unsqueeze(0).detach().cpu(),
@@ -533,7 +498,7 @@ def predictive_test_batched_train_full(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance=sample_out_test.covariance[0].detach().cpu()
+        covariance=sample_out_test.covariance[0].detach().cpu().unsqueeze(0) #unsqueeze to simulate 1 sample
     )
     sample_out_test_argmax2 = sample_out_test_argmax
     # # Highlight: Compute sequences Shannon entropies per site
@@ -601,11 +566,11 @@ def predictive_test_batched_train_batched(args,
 
 
     if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
-        covariance_train_samples = torch.zeros((args.n_samples,n_train_leaves,n_train_leaves))
-        covariance_test_samples = torch.zeros((args.n_samples,n_test_internal,n_test_internal))
+        covariance_train_samples = torch.zeros((args.n_samples,n_train_leaves,n_train_leaves)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,n_test_internal,n_test_internal)).detach().cpu()
     else:
-        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_train_leaves, n_train_leaves))
-        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_test_internal, n_test_internal))
+        covariance_train_samples = torch.zeros((args.n_samples,args.z_dim, n_train_leaves, n_train_leaves)).detach().cpu()
+        covariance_test_samples = torch.zeros((args.n_samples,args.z_dim, n_test_internal, n_test_internal)).detach().cpu()
 
     with torch.no_grad():
         if blocks_train is not None:  # batched sampling
@@ -743,7 +708,7 @@ def predictive_test_batched_train_batched(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance= sample_out_train.covariance[0]
+        covariance= sample_out_train.covariance[0].unsqueeze(0) #unsqueeze to simulate 1 sample
     )
     sample_out_test_argmax = SamplingOutput(
         aa_sequences=torch.mode(sample_out_test.aa_sequences, dim=0)[0].unsqueeze(0).detach().cpu(),
@@ -755,7 +720,7 @@ def predictive_test_batched_train_batched(args,
         mean_psi=None,
         kappa_phi=None,
         kappa_psi=None,
-        covariance= sample_out_test.covariance[0]
+        covariance= sample_out_test.covariance[0].unsqueeze(0) #unsqueeze to simulate 1 sample
     )
     sample_out_test_argmax2 = sample_out_test_argmax
     # # Highlight: Compute sequences Shannon entropies per site

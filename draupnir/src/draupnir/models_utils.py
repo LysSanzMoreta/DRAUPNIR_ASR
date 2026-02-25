@@ -1183,7 +1183,6 @@ class OUKernel_Fast_experiment(GPKernel):
 
             return  second_term + noise*1e-6
 
-
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance

@@ -1,15 +1,31 @@
 #nohup ./run_draupnir.sh > ~/output.log 2>&1 &
 #micromamba activate draupnir_xlstm2
-nepochs=10000
+nepochs=2000
 nsamples=200
-zdim=50
+zdim=30
 
 
 
-CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
-CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 10 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
-CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3a -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
-CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3b -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1nbA -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+
+
+
+#python Draupnir_example.py -name simulations_sirtuins_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#python Draupnir_example.py -name simulations_sirtuins_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#python Draupnir_example.py -name simulations_sirtuins_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1nbA -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#
+#
+#python Draupnir_example.py -name simulations_PIGBOS_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#python Draupnir_example.py -name simulations_PIGBOS_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#python Draupnir_example.py -name simulations_PIGBOS_1 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1nbA -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+
+
+#CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 10 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3a -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
+#CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_1GMM -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 3b -bsize 100 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim
 
 #CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full
 #CUDA_VISIBLE_DEVICES=2 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full

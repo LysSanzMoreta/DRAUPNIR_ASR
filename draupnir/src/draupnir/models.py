@@ -1096,17 +1096,21 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         assert torch.equal(nodes_idx,patristic_nodes), "Patristic matrix is disordered or the dataset, node indices must coincide"
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
-        # Highlight: GP prior over the latent space
-        out_dict = self.gp_prior(patristic_matrix_sorted)
-        latent_space = out_dict["latent_space"]
+
+
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1, self.align_seq_len).reshape(latent_space.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
-        with pyro.plate("plate_batch", dim=-1, device=self.device), pyro.plate("plate_len",  dim=-2):
+        with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0],dim=-2):
                     logits = self.decoder.forward(
                         input=latent_space,
                         hidden=decoder_hidden)
                     pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+
         self.covariance = out_dict["covariance"]
 
     def model_delta_map(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum = None,map_estimates=None):
@@ -1114,9 +1118,10 @@ class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
         batch_nodes = datasets["int"][:, 0, 1]
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
-        # Highlight: GP prior over the latent space
-        out_dict = self.gp_prior(patristic_matrix_sorted)
-        latent_space = out_dict["latent_space"]
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
@@ -1194,9 +1199,10 @@ class DRAUPNIRModel_classic_no_blosum_1nbA(DRAUPNIRModelClass): #not batching + 
         assert torch.equal(nodes_idx,patristic_nodes), "Patristic matrix is disordered or the dataset, node indices must coincide"
         # Highlight: Register GRU module
         pyro.module("decoder", self.decoder)
-        # Highlight: GP prior over the latent space
-        out_dict = self.gp_prior(patristic_matrix_sorted)
-        latent_space = out_dict["latent_space"]
+        with pyro.plate("plate_batch", dim=-1, device=self.device):
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1, self.align_seq_len).reshape(latent_space.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
         decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
@@ -1407,7 +1413,6 @@ class DRAUPNIRModel_classic_batching_no_blosum(DRAUPNIRModelClass):
         # Highlight: GP prior over the latent space
         out_dict = self.gp_prior_batched(patristic_matrix_sorted)
         latent_space = out_dict["latent_space"]
-        print("inside mode latent",out_dict["latent_space"].shape)
         # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
         latent_space = latent_space.repeat(1, self.align_seq_len).reshape(latent_space.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
 
@@ -1429,7 +1434,7 @@ class DRAUPNIRModel_classic_batching_no_blosum(DRAUPNIRModelClass):
 
         self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
         self.covariance = out_dict["covariance"]
-        print("inside model covariance", out_dict["covariance"].shape)
+        #print("inside model covariance", out_dict["covariance"].shape)
 
     def model(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum,map_estimates):
 

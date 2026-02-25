@@ -151,7 +151,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=10, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
@@ -177,15 +177,15 @@ if __name__ == "__main__":
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_12_12h24min01s102311ms_3000epochs_variational",
                         #default="/media/lys/0c4a2be6-0148-4ef1-8df3-b89418dfece3/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_1GMM_2025_12_19_10h38min05s860885ms_3000epochs_variational",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_14h44min01s395934ms_10000epochs_variational",
-                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/ablation_studies/draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_02_13_08h06min11s191040ms_10000epochs_variational",
+                        default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_02_25_19h32min07s741012ms_2000epochs_variational",
                         help='Load pretrained Draupnir Checkpoints (folder path) to generate samples. It is activated when args.generate_samples is True, otherwise it is ignored and simply trains the model')
-    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=False,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
+    parser.add_argument('-generate-samples', type=str2bool, nargs='?', default=True,help='Load fixed pretrained parameters (stored in Draupnir Checkpoints) and generate new samples')
 
     #Highlight: EXPERIMENTAL FEATURES, do not use unless you know what you are doing
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1nbA", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.'
                              '1: first version as published (not batching) and the batched version'
                              '1bA: experiments with draupnir model batched 1 decoder & encoder communication'

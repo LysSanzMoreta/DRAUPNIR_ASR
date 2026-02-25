@@ -91,19 +91,26 @@ def plot_z(latent_space, children_dict, results_dir):
 def plot_ou_parameters(args,map_estimates,model_load):
     """"""
 
+    plt.close("all")
+
     fig, axs = plt.subplots(1, 6, sharey=True, figsize=(18,10))
 
     for idx, ou_param_name in enumerate(["alpha","sigma_f","sigma_n","lambd","rho"]):
         if ou_param_name in map_estimates["sample_0"].keys():
 
             #ou_param = torch.concatenate([map_estimates[sample][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
-            ou_param = DraupnirUtils.squeeze_tensor(1,map_estimates["sample_0"][ou_param_name].detach().cpu().numpy())#all samples have same result, it is deterministic
+            ou_param = DraupnirUtils.squeeze_tensor(1,map_estimates["sample_0"][ou_param_name].detach().cpu().numpy())#all samples have same result, it is deterministic since we have delta
             #ou_param_test = torch.concatenate([map_estimates[sample]["test"][ou_param_name] for sample in map_estimates.keys()],axis=1).detach().cpu().numpy() #concate [zdim, nsamples]
             if ou_param.ndim == 0:
-                axs[idx].bar(0, ou_param, label=ou_param_name)
+                bar_container = axs[idx].bar(0, ou_param, label=ou_param_name)
+                for bar in bar_container:
+                    axs[idx].text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f'{bar.get_height():.2f}',
+                                  ha='center', va='bottom', fontsize=12)
             else:
-                axs[idx].bar(np.arange(ou_param.shape[0]),ou_param,label=ou_param_name)
+                bar_container = axs[idx].bar(np.arange(ou_param.shape[0]),ou_param,label=ou_param_name)
             axs[idx].set_title(ou_param_name)
+
+
 
     bar_container =axs[-1].bar(np.array([1]),model_load.tree_height.detach().cpu().numpy(),label="Tree Height")
     axs[-1].set_title("Tree Height")
@@ -111,29 +118,57 @@ def plot_ou_parameters(args,map_estimates,model_load):
     for bar in bar_container:
         axs[-1].text(bar.get_x() + bar.get_width() / 2, bar.get_height(),f'{bar.get_height():.2f}', ha='center', va='bottom', fontsize=12)
 
-
     plt.savefig(f"{args.results_dir}/OU_parameters_values.png")
 
 
-def plot_covariance(args,covariance,patristic_matrix):
+def plot_covariance(args,results_dir,covariance,patristic_matrix):
 
-    print("Analyzing covariance") #recall to re-activate the latent space plots
+    """
 
-    print(covariance.shape)
-    plt.close("all")
+    Cumulative variance plot: The Cumulative Explained Variance plot often shows a sharp turn or “elbow,” indicating the point at which adding more components has diminishing returns in terms of explained variance.
+    """
 
-    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(18, 10))
+    eval_mode = os.path.normpath(results_dir).split(os.sep)[-1].replace("_Plots","")
 
-    #eigvals = np.linalg.eigvalsh(covariance[0]) #this is slow, we only do for 1 sample or average?
+    print(f"Analyzing covariance for {eval_mode}") #recall to re-activate the latent space plots
 
-    #print(eigvals)
-    axs[0].imshow(covariance[0]) #place the patristic matrix also on the side
-    axs[1].imshow(patristic_matrix[1:,1:]) #place the patristic matrix also on the side
-    #axs[0].colorbar() #todo: fix,add titles and so
+    fig, axs = plt.subplots(2, 2, sharey=False, figsize=(15, 15))
 
-    #plt.show()
 
-    #plt.savefig(f"{args.results_dir}/Covariance_vs_patristic.png") #todo: save in train or test accordingly
+    if covariance.ndim == 4:
+        covariance_sample = covariance[0][0]
+    else:
+        covariance_sample = covariance[0]
+
+    eigvals = np.linalg.eigvalsh(covariance_sample) #this assumes that the matrix is symmetric (which we kind of know, otherwise we could not compute it), only computes eigenvals (eigh computes eig vectors and vals)
+    eigvals = np.sort(eigvals)[::-1]
+
+    eigvals_cumsum_variance_ratio = np.cumsum(eigvals/np.sum(eigvals))
+
+
+    cax = axs[0,0].imshow(covariance_sample) #place the patristic matrix also on the side
+    axs[0,0].set_title("Covariance sample 0")
+    fig.colorbar(cax, ax=axs[0,0])
+
+    cax = axs[0,1].imshow(patristic_matrix[1:,1:]) #place the patristic matrix also on the side
+    axs[0,1].set_title("Patristic matrix")
+    fig.colorbar(cax, ax=axs[0, 1])
+
+    axs[1,0].plot(np.arange(len(eigvals)),eigvals)
+    axs[1,0].set_title("Scree plot \n (sorted eigen values)")
+    axs[1,0].set_ylim((0,max(eigvals)))
+
+
+
+    axs[1,1].plot(np.arange(len(eigvals_cumsum_variance_ratio)),eigvals_cumsum_variance_ratio)
+    axs[1,1].set_ylim((0, max(eigvals_cumsum_variance_ratio)))
+    axs[1,1].set_title(f"Cumulative variance plot \n (90% variance at component {np.argmax(eigvals_cumsum_variance_ratio>0.9)+1})")
+
+
+    plt.suptitle(f"Covariance analysis ({eval_mode})")
+
+
+    plt.savefig(f"{results_dir}/Covariance_vs_patristic.png") #todo: save in train or test accordingly
 
 
 
@@ -339,7 +374,6 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
     distance_info = dataset_test[:, 0, 2].repeat(n_samples).unsqueeze(-1).reshape(n_samples, len(dataset_test), 1)
     node_names = ["{}//{}".format(correspondence_dict[index], index) for index in dataset_test[:, 0, 1].tolist()]
 
-    print(aa_sequences_predictions.shape)
     aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
 
     percent_id_df,incorrectly_predicted_sites_df, alignment_length =percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory)

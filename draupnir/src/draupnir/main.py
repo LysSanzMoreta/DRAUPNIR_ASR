@@ -895,23 +895,23 @@ def start_sampling(args,
     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train, train_entropies, additional_load.correspondence_dict,"{}/train_info_dict.torch".format(args.results_dir + "/Train_Plots"))
     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropies,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(args.results_dir + "/Train_argmax_Plots"))
 
-    #TODO: reactivate
-    # visualize_latent_space(sample_out_train_argmax.latent_space,
-    #                        sample_out_test_argmax.latent_space,
-    #                        train_load.patristic_matrix_train.detach().cpu(),
-    #                        test_load.patristic_matrix_test.detach().cpu(),
-    #                        additional_load,
-    #                        build_config,
-    #                        args,
-    #                        args.results_dir)
-    # visualize_latent_space(sample_out_train_argmax.latent_space,
-    #                        sample_out_test_argmax2.latent_space,
-    #                        train_load.patristic_matrix_train.detach().cpu(),
-    #                        test_load.patristic_matrix_test.detach().cpu(),
-    #                        additional_load,
-    #                        build_config,
-    #                        args,
-    #                        "{}/Test2_Plots".format(args.results_dir))
+
+    visualize_latent_space(sample_out_train_argmax.latent_space,
+                           sample_out_test_argmax.latent_space,
+                           train_load.patristic_matrix_train.detach().cpu(),
+                           test_load.patristic_matrix_test.detach().cpu(),
+                           additional_load,
+                           build_config,
+                           args,
+                           args.results_dir)
+    visualize_latent_space(sample_out_train_argmax.latent_space,
+                           sample_out_test_argmax2.latent_space,
+                           train_load.patristic_matrix_train.detach().cpu(),
+                           test_load.patristic_matrix_test.detach().cpu(),
+                           additional_load,
+                           build_config,
+                           args,
+                           "{}/Test2_Plots".format(args.results_dir))
 
     if settings_config.one_hot_encoding: #TODO: has not been checked, simply change the model to have OneHotCategorical
         print("Transforming one-hot back to integers")
@@ -2525,7 +2525,7 @@ def preparing_plots(samples_out,
                                                                 replacement_plots)
         DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
 
-        DraupnirPlots.plot_covariance(args,samples_out.covariance.detach().cpu().numpy(),patristic_matrix_eval.numpy())
+        DraupnirPlots.plot_covariance(args, results_dir,samples_out.covariance.detach().cpu().numpy(),patristic_matrix_eval.numpy())
 
 
         if overplapping_hist: #TODO: Fix or remove?
