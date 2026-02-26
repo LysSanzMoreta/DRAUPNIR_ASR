@@ -200,7 +200,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
             # sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
             # sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
@@ -242,7 +242,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
         #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
             sigma_f = pyro.sample("sigma_f",dist.Delta(self.sigma_f).to_event(1))  # rate of mean reversion/selection strength
             lambd = pyro.sample("lambd", dist.Delta(self.lambd).to_event(1))  # characteristic length-scale
@@ -277,7 +277,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
         # with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(0))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(0))  # diagonal covariance noise
@@ -322,7 +322,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
         #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else 1):
 
             rho = pyro.sample("rho", dist.Delta(self.rho).to_event(1))  # characteristic length-scale
@@ -357,9 +357,9 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
-            #with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+            #with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             rho = pyro.sample("rho", dist.Delta(self.rho))  # characteristic length-scale
             rho = DraupnirUtils.squeeze_tensor(1, rho)
 
@@ -403,7 +403,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd).expand_by([1]))  # characteristic length-scale
         #log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
             # Highlight: embed the amino acids represented by their respective blosum scores
             aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
@@ -440,7 +440,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
             sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
@@ -515,7 +515,7 @@ class DRAUPNIRGuides_classic_1bA(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
             aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
 
@@ -546,7 +546,7 @@ class DRAUPNIRGuides_classic_1bA(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
         #with pyro.poutine.scale(scale=map_estimates["annealing_factor"] if map_estimates is not None else torch.Tensor([1.])):
 
             # alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
@@ -589,7 +589,7 @@ class DRAUPNIRGuides_classic_1bA(DRAUPNIRGUIDES):
         # aminoacid_sequences = datasets[:, 2:, 0]
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.HalfNormal(1).expand_by([3, ]).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.HalfNormal(alpha[0]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # rate of mean reversion/selection strength---> signal variance #removed .to_event(1)...
             sigma_n = pyro.sample("sigma_n",dist.HalfNormal(alpha[1]).expand_by([self.draupnir.z_dim, ]).to_event(1))  # Gaussian noise
@@ -641,7 +641,7 @@ class DRAUPNIRGuides_transformer(DRAUPNIRGUIDES):
         aa_sequences = datasets["blosum"]
         nseqs = aa_sequences.shape[0]
 
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
@@ -702,7 +702,7 @@ class DRAUPNIRGuides_z_esm(DRAUPNIRGUIDES):
         esm_representations = datasets["sequences_representations"][:, 1:]  # the indexes are in [:,0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
@@ -762,7 +762,7 @@ class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
         esm_representations = datasets["sequences_representations"][:,1:] #the indexes are in [:,0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
@@ -828,7 +828,7 @@ class DRAUPNIRGuides_xlstm(DRAUPNIRGUIDES):
         nseqs = aa_sequences_blosum.shape[0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
@@ -886,7 +886,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
         nseqs = aa_sequences_blosum.shape[0]
 
         # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
-        with pyro.plate("plate_batch", dim=-1, device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
