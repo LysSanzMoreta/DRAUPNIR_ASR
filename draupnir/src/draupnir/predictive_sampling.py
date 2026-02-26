@@ -234,7 +234,8 @@ def predictive_test_full_train_full_variational(args,
                                   train_load.patristic_matrix_train,
                                   train_load.patristic_matrix_train,
                                   dataset_train_blosum,
-                                  batch_blosum=None)  # only saving 1 sample
+                                  batch_blosum=None,
+                                  map_estimates=None)  # only saving 1 sample
             map_estimates_dict[sample] = {val: key.detach() for val, key in map_estimates.items()}
             # Highlight: Sample one train sequence
             train_sample = Draupnir.sample(map_estimates,
