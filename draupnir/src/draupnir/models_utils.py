@@ -907,7 +907,7 @@ class minGRU(Module):
 
             hidden = self.g(hidden)
             gate = gate.sigmoid()
-            out = torch.lerp(prev_hidden, hidden, gate) if prev_hidden is not None else (hidden * gate)
+            out = torch.lerp(prev_hidden, hidden, gate) if prev_hidden is not None else (hidden * gate) #input=prev_hidde, end=hiddeh, weight = gate
         else:
             # parallel
 

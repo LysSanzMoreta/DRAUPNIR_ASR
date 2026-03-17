@@ -157,14 +157,8 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-        # alpha = self.alpha
-        # sigma_n = self.sigma_n
-        # sigma_f = self.sigma_f
-        # lambd = self.lambd #TODO: the original one uses these ... try that
 
-        #TODO: recover all the batch plates
-
-        with pyro.plate("plate_batch", device=self.draupnir.device):
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             alpha = pyro.sample("alpha", dist.Delta(self.alpha).to_event(1))
             sigma_n = pyro.sample("sigma_n", dist.Delta(self.sigma_n).to_event(1))
             sigma_f = pyro.sample("sigma_f", dist.Delta(self.sigma_f).to_event(1))
@@ -359,7 +353,6 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
         with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
-            #with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
             rho = pyro.sample("rho", dist.Delta(self.rho))  # characteristic length-scale
             rho = DraupnirUtils.squeeze_tensor(1, rho)
 
@@ -398,7 +391,6 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-        #with pyro.plate("plate_batch", dim=-1, device=self.device):
 
         log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd).expand_by([1]))  # characteristic length-scale
         #log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
