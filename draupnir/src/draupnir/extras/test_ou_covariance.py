@@ -1,6 +1,5 @@
 import torch
 from abc import ABC, abstractmethod
-import pyro
 from pyro import distributions as dist
 torch.set_default_dtype(torch.float64)
 class GPKernel(ABC):
