@@ -142,7 +142,7 @@ def create_blosum(aa_probs,subs_matrix_name):
     blosum_array_dict = dict(enumerate(subs_array[1:, 1:]))
 
     return subs_array, subs_dict, blosum_array_dict
-def divide_into_monophyletic_clades(tree,storage_folder,name):
+def divide_into_monophyletic_clades(tree,storage_folder,name, save =True, multiplier = 2):
     """
     Divides the tree into monophyletic clades:
     See https://www.mun.ca/biology/scarr/Taxon_types.html
@@ -175,20 +175,26 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
         root_distance = cache_distances(tree)  # distances of each of the nodes to the root
         average_root_distance = mean(root_distance.values())
         std_root_distance = statistics.stdev(root_distance.values())
+
+
+        #multiplier = average_root_distance / std_root_distance
+
+
         n_leaves = len(tree.get_leaves())
-        #TODO: automatize clustering condition
+        #TODO: automatize clustering condition?
         if n_leaves >= 100 or name.endswith("_subtree"):
             if name in ["PF00096","PF00400"]:
                 clustering_condition = average_root_distance #+ 0.3*std_root_distance
             else:
-                clustering_condition = average_root_distance -2*std_root_distance
+                clustering_condition = average_root_distance -multiplier*std_root_distance
         elif name in ["Coral_all","Coral_Faviina","SH3_pf00018_larger_than_30aa"] or "calcitonin" in name:
             clustering_condition = average_root_distance - std_root_distance
         elif name in ["ABO"]:
             print("made it here")
             clustering_condition = average_root_distance - 3*std_root_distance
         else:
-            clustering_condition = average_root_distance
+
+            clustering_condition = average_root_distance #- multiplier*std_root_distance #used to only be:  clustering_condition = average_root_distance
 
         for node in tree.get_descendants('preorder'):
             if not node.is_leaf():  # for internal nodes
@@ -248,12 +254,14 @@ def divide_into_monophyletic_clades(tree,storage_folder,name):
 
     clade_dict_leaves,clade_dict_all = build_clades(tree,name)
     #Highlight: clades_dict_all contains each clade's internal and leaves nodes, clades_dict_leaves only contains the leaves of each clade
+    if save:
+        dill.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
 
-    dill.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'))#,protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),protocol=pickle.HIGHEST_PROTOCOL)
-
-    # json.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'),indent=2)
-    # json.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),indent=2)
+        # json.dump(clade_dict_all, open('{}/{}_Clades_dict_all.p'.format(storage_folder,name), 'wb'),indent=2)
+        # json.dump(clade_dict_leaves, open('{}/{}_Clades_dict_leaves.p'.format(storage_folder,name), 'wb'),indent=2)
+    else:
+        return clade_dict_leaves,clade_dict_all
 def calculate_closest_leaves(name,tree,storage_folder):
     """ Creates a dictionary that contains the closest leave to an internal node {internal_node:leave}
     :param str name: data set project name

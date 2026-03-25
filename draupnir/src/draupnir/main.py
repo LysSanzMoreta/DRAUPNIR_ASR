@@ -328,9 +328,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
     args.__dict__["embedding_dim"] = results_dict["sequences_representations_train"].shape[-1] - 1 #we remove the indexes (first column)
 
-
-
-
     return train_load,test_load,additional_load, build_config
 def save_checkpoint(Draupnir,save_directory, optimizer):
     """Saves the model and optimizer dict states to disk

@@ -25,7 +25,7 @@ class OUKernel_Fast(GPKernel):
         self.sigma_n = sigma_n
         self.lambd = lambd
     def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
-        """Not used function"""
+        """Not used function but needs to be here"""
 
         return torch.zeros((1,))
 
