@@ -445,7 +445,6 @@ class RNNDecoder_Tiling(nn.Module):
 
         return output_logits
 
-
 # ----------------------------
 # Bahdanau Attention
 # ----------------------------
@@ -1145,6 +1144,44 @@ class OUKernel_Fast(GPKernel):
         return first_term * second_term + sigma_n ** 2 * noise
 
 
+# class OUKernel_Fast_experiment(GPKernel):
+#     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
+#     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
+#     :param tensor lamb: Characteristic length-scale of the evolutionary dynamics (equivalent to the inverse of the strength of selection)---> Distance between data points (nodes),larger l implies that the noise should be bigger to capture big point fluctuations
+#     :param tensor sigma_n:quantifies the intensity of specific variation(i.e. variation unattributable to the phylogeny)--->Gaussian Noise,intensity of specific variation--> how much to let the sequence vary ---> so max branch lengh?
+#     **References:**
+#     "Ancestral Inference from Functional Data: Statistical Methods and Numerical Examples"
+#     """
+#     def __init__(self, sigma_f, lamb, sigma_n = None):
+#         self.sigma_f = sigma_f
+#         self.sigma_n = sigma_n
+#         self.lamb = lamb
+#     def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
+#         """Not used function"""
+#
+#         return torch.zeros((1,))
+#
+#     def forward(self, t: torch.Tensor) -> torch.Tensor:
+#         #cov_b = torch.exp(-distance_matrix / _lambd) * _sigma_f ** 2 + _sigma_n + torch.eye(self.n_b*2, device=self.device) * 1e-5
+#         lamb = self.lamb.unsqueeze(-1).unsqueeze(-1) #self.lamb[:, None, None]
+#         second_term = torch.exp(-t / lamb)
+#
+#         if self.sigma_f is not None:
+#             first_term = self.sigma_f ** 2
+#             first_term = first_term.unsqueeze(-1).unsqueeze(-1) #[:,None,None]
+#
+#             noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
+#             if self.sigma_n is not None:
+#                 sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
+#                 return first_term * second_term + sigma_n ** 2 * noise
+#             else:
+#
+#                 return first_term * second_term + noise*1e-6
+#         else:
+#             noise = torch.eye(t.shape[0])  # distributes noise/stochascity to diagonal of the covariance
+#
+#             return  second_term + noise*1e-6
+
 class OUKernel_Fast_experiment(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance
@@ -1153,35 +1190,70 @@ class OUKernel_Fast_experiment(GPKernel):
     **References:**
     "Ancestral Inference from Functional Data: Statistical Methods and Numerical Examples"
     """
-    def __init__(self, sigma_f, lamb, sigma_n = None):
+    def __init__(self, sigma_f, lambd, sigma_n = None, z_dim = 30 , kernel_type = "3"):
         self.sigma_f = sigma_f
         self.sigma_n = sigma_n
-        self.lamb = lamb
-    def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
-        """Not used function"""
+        self.lambd = lambd
+        self.kernel_type = kernel_type
+        self.z_dim = z_dim
 
-        return torch.zeros((1,))
+    def preforward(self,t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
+            """Not used function"""
+
+            return torch.zeros((1,))
+
+    def prior0(self, t: torch.Tensor) -> torch.Tensor:
+
+        t = t.repeat(self.z_dim,1,1)
+
+        return torch.exp(-t)
+
+    def prior1(self, t: torch.Tensor) -> torch.Tensor: #original prior
+
+        assert self.sigma_f is not None, "sigma_f cannot be None"
+        assert self.sigma_n is not None, "sigma_n cannot be None"
+        assert self.lambd is not None, "lambda cannot be None"
+
+        lambd = self.lambd.unsqueeze(-1).unsqueeze(-1)  # self.lamb[:, None, None]
+        second_term = torch.exp(-t / lambd)
+        first_term = self.sigma_f ** 2
+        first_term = first_term.unsqueeze(-1).unsqueeze(-1)  # [:,None,None]
+        noise = torch.eye(t.shape[0])  # distributes noise/stochascity to diagonal of the covariance
+        sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
+        return first_term * second_term + sigma_n ** 2 * noise
+
+    def prior2(self, t: torch.Tensor) -> torch.Tensor:
+
+        assert self.sigma_f is not None, "sigma_f cannot be None"
+        assert self.lambd is not None, "lambda cannot be None"
+
+        lambd = self.lambd.unsqueeze(-1).unsqueeze(-1)  # self.lamb[:, None, None]
+        second_term = torch.exp(-t / lambd)
+        first_term = self.sigma_f ** 2
+        first_term = first_term.unsqueeze(-1).unsqueeze(-1)  # [:,None,None]
+        noise = torch.eye(t.shape[0])  # distributes noise/stochascity to diagonal of the covariance
+
+        return first_term * second_term + noise * 1e-6
+
+    def prior3(self, t: torch.Tensor) -> torch.Tensor:
+
+        assert self.lambd is not None, "lambda cannot be None"
+
+        lambd = self.lambd.unsqueeze(-1)#.unsqueeze(-1) #self.lamb[:, None, None]
+        second_term = torch.exp(-t / lambd)
+        return second_term
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
-        #cov_b = torch.exp(-distance_matrix / _lambd) * _sigma_f ** 2 + _sigma_n + torch.eye(self.n_b*2, device=self.device) * 1e-5
-        lamb = self.lamb.unsqueeze(-1).unsqueeze(-1) #self.lamb[:, None, None]
-        second_term = torch.exp(-t / lamb)
-
-        if self.sigma_f is not None:
-            first_term = self.sigma_f ** 2
-            first_term = first_term.unsqueeze(-1).unsqueeze(-1) #[:,None,None]
-
-            noise = torch.eye(t.shape[0]) #distributes noise/stochascity to diagonal of the covariance
-            if self.sigma_n is not None:
-                sigma_n = self.sigma_n.unsqueeze(-1).unsqueeze(-1)
-                return first_term * second_term + sigma_n ** 2 * noise
-            else:
-
-                return first_term * second_term + noise*1e-6
+        if self.kernel_type == "0":
+            return self.prior0(t)
+        elif self.kernel_type == "1":
+            return self.prior1(t)
+        elif self.kernel_type == "2":
+            return self.prior2(t)
+        elif self.kernel_type == "3":
+            return self.prior3(t)
         else:
-            noise = torch.eye(t.shape[0])  # distributes noise/stochascity to diagonal of the covariance
-
-            return  second_term + noise*1e-6
+            raise ValueError(f"{self.kernel_type} not found")
 
 class OUKernel_Fast_Sparse(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes, in this case for a sparse Gaussian process. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf

@@ -25,10 +25,6 @@ else:#pip installed module
 from draupnir import str2bool,str2None
 
 class GPKernel(ABC):
-
-    # @abstractmethod
-    # def preforward(self, t1: torch.Tensor,t2: torch.Tensor) -> torch.Tensor:
-    #     raise NotImplementedError
     @abstractmethod
     def forward(self, t: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
@@ -97,14 +93,9 @@ class OUKernel_Fast(GPKernel):
 
     def prior3(self, t: torch.Tensor) -> torch.Tensor:
 
-        lambd = self.lambd.unsqueeze(-1).unsqueeze(-1) #self.lamb[:, None, None]
+        lambd = self.lambd.unsqueeze(-1)#.unsqueeze(-1) #self.lamb[:, None, None]
         second_term = torch.exp(-t / lambd)
         return second_term
-
-    # def preforward(self,t: torch.Tensor) -> torch.Tensor:
-    #     """Not used function but needs to be here"""
-    #
-    #     return torch.zeros((1,))
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
         if self.kernel_type == "0":
@@ -132,19 +123,15 @@ class TestModel():
         self.method = init_params["method"]
 
     def test_invertibility(self,matrix):
-        """invertibility checkpoints:"""
-        if torch.allclose(matrix,matrix.T, atol=1e-6):
-            print("matrix is symmetric")
-        else:
-            print("matrix is not symmetric")
-        eigvals = torch.linalg.eigvalsh(matrix)
-        print("min eigenvalue per batch",eigvals.min(dim=-1).values) #have to be > 0
+        #invertibility checkpoints:
+        # if torch.allclose(matrix,matrix.T, atol=1e-6):
+        #     print("matrix is symmetric")
+        # else:
+        #     print("matrix is not symmetric")
+        # eigvals = torch.linalg.eigvalsh(matrix)
+        # print("min eigenvalue per batch",eigvals.min(dim=-1).values) #have to be > 0
 
-        if torch.all(eigvals > 0):
-            print("all eigen values are positive")
-        else:
-            print("some eigen values are negative")
-
+        pass
     def gp_prior_0(self,patristic_matrix_sorted): #just return the patristic
 
         patristic_matrix = patristic_matrix_sorted[1:, 1:] #[n_leaves_batch,n_leaves_batch]
@@ -197,10 +184,10 @@ class TestModel():
 
         patristic_matrix = patristic_matrix_sorted[1:, 1:] #[n_leaves_batch,n_leaves_batch]
 
-        #signal_variance = dist.LogNormal(loc=0,scale=1).sample([self.z_dim,])
-        signal_variance = dist.InverseGamma(concentration=2,rate=1).sample([self.z_dim,])
-        #len_scale = dist.LogNormal(loc=0,scale=1).sample([self.z_dim,])
-        len_scale = dist.Gamma(concentration=0,rate=1).sample([self.z_dim,])
+        signal_variance = dist.LogNormal(loc=0,scale=1).sample([self.z_dim,])
+        #signal_variance = dist.InverseGamma(concentration=2,rate=1)
+        len_scale = dist.LogNormal(loc=0,scale=1).sample([self.z_dim,])
+        #len_scale = dist.Gamma(concentration=0,rate=1)
         OU_covariance = SquaredExponential_Kernel(signal_variance,len_scale).forward(patristic_matrix)
         assert OU_covariance.shape == (self.z_dim,self.n_leaves_batch,self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
         self.test_invertibility(OU_covariance[0])
@@ -219,7 +206,6 @@ class TestModel():
                               "len_scale":len_scale,
                               }
                 }
-
     def gp_prior_3(self,patristic_matrix_sorted):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
 
@@ -249,7 +235,7 @@ class TestModel():
                               "rho": rho
                               }
                 }
-    def gp_prior_5(self,patristic_matrix_sorted):
+    def gp_prior_4(self,patristic_matrix_sorted):
 
         patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
 
@@ -275,6 +261,30 @@ class TestModel():
                 "ou_params": {"lambd":lambd,
                               "log_lambd":log_lambd}
                 }
+    def gp_prior_5(self,patristic_matrix_sorted):
+
+            patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
+            log_lambd = dist.Normal(torch.log(torch.Tensor([0.5])), 0.8).sample()
+            lambd = torch.exp(log_lambd)
+
+            OU_covariance = OUKernel_Fast(None, lambd, None,kernel_type="3").forward(patristic_matrix)  # [n_leaves,n_leaves ]
+            #OU_covariance = DraupnirUtils.squeeze_tensor(2, OU_covariance)
+
+            self.test_invertibility(OU_covariance[0])
+
+            assert OU_covariance.shape == (self.n_leaves_batch,self.n_leaves_batch), f"Expected shape: ({self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
+            L = torch.linalg.cholesky(OU_covariance)
+            eps_z = dist.Normal(0,1).sample([self.n_leaves_batch, self.z_dim]).to(L.dtype)   # adds some noise to each of the leaves?
+            latent_space = L @ eps_z
+
+            assert latent_space.shape == (self.n_leaves_batch,self.z_dim)
+
+            return { "eps_z": eps_z,
+                    "latent_space": latent_space,
+                    "covariance": OU_covariance,
+                    "ou_params": {"lambd":lambd,
+                                  "log_lambd":log_lambd}
+                    }
 
     def conditional_sampling_0(self,map_estimates, patristic_matrix):
             """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
@@ -544,13 +554,14 @@ class TestModel():
 
     def generate_samples(self,train_patristic,full_patristic,n_samples = 10):
 
-        assert self.method in ["0","1","2","3","5"], f"{self.method} not found"
+        assert self.method in ["0","1","2","3","4","5"], f"{self.method} not found"
 
         gp_prior_fx_dict = {
                       "0": self.gp_prior_0,
                       "1": self.gp_prior_1,
                       "2": self.gp_prior_2,
                       "3": self.gp_prior_3,
+                      "4": self.gp_prior_4,
                       "5": self.gp_prior_5,
                        }
         conditional_sampling_fx_dict = {
@@ -558,6 +569,7 @@ class TestModel():
             "1": self.conditional_sampling_1,
             "2": self.conditional_sampling_2,
             "3": self.conditional_sampling_3,
+            "4": self.conditional_sampling_5, #repeated on purpose
             "5": self.conditional_sampling_5,
         }
         gp_prior_fx = gp_prior_fx_dict[self.method]
@@ -622,7 +634,7 @@ init_params = dict(z_dim=z_dim,
                    n_leaves_batch = n_train,
                    n_leaves_internal_batch = n_seqs,
                    n_internal_batch = n_seqs - n_train,
-                   method = "2" # 1 is normal DRaupnir, 0 is no kernel function
+                   method = "5" # 1 is normal DRaupnir, 0 is no kernel function
                    )
 
 full_patristic  = cdist(X, X, 'cosine') #TODO: find other distances where the diagonal is 0, not sure why -1 does not work
@@ -678,6 +690,11 @@ full_patristic = torch.from_numpy(full_patristic)
 
 
 test_latent_samples,test_covariance_samples, train_map_estimates_collection = TestModel(init_params,test_patristic,tree_height=1).generate_samples(train_patristic,full_patristic,n_samples=5)
+
+
+print(train_map_estimates_collection["ou_params"]["lambd"])
+
+exit()
 
 
 print("Done sampling")

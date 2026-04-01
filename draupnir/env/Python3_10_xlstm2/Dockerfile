@@ -18,6 +18,7 @@ RUN apt-get install --yes nano
 RUN apt-get install --yes less
 RUN apt-get install --yes cmake ninja-build
 RUN apt-get install --yes nvidia-cuda-toolkit
+RUN pip install -U pip setuptools #avoid weird error about "ModuleNotFoundError: No module named '_distutils_hack'"
 
 
 #Install R packages

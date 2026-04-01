@@ -622,7 +622,6 @@ def calculate_patristic_cladistic_fast(tree,nodes_and_leafs_names):
 
 
     return patristic_matrix,cladistic_matrix
-
 def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,tree,tree_file, storage_folder):
     """Calculates the patristic distances or branch lengths across the nodes in a tree. It also saves the tree in different formats needed for benchmarking etc
     :param str name_file: data set project name
