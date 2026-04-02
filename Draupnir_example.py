@@ -141,7 +141,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -151,7 +151,7 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=200, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=20, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'

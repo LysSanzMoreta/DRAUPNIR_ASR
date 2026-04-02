@@ -1015,7 +1015,7 @@ class CustomDataset(Dataset):
         return len(self.batch_data_blosum)
 
 
-def setup_data_loaders_old(datasets,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
+def setup_data_loaders(datasets,patristic_matrix_train,clades_dict,blosum,build_config,args,method="batch_dim_0", use_cuda=True):
     """Loads the data set into the model. There are 3 modalities of data loading:
     a) No batching, load the entire data set (batch_dim_0, batch_size=1)
     b) batching, split evenly the data set, the batch size is automatically calculated if None is given (batch_dim_0, batch_size>1 or None)
@@ -1183,7 +1183,7 @@ def upper_diagonal_idx(blocks):
 
 
 
-def setup_data_loaders(datasets, patristic_matrix_train, clades_dict, blosum, build_config, args, method="batch_dim_0",
+def setup_data_loaders_NEW_BATCHING_attempt(datasets, patristic_matrix_train, clades_dict, blosum, build_config, args, method="batch_dim_0",
                        use_cuda=True):
     """Loads the data set into the model. There are 3 modalities of data loading:
     a) No batching, load the entire data set (batch_dim_0, batch_size=1)
