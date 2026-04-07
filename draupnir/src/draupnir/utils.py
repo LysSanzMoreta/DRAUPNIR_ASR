@@ -565,7 +565,7 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
         alignment_seqs = [alignment[i].seq for i, aligned in enumerate(alignment)]
         dict_alignment = dict(zip(alignment_ids, alignment_seqs))
         return dict_alignment, alignment
-def calculate_pairwise_distance(name,alignment,storage_folder):
+def calculate_pairwise_distance_old(name,alignment,storage_folder):
     """Calculates the pairwise distance matrix accross the sequences in the alignment
     :param str name: data set project name
     :param biopython alignment object: object containing aligned sequences
@@ -586,6 +586,33 @@ def calculate_pairwise_distance(name,alignment,storage_folder):
         print("Finish implementing for larger datasets")
         #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
         pass
+def calculate_pairwise_distance(name,dataset,storage_folder,file_suffix,batched=False):
+        """calculates the pairwise distances between each of the aligned sequences
+           :param str name: dataset name
+           :param np.ndarray dataset: array containing the integer-encoded aligned sequences
+           :param str storage_folder: folder where to save the data
+           """
+
+        pairwise_dist_file = "{}/{}/{}_pairwise_distance_matrix_{}.csv".format(storage_folder, name,name, file_suffix)
+        if not os.path.exists(pairwise_dist_file):
+            print("Calculating pairwise distances ... ")
+            node_names = dataset[:, 0, 0]
+            # col_names = np.concatenate([np.array([float("-inf")]),node_names])
+            dataset_sequences = dataset[:, 3:, 0]
+            max_len = dataset_sequences.shape[1]
+            dataset_sequences = dataset_sequences[:, :, None]
+            pairwise_sim_fx = lambda d: (d[None, :] == d[:, None]).all((-1)).astype(float).sum(-1) / max_len
+
+            if batched:  # todo this would be dromi basically
+                pass
+            else:
+                pairwise_sim = 1- pairwise_sim_fx(dataset_sequences) # 1- for the distance
+            pairwise_sim_df = pd.DataFrame(pairwise_sim, columns=node_names, index=node_names)
+            # pairwise_sim = np.hstack([node_names[:,None],pairwise_sim])
+            pairwise_sim_df.to_csv(pairwise_dist_file)
+        else:
+            print(f"File {pairwise_dist_file} already exists, not re-calculating pairwise distances. Please delete the file if you want recalculate the distances")
+
 def calculate_patristic_cladistic_fast(tree,nodes_and_leafs_names):
     """Parallel implementation of the patristic and cladistic matrices calculations"""
     #nodes_and_leafs_names = [node.name for node in tree.traverse()]
@@ -635,9 +662,10 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
     n_seqs = len(combined_dict)
     #work_dir = os.path.dirname(os.path.abspath(__file__))
     work_dir = ""
-    if n_seqs > 200:
-        print("Dataset larger than 200 sequences: Using R script for patristic distances (cladistic matrix is NOT available)!")
-        warnings.warn("Dataset larger than 200 sequences: Requires R and the ape library")
+
+    if n_seqs > 500:
+        print("Dataset larger than 500 sequences: Using R script for patristic distances (cladistic matrix is NOT available)!")
+        warnings.warn("Dataset larger than 500 sequences: Requires R and the ape library")
         command = 'Rscript'
         #path2script = '/home/lys/Dropbox/PhD/DRAUPNIR/Calculate_Patristic.R' #/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/Calculate_Patristic.R
         path2script = "{}/Calculate_Patristic.R".format(os.path.dirname(os.path.dirname(storage_folder)))
@@ -707,7 +735,7 @@ def calculate_patristic_distance(name_file,combined_dict,nodes_and_leafs_names,t
             cladistic_matrix.to_csv("{}/{}_cladistic_distance_matrix.csv".format(storage_folder,name_file))
             patristic_matrix.to_csv("{}/{}_patristic_distance_matrix.csv".format(storage_folder,name_file))
         else:
-            print("Patristic matrix file already exists, not calculated")
+            print("Patristic/Cladistic matrix file already exists, not calculated")
 def my_layout(node):
     """Ete3 layout that adds the internal nodes names. It is a plug-in for rendering tree images
     :param ete3-node node: node from an ete3 tree"""
@@ -1074,6 +1102,7 @@ def create_dataset(name_file,
     tree_save.to_csv("{}/{}/{}_tree_levelorder_info.csv".format(storage_folder,name_file,name_file),sep="\t")
     nodes_and_leafs_names = internal_nodes_names + leafs_names
     calculate_patristic_distance(name_file,Combined_dict,nodes_and_leafs_names,tree,tree_file,"{}/{}".format(storage_folder,name_file))
+    calculate_pairwise_distance(name_file, Dataset, storage_folder, "TRAIN" ,batched=False)
 
     tree_ultrametric = tree.copy()
     tree_ultrametric.convert_to_ultrametric(tree_length=1)
@@ -1137,12 +1166,13 @@ def create_dataset(name_file,
 
 
     return tree_file
-def symmetrize_and_clean(matrix,ancestral=True):
+def symmetrize_and_clean(matrix,keep_ancestral=True):
     """Remove, if necessary the ancestral nodes from the train matrix
     :param pandas-array matrix: patristic or cladistic matrices with columns and indexes as node names """
-    if not ancestral:#Drop the ancestral nodes information
+    if not keep_ancestral:#Drop the ancestral nodes information
         matrix = matrix[~matrix.index.str.contains('^A{1}[0-9]+(?![A-Z])+')]  # repeat with [a-z] if problems
         matrix = matrix.loc[:,~matrix.columns.str.contains('^A{1}[0-9]+(?![A-Z])+')]
+
     matrix = symmetrize(matrix)
     return matrix
 def rename_axis(matrix,nodes,name_file = None):

@@ -115,7 +115,7 @@ class DRAUPNIRModelClass(nn.Module):
         OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
         # print("Model Covariance: {}".format(OU_covariance.shape))
         # print("Model Mean: {}".format(OU_mean.shape))
-        
+
         if self.leaves_testing:
             assert OU_covariance.shape == (self.z_dim, self.n_all, self.n_all),f"Expected shape {(self.z_dim, self.n_all, self.n_all)}, got {OU_covariance.shape}"
             assert OU_mean.shape == (1, self.n_all)
@@ -357,6 +357,8 @@ class DRAUPNIRModelClass(nn.Module):
         assert latent_space.shape == (self.n_leaves_batch,self.z_dim)
 
         return {"latent_space": latent_space,"covariance": OU_covariance}
+
+
     def prediction_batching_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_test,batch_idx,use_test,use_test2):
         """Correction of a few parameters to be able to carry on with the batched sampling"""
         if use_test or use_test2:# internal nodes. Only Marginal posterior available when batching
@@ -1169,7 +1171,7 @@ class DRAUPNIRModelClass(nn.Module):
 
 class DRAUPNIRModel_classic(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir as described in the paper. It receives as an input the entire leaves dataset,
-     uses a GRU as the mapping function and blosum embeddings"""
+     uses a GRU as the mapping function and concatenates the weighted average from the blosum matrix to form an -embedding- """
     def __init__(self,ModelLoad):
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.input_size = self.z_dim + self.aa_probs
@@ -1262,7 +1264,7 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
             covariance = covariance[:, internal_idx]
             covariance = covariance[:, :, internal_idx]
         else:
-            raise ValueError("change to new system")
+
             latent_space = map_estimates["latent_z"].T
             assert latent_space.shape == (self.n_leaves, self.z_dim)
             n_nodes = self.n_leaves

@@ -46,12 +46,12 @@ torch.set_printoptions(threshold=None)
 np.set_printoptions(None)
 torch.autograd.set_detect_anomaly(True)
 now = datetime.datetime.now()
-TrainLoad = namedtuple('TrainLoad', ['dataset_train', 'evolutionary_matrix_train', 'patristic_matrix_train','cladistic_matrix_train','embeddings_train','sequences_representations_train'])
+TrainLoad = namedtuple('TrainLoad', ['dataset_train', 'evolutionary_matrix_train', 'patristic_matrix_train','cladistic_matrix_train','pairwise_matrix_train','embeddings_train','sequences_representations_train'])
 TestLoad = namedtuple('TestLoad',
-                      ['dataset_test', 'evolutionary_matrix_test', 'patristic_matrix_test','cladistic_matrix_test',"leaves_names_test",
+                      ['dataset_test', 'evolutionary_matrix_test', 'patristic_matrix_test','cladistic_matrix_test','pairwise_matrix_test',"leaves_names_test",
                        'position_test', 'internal_nodes_indexes', 'embeddings_test'])
 AdditionalLoad = namedtuple("AdditionalLoad",
-                            ["patristic_matrix_full", "cladistic_matrix_full","children_array", "ancestor_info_numbers", "alignment_length",
+                            ["patristic_matrix_full", "cladistic_matrix_full",'pairwise_matrix_full',"children_array", "ancestor_info_numbers", "alignment_length",
                              "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict",
                              "descendants_dict","aa_frequencies_train","aa_frequencies_test","correspondence_dict","special_nodes_dict","full_name"])
 SettingsConfig = namedtuple("SettingsConfig",["one_hot_encoding", "model_design","aligned_seq","data_folder","full_name"])
@@ -106,7 +106,6 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
     dataset = np.load("{}/{}_dataset_numpy_{}_{}.npy".format(settings_config.data_folder,name,aligned, one_hot),allow_pickle=True)
     dataset_embeddings = np.load("{}/{}_dataset_numpy_{}_embeddings.npy".format(settings_config.data_folder,name,aligned),allow_pickle=True) if os.path.exists("{}/{}_dataset_numpy_{}_embeddings.npy".format(settings_config.data_folder,name,aligned)) else None
-
 
     dataset_sequence_representations = np.load("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name),allow_pickle=True) if os.path.exists("{}/{}_esm2_t33_650M_UR50D_sequence_representations.npy".format(settings_config.data_folder,name)) else None
 
@@ -217,11 +216,15 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         cladistic_matrix = pd.read_csv(cladistic_path, index_col="rows",low_memory=False)
     else: #Highlight: For larger datasets , I do not calculate the cladistic matrix, because there is not a fast method. So no cladistic matrix and consequently , no patrocladistic matrix = evolutionary matrix
         cladistic_matrix = None
-    ancestor_info = pd.read_csv("{}/{}_tree_levelorder_info.csv".format(settings_config.data_folder,name), sep="\t",index_col=False,low_memory=False)
-    ancestor_info["0"] = ancestor_info["0"].astype(str)
-    ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
-    nodes_names = ancestor_info["0"].tolist()
-    tree_levelorder_names = np.asarray(nodes_names)
+    # ancestor_info = pd.read_csv("{}/{}_tree_levelorder_info.csv".format(settings_config.data_folder,name), sep="\t",index_col=False,low_memory=False)
+    # ancestor_info["0"] = ancestor_info["0"].astype(str)
+    # ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
+    # nodes_names = ancestor_info["0"].tolist()
+    # tree_levelorder_names = np.asarray(nodes_names)
+
+    tree_levelorder_names,nodes_names, ancestor_info=DraupnirLoadUtils.load_tree_levelorder_names(settings_config.data_folder, name)
+
+
     if name.startswith("simulations"):# Highlight: Leaves start with A, internal nodes with I
         leave_nodes_indexes = [i for i, node in enumerate(nodes_names) if re.search('^A{1}[0-9]+(?![A-Z])+',str(node))]
         internal_nodes_indexes = [i for i, node in enumerate(nodes_names) if re.search('^(?!^A{1}[0-9]+(?![A-Z])+)', str(node))]
@@ -264,19 +267,20 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
         linked_nodes_dict = None
     ancestor_info_numbers = DraupnirLoadUtils.convert_ancestor_info(name,ancestor_info,tree_levelorder_names)
     dataset,children_array = DraupnirLoadUtils.create_children_array(dataset,ancestor_info_numbers)
-    sorted_distance_matrix = DraupnirLoadUtils.pairwise_distance_matrix(name,script_dir)
+    pairwise_distance_matrix,sorted_distance_matrix = DraupnirLoadUtils.load_pairwise_distance_matrix(name,settings_config.data_folder) #todo: the distance matrix is loaded here, right now it is only train ... why?
 
     leaves_names_list = pickle.load(open('{}/{}_Leafs_names_list.p'.format(settings_config.data_folder,name),"rb"))
 
     #Highlight: Organize, conquer and divide
-    results_dict = DraupnirLoadUtils.processing(
+
+    results_dict = DraupnirLoadUtils.train_data_processing(
         args,
         settings_config,
         results_dir,
         dataset,
         patristic_matrix,
         cladistic_matrix,
-        sorted_distance_matrix,
+        pairwise_distance_matrix,
         n_seq,
         build_config.n_test,
         now,
@@ -294,6 +298,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
                           evolutionary_matrix_train=results_dict["evolutionary_matrix_train"],
                           patristic_matrix_train=torch.from_numpy(results_dict["patristic_matrix_train"]),
                           cladistic_matrix_train=results_dict["cladistic_matrix_train"],
+                          pairwise_matrix_train = results_dict["pairwise_matrix_train"],
                           embeddings_train=results_dict["embeddings_train"],
                           sequences_representations_train = results_dict["sequences_representations_train"]
                           )
@@ -301,6 +306,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
              evolutionary_matrix_test=results_dict["evolutionary_matrix_test"],
              patristic_matrix_test=results_dict["patristic_matrix_test"],
              cladistic_matrix_test=results_dict["cladistic_matrix_test"],
+             pairwise_matrix_test=results_dict["pairwise_matrix_test"],
              leaves_names_test=results_dict["leaves_names_test"],
              position_test=results_dict["position_test"],
              internal_nodes_indexes=internal_nodes_indexes,
@@ -308,7 +314,8 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
             )
 
     additional_load = AdditionalLoad(patristic_matrix_full=torch.from_numpy(results_dict["patristic_matrix_full"]),
-                    cladistic_matrix_full=results_dict["cladistic_matrix_full"],
+                   cladistic_matrix_full=results_dict["cladistic_matrix_full"],
+                   pairwise_matrix_full=torch.from_numpy(results_dict["pairwise_matrix_full"]) if results_dict["pairwise_matrix_full"] is not None else None ,
                    children_array=children_array,
                    ancestor_info_numbers=ancestor_info_numbers,
                    tree_levelorder_names=tree_levelorder_names,
@@ -725,8 +732,6 @@ def set_data_model(args,
     else:
         cladistic_matrix_train = cladistic_matrix_test = cladistic_matrix_full = None
     #nodes_representations_array = additional_info.nodes_representations_array.to(device)
-
-
     # aa_prob = torch.unique(dataset_train[:, 2:, 0])
     blosum_max, blosum_weighted, variable_score = DraupnirUtils.process_blosum(additional_info.blosum, additional_load.aa_frequencies_train, align_seq_len,build_config.aa_probs)
     dataset_train_blosum = DraupnirUtils.blosum_encoding(additional_info.blosum, additional_load.aa_frequencies_train, align_seq_len,
@@ -1126,6 +1131,31 @@ def draupnir_train(train_load,
                    settings_config,
                    results_dir)
 
+    # torch.save(additional_load.patristic_matrix_full,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_full_patristic_matrix_ULTRAMETRIC.torch",
+    #            pickle_protocol=4)
+    #
+    # torch.save(train_load.patristic_matrix_train,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_train_patristic_matrix_ULTRAMETRIC.torch",
+    #            pickle_protocol=4)
+    # torch.save(test_load.patristic_matrix_test,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_test_patristic_matrix_ULTRAMETRIC.torch",
+    #            pickle_protocol=4)
+
+
+    # torch.save(additional_load.pairwise_matrix_full,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_full_pairwise_matrix.torch",
+    #            pickle_protocol=4)
+    #
+    # torch.save(train_load.pairwise_matrix_train,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_train_pairwise_matrix.torch",
+    #            pickle_protocol=4)
+    #
+    # torch.save(test_load.pairwise_matrix_test,
+    #            f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_test_pairwise_matrix.torch",
+    #            pickle_protocol=4)
+
+
     root_index = (additional_load.patristic_matrix_full[:, 0][..., None] == torch.Tensor([0.])).any(-1)
     root_index[0] = False  #remove nodes names
 
@@ -1428,7 +1458,8 @@ def draupnir_train_batching(train_load,
                    results_dir)
 
 
-    #torch.save(additional_load.patristic_matrix_full,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/full_patristic_matrix.torch",pickle_protocol=4)
+    #torch.save(additional_load.patristic_matrix_full,f"/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/extras/data/{args.dataset_name}_full_patristic_matrix_ULTRAMETRIC.torch",pickle_protocol=4)
+
 
 
 
@@ -2610,9 +2641,9 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     param_config = config_build(args)
     train_load,test_load,additional_load,build_config = load_data(args.dataset_name,settings_config,build_config,param_config,results_dir,script_dir,args)
 
-
     additional_info=DraupnirUtils.extra_processing(additional_load.ancestor_info_numbers, additional_load.patristic_matrix_full,results_dir,args,build_config)
-    train_load,test_load,additional_load= DraupnirLoadUtils.datasets_pretreatment(args.dataset_name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
+    train_load,test_load,additional_load= DraupnirLoadUtils.test_datasets_pretreatment(args.dataset_name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir)
+
     torch.save(torch.get_rng_state(),"{}/rng_key.torch".format(results_dir))
 
     if args.one_hot_encoded:
@@ -2627,10 +2658,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     print("Number test sequences: {}".format(n_test))
     print("Selected Substitution matrix : {}".format(args.subs_matrix))
 
-    if not args.batch_by_clade:
-        clades_dict=None
-    else:
-        clades_dict = additional_load.clades_dict_leaves
+    clades_dict = None if not args.batch_by_clade else additional_load.clades_dict_leaves
     graph_coo = None #Highlight: use only with the GNN models (7)---> Otherwise it is found in additional_info
     #graph_coo = additional_info.graph_coo
     if args.generate_samples: #TODO: generate samples by batch for large data sets

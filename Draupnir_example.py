@@ -96,7 +96,7 @@ if __name__ == "__main__":
                         #default="simulations_src_sh3_2", #800
                         #default="simulations_calcitonin_1",  #50
                         #default="simulations_blactamase_1", #32
-                        #default="simulations_PIGBOS_1", #300 #todo: fix weird error
+                        #default="simulations_PIGBOS_1", #300
                         #default="simulations_1GMM", #1000 #todo: add gdrive link
                         #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
@@ -106,7 +106,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=1000, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -151,14 +151,14 @@ if __name__ == "__main__":
                                                                 'Only used when creating the dataset (args.build = True), it is very restricted to avoid errors. It can be changed in datasets.create_draupnir_dataset() and utils.create_dataset()')
 
     parser.add_argument('--z-dim','-z-dim', default=30, type=int, help='Latent space dimension')
-    parser.add_argument('-n-samples','-n_samples', default=20, type=int, help='Number of samples (sequences sampled) per node')
+    parser.add_argument('-n-samples','-n_samples', default=100, type=int, help='Number of samples (sequences sampled) per node')
 
     parser.add_argument('-prediction-method', '--prediction-method', default="test_batched_train_full", type=str,
                         help='Predictive sampling strategy for the batched variational method ONLY (args.select_guide = variational and args.batch_size > 1), mainly concerns issues with computational costs'
                              'test_batched_train_full: The batched test is sampled conditionally on all the map estimates from the train leaves \n'
                              'test_batched_train_batched: The batched test is sampled conditionally on each of the train batches (slower, breaks some correlations, less memory consumption) '
                         )
-    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
+    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
@@ -203,7 +203,7 @@ if __name__ == "__main__":
                                                                            "2: classic prior but tiled ou parameters,\n "
                                                                            "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
                                                                            "4: only lambda + cholesky decomposition \n "
-                                                                                               "5: different priors over the lambda parameter")
+                                                                          "5: different priors over the lambda parameter")
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '

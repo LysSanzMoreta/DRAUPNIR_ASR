@@ -32,6 +32,14 @@ AdditionalLoad = namedtuple("AdditionalLoad",
                             ["patristic_matrix_full", "cladistic_matrix_full","children_array", "ancestor_info_numbers", "alignment_length",
                              "tree_levelorder_names", "clades_dict_leaves", "closest_leaves_dict","clades_dict_all","linked_nodes_dict","descendants_dict","aa_frequencies_train","aa_frequencies_test",
                              "correspondence_dict","special_nodes_dict","full_name"])
+
+def load_tree_levelorder_names(data_folder,name):
+    ancestor_info = pd.read_csv("{}/{}_tree_levelorder_info.csv".format(data_folder,name), sep="\t",index_col=False,low_memory=False)
+    ancestor_info["0"] = ancestor_info["0"].astype(str)
+    ancestor_info.drop('Unnamed: 0', inplace=True, axis=1)
+    nodes_names = ancestor_info["0"].tolist()
+    tree_levelorder_names = np.asarray(nodes_names)
+    return tree_levelorder_names,nodes_names, ancestor_info
 def convert_clades_dict(name,clades_dict,leave_nodes_dict,internal_nodes_dict, only_leaves):
     """Transforms the names of the nodes to their tree transversal level order number
     :param str name
@@ -234,18 +242,8 @@ def validate_aa_probs(alignment,build_config):
     different_elements = "".join(np.unique(align_array).tolist())
     aa_probs_updated = DraupnirUtils.validate_sequence_alphabet(different_elements.lower())
     return aa_probs_updated
-def pairwise_distance_matrix(name,script_dir):
-    """Reads any of the available pairwise distances file and sorts them in pairs in ascending order
-    :param str name
-    :param str script_dir"""
-    distance_matrix_file = "{}/{}_distance_matrix.csv".format(script_dir, name) #file given by iqtree
-    pairwise_distance_matrix_file = "{}/{}_pairwise_distance_matrix.csv".format(script_dir,name) #file computed while creating the dataset
-    if os.path.isfile(distance_matrix_file) :
-        distance_matrix = pd.read_csv(distance_matrix_file, index_col=0)
-    elif os.path.isfile(pairwise_distance_matrix_file):
-        distance_matrix = pd.read_csv(pairwise_distance_matrix_file, index_col=0)
-    else:
-        distance_matrix = None
+
+def sort_distance_matrix(distance_matrix):
     if distance_matrix is not None:
         # Find the smallest distance among the sequences
         min_row, min_column = distance_matrix[distance_matrix.gt(0)].stack().idxmin()  # distance_matrix.loc[[min_row], [min_column]]
@@ -262,6 +260,34 @@ def pairwise_distance_matrix(name,script_dir):
     else: #This has been fixed already
         sorted_distance_matrix = None
     return sorted_distance_matrix
+
+def load_pairwise_distance_matrix(name,script_dir,sort=False):
+    """Reads any of the available pairwise distances file and sorts them in pairs in ascending order
+    :param str name
+    :param str script_dir"""
+
+
+    train_pairwise_distance_matrix_file = "{}/{}_pairwise_distance_matrix_TRAIN.csv".format(script_dir,name) #file computed while creating the dataset
+    test_pairwise_distance_matrix_file = "{}/{}_pairwise_distance_matrix_TEST.csv".format(script_dir,name) #file computed while creating the dataset
+
+    if os.path.exists(train_pairwise_distance_matrix_file) and os.path.exists(test_pairwise_distance_matrix_file):
+        train_pairwise_distance_matrix = pd.read_csv(train_pairwise_distance_matrix_file, index_col=0)
+        test_pairwise_distance_matrix = pd.read_csv(test_pairwise_distance_matrix_file, index_col=0)
+        #todo: i have not calculated the distances between the train and the test, since, in principle we do not need them (they should not be used)
+
+        distance_matrix = pd.concat([train_pairwise_distance_matrix,test_pairwise_distance_matrix],axis=0)
+        #distance_matrix.fillna(0)
+
+    else:
+        distance_matrix = None
+
+    if sort:
+        sorted_distance_matrix = sort_distance_matrix(distance_matrix)
+    else:
+        sorted_distance_matrix = None
+
+    return distance_matrix,sorted_distance_matrix
+
 def remove_nan2(dataset): #TODO: remove if its not been used anywhere
     """Detect and remove nan angle pair, where either phi or psi are nan, due mostly to nh3 or coo terminals.
     We assign the aminoacid where there are any nan values to gap
@@ -285,13 +311,32 @@ def remove_nan(dataset:Union[np.ndarray |None]):
         return dataset
     else:
         return dataset
-def processing(args:namedtuple,
+def processing_helper(distance_matrix,ancestral,leaves_names_test,nodes,name):
+    distance_matrix = DraupnirUtils.symmetrize_and_clean(distance_matrix, keep_ancestral=ancestral)
+
+    distance_matrix_test = distance_matrix.loc[distance_matrix.index.isin(leaves_names_test)]
+    distance_matrix_test = distance_matrix_test.loc[:, distance_matrix.index.isin(leaves_names_test)]
+
+    distance_matrix_train = distance_matrix.loc[~distance_matrix.index.isin(leaves_names_test)]
+    distance_matrix_train = distance_matrix_train.loc[:, ~distance_matrix.index.isin(leaves_names_test)]
+
+    position_test = distance_matrix_test.index.tolist()
+    position_test = [np.where(distance_matrix.index == name)[0][0] for name in position_test]
+
+    distance_matrix_train = DraupnirUtils.rename_axis(distance_matrix_train, nodes, name_file=name)
+    distance_matrix_test = DraupnirUtils.rename_axis(distance_matrix_test, nodes, name_file=name)
+    
+    return dict(d = distance_matrix,
+                d_train = distance_matrix_train,
+                d_test = distance_matrix_test,
+                position_test = position_test)
+def train_data_processing(args:namedtuple,
                settings_config,
                results_dir:str,
                dataset:np.ndarray,
                patristic_matrix,
                cladistic_matrix,
-               sorted_distance_matrix,
+               pairwise_distance_matrix,
                n_seq_train,
                n_seq_test,
                now,
@@ -354,10 +399,23 @@ def processing(args:namedtuple,
 
         dataset_test = None
         embeddings_test = None
-        patristic_matrix_train = DraupnirUtils.symmetrize_and_clean(patristic_matrix,ancestral=ancestral)  # Highlight: if ancestral is true, patristic_matrix_train = patristic_matrix_full
+
+
+        patristic_matrix_train = DraupnirUtils.symmetrize_and_clean(patristic_matrix,keep_ancestral=ancestral)  # Highlight: if ancestral is true, patristic_matrix_train = patristic_matrix_full
+
         patristic_matrix_train = DraupnirUtils.rename_axis(patristic_matrix_train, nodes, name_file=name)
+
+        if pairwise_distance_matrix is not None:
+
+            pairwise_matrix_train =  DraupnirUtils.symmetrize_and_clean(pairwise_distance_matrix,keep_ancestral=ancestral)
+            pairwise_matrix_train = DraupnirUtils.rename_axis(pairwise_matrix_train, nodes, name_file=name)
+            pairwise_matrix_train = DraupnirUtils.pandas_to_numpy(pairwise_matrix_train)
+
+        else:
+            pairwise_matrix_train = None
+
         if cladistic_matrix is not None:
-            cladistic_matrix_train = DraupnirUtils.symmetrize_and_clean(cladistic_matrix, ancestral=ancestral)
+            cladistic_matrix_train = DraupnirUtils.symmetrize_and_clean(cladistic_matrix, keep_ancestral=ancestral)
             cladistic_matrix_train = DraupnirUtils.rename_axis(cladistic_matrix_train, nodes, name_file=name)
             evolutionary_matrix_train = DraupnirUtils.sum_matrices(patristic_matrix_train, cladistic_matrix_train)
             evolutionary_matrix_train = np.array(evolutionary_matrix_train)
@@ -370,6 +428,8 @@ def processing(args:namedtuple,
         patristic_matrix_train = DraupnirUtils.pandas_to_numpy(patristic_matrix_train)
         patristic_matrix_test = None
         cladistic_matrix_test = None
+        pairwise_matrix_test = None
+
         evolutionary_matrix_test = None
         position_test = [None, None]
         leaves_names_test = None
@@ -402,35 +462,44 @@ def processing(args:namedtuple,
 
         sequence_representations_train = sequence_representations[~test_idx]
 
-        # Write the train sequences to a fasta file
-        with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle:
-            records = []
-            for sequence in dataset_train:
-                train_sequence = DraupnirUtils.convert_to_letters(sequence[2:, 0],aa_probs)
-                record = SeqRecord(Seq(''.join(train_sequence).replace("-", "")),
-                                   annotations={"molecule_type": "protein"},
-                                   id=sequence[0, 0], description="")
-                records.append(record)
-            SeqIO.write(records, output_handle, "fasta")
+        # Write the train sequences to a fasta file to assess the conversion was correct
+        # with open("{}/{}_training.fasta".format(results_dir, name), "w") as output_handle:
+        #     records = []
+        #     for sequence in dataset_train: #todo: this can be done with vectorization
+        #         train_sequence = DraupnirUtils.convert_to_letters(sequence[2:, 0],aa_probs)
+        #         record = SeqRecord(Seq(''.join(train_sequence).replace("-", "")),
+        #                            annotations={"molecule_type": "protein"},
+        #                            id=sequence[0, 0], description="")
+        #         records.append(record)
+        #     SeqIO.write(records, output_handle, "fasta")
 
 
-        patristic_matrix = DraupnirUtils.symmetrize_and_clean(patristic_matrix, ancestral=ancestral)
+        # patristic_matrix = DraupnirUtils.symmetrize_and_clean(patristic_matrix, keep_ancestral=ancestral)
+        #
+        # patristic_matrix_test = patristic_matrix.loc[patristic_matrix.index.isin(leaves_names_test)]
+        # patristic_matrix_test = patristic_matrix_test.loc[:,patristic_matrix.index.isin(leaves_names_test)]
+        #
+        # patristic_matrix_train = patristic_matrix.loc[~patristic_matrix.index.isin(leaves_names_test)]
+        # patristic_matrix_train = patristic_matrix_train.loc[:,~patristic_matrix.index.isin(leaves_names_test)]
+        #
+        # position_test = patristic_matrix_test.index.tolist()
+        # position_test = [np.where(patristic_matrix.index == name)[0][0] for name in position_test]
+        #
+        # patristic_matrix_train = DraupnirUtils.rename_axis(patristic_matrix_train, nodes, name_file=name)
+        # patristic_matrix_test = DraupnirUtils.rename_axis(patristic_matrix_test, nodes, name_file=name)
 
+        out_patristic = processing_helper(patristic_matrix,ancestral,leaves_names_test,nodes,name)
+        patristic_matrix,patristic_matrix_train,patristic_matrix_test,position_test = out_patristic["d"],out_patristic["d_train"], out_patristic["d_test"],out_patristic["position_test"]
 
-        patristic_matrix_test = patristic_matrix.loc[patristic_matrix.index.isin(leaves_names_test)]
-        patristic_matrix_test = patristic_matrix_test.loc[:,patristic_matrix.index.isin(leaves_names_test)]
-
-        patristic_matrix_train = patristic_matrix.loc[~patristic_matrix.index.isin(leaves_names_test)]
-        patristic_matrix_train = patristic_matrix_train.loc[:,~patristic_matrix.index.isin(leaves_names_test)]
-
-        position_test = patristic_matrix_test.index.tolist()
-        position_test = [np.where(patristic_matrix.index == name)[0][0] for name in position_test]
-
-        patristic_matrix_train = DraupnirUtils.rename_axis(patristic_matrix_train, nodes, name_file=name)
-        patristic_matrix_test = DraupnirUtils.rename_axis(patristic_matrix_test, nodes, name_file=name)
+        if pairwise_distance_matrix is not None:
+            out_pairwise = processing_helper(pairwise_distance_matrix,ancestral,leaves_names_test,nodes,name)
+            pairwise_matrix, pairwise_matrix_train, pairwise_matrix_test, position_test = out_pairwise["d"], \
+            out_pairwise["d_train"], out_pairwise["d_test"], out_pairwise["position_test"]
+        else:
+            pairwise_matrix,pairwise_matrix_train,pairwise_matrix_test = None
 
         if cladistic_matrix is not None:
-            cladistic_matrix= DraupnirUtils.symmetrize_and_clean(cladistic_matrix,ancestral=ancestral) #check
+            cladistic_matrix= DraupnirUtils.symmetrize_and_clean(cladistic_matrix,keep_ancestral=ancestral) #check
             cladistic_matrix_train = cladistic_matrix.loc[~cladistic_matrix.index.isin(leaves_names_test)]
             cladistic_matrix_train = cladistic_matrix_train.loc[:, ~cladistic_matrix.index.isin(leaves_names_test)]
 
@@ -467,6 +536,13 @@ def processing(args:namedtuple,
     patristic_matrix_full = DraupnirUtils.rename_axis(patristic_matrix_full, nodes, name_file=name)
     patristic_matrix_full = DraupnirUtils.pandas_to_numpy(patristic_matrix_full)
 
+    if pairwise_distance_matrix is not None:
+        pairwise_matrix_full = DraupnirUtils.symmetrize(pairwise_distance_matrix)
+        pairwise_matrix_full = DraupnirUtils.rename_axis(pairwise_matrix_full, nodes, name_file=name)
+        pairwise_matrix_full = DraupnirUtils.pandas_to_numpy(pairwise_matrix_full)
+    else:
+        patristic_matrix_full = pairwise_distance_matrix
+
     if cladistic_matrix is not None:
         cladistic_matrix_full = DraupnirUtils.symmetrize(cladistic_matrix)
         cladistic_matrix_full = DraupnirUtils.rename_axis(cladistic_matrix_full, nodes, name_file=name)
@@ -497,8 +573,6 @@ def processing(args:namedtuple,
     else:
         evolutionary_matrix_train = [torch.from_numpy(evolutionary_matrix_train) if evolutionary_matrix_train is not None else evolutionary_matrix_train][0]
 
-
-
     results_dict = {"dataset_train":dataset_train,
                    "dataset_test":dataset_test,
                    "evolutionary_matrix_train":evolutionary_matrix_train,
@@ -506,6 +580,9 @@ def processing(args:namedtuple,
                    "patristic_matrix_train":patristic_matrix_train,
                    "patristic_matrix_test":patristic_matrix_test,
                    "patristic_matrix_full":patristic_matrix_full,
+                    "pairwise_matrix_train": pairwise_matrix_train,
+                    "pairwise_matrix_test": pairwise_matrix_test,
+                    "pairwise_matrix_full": pairwise_matrix_full,
                    "cladistic_matrix_train":cladistic_matrix_train,
                    "cladistic_matrix_test":cladistic_matrix_test,
                    "cladistic_matrix_full":cladistic_matrix_full,
@@ -523,24 +600,27 @@ def processing(args:namedtuple,
 def matrix_sort(dataset_train,matrix,trim=False):
     """Sorts the input matrix by the nodes indexes in ascending order"""
     # Highlight: Sort by descent the patristic distances by node id
-    matrix_sorted, matrix_sorted_idx = torch.sort(matrix[:, 0])
-    matrix_sorted = matrix[matrix_sorted_idx]  # sorted rows
-    matrix_sorted = matrix_sorted[:, matrix_sorted_idx]  # sorted columns
-    if trim: #remove the ancestors info
-        # Highlight: Find only the observed/train/leaves nodes indexes on the patristic matrix
-        obs_indx = (matrix_sorted[:, 0][..., None] == dataset_train[:, 0, 1]).any(-1)
-        obs_indx[0] = True  # To re-add the node names
-        matrix_sorted = matrix_sorted[obs_indx]
-        matrix_sorted = matrix_sorted[:, obs_indx]
-    return matrix_sorted
+    if matrix is not None:
+        matrix_sorted, matrix_sorted_idx = torch.sort(matrix[:, 0])
+        matrix_sorted = matrix[matrix_sorted_idx]  # sorted rows
+        matrix_sorted = matrix_sorted[:, matrix_sorted_idx]  # sorted columns
+        if trim: #remove the ancestors info
+            # Highlight: Find only the observed/train/leaves nodes indexes on the patristic matrix
+            obs_indx = (matrix_sorted[:, 0][..., None] == dataset_train[:, 0, 1]).any(-1)
+            obs_indx[0] = True  # To re-add the node names
+            matrix_sorted = matrix_sorted[obs_indx]
+            matrix_sorted = matrix_sorted[:, obs_indx]
+        return matrix_sorted
 
-def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_config,settings_config):
+
+def test_pretreatment_helper(train_load,additional_load,build_config,settings_config):
     """ALigns the order of the nodes in the dataset and the patristic and cladistic matrices. Calculates the amino acid frequencies.
     :param tensor dataset_train
     :param tensor patristic_matrix_full
     :param tensor cladistic_matrix_full
     :param namedtuple build_config
     """
+    patristic_matrix_full, cladistic_matrix_full, pairwise_matrix_full = additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full,additional_load.pairwise_matrix_full
     dataset_train = train_load.dataset_train
     # Highlight: alternative aa_freqs = DraupnirUtils.calculate_aa_frequencies_torch(dataset_train[:,2:,0],freq_bins=build_config.aa_prob)
     aa_frequencies_train = DraupnirUtils.calculate_aa_frequencies(dataset_train[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
@@ -549,11 +629,12 @@ def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_co
 
     patristic_matrix_train = matrix_sort(dataset_train,patristic_matrix_full,trim=True)
     patristic_matrix_full = matrix_sort(dataset_train,patristic_matrix_full)
-    if cladistic_matrix_full is not None:
-        cladistic_matrix_train = matrix_sort(dataset_train,cladistic_matrix_full,trim=True)
-        cladistic_matrix_full = matrix_sort(dataset_train,cladistic_matrix_full)
-    else:
-        cladistic_matrix_train = None
+
+    cladistic_matrix_train = matrix_sort(dataset_train,cladistic_matrix_full,trim=True) #the if None check is inside
+    cladistic_matrix_full = matrix_sort(dataset_train,cladistic_matrix_full)
+
+    pairwise_matrix_train = matrix_sort(dataset_train,pairwise_matrix_full,trim=True) #the if None check is inside
+    pairwise_matrix_full = matrix_sort(dataset_train,pairwise_matrix_full)
 
     # Highlight: Sort by descent the family data by node id, so that the order of the patristic distances and the sequences are matching
     dataset_train_sorted_vals, dataset_train_sorted_idx = torch.sort(dataset_train[:, 0, 1])
@@ -571,6 +652,8 @@ def pretreatment(train_load,patristic_matrix_full,cladistic_matrix_full,build_co
                     "patristic_matrix_train": patristic_matrix_train,
                     "cladistic_matrix_full": cladistic_matrix_full,
                     "cladistic_matrix_train":cladistic_matrix_train,
+                    "pairwise_matrix_full": pairwise_matrix_full,
+                    "pairwise_matrix_train": pairwise_matrix_train,
                     "aa_frequencies_train": aa_frequencies_train
                     }
 
@@ -663,7 +746,7 @@ def pretreatment_benchmark_randall(dataset_test,
     correspondence_dict = {v: k for k, v in correspondence_dict.items()}
     return patristic_matrix_train,patristic_matrix_test,cladistic_matrix_train,cladistic_matrix_test,dataset_test,dataset_train,correspondence_dict
 
-def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
+def test_datasets_pretreatment(name,root_sequence_name,train_load,test_load,additional_load,build_config,args,settings_config,script_dir):
     """ Loads the ancestral sequences depending on the data set, when available. Corrects and sorts all matrices so that they are ordered accordingly.
     :param str name: dataset_name
     :param str root_sequence_name: for the default simulated datasets, we need an additional name string to retrieve the ancestral sequences
@@ -678,18 +761,26 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     device = args.device
     #Highlight: Loading for special test datasets
     if name.startswith("simulation"):
-        dataset_test,internal_names_test,max_len_test = DraupnirDatasets.load_simulations_ancestral_sequences(name,
-                                                                                        settings_config,
-                                                                                        build_config.align_seq_len,#TODO: Hopefully this is always correct
-                                                                                        additional_load.tree_levelorder_names,
-                                                                                        root_sequence_name,
-                                                                                        build_config.aa_probs,
-                                                                                        script_dir)
+        # dataset_test,internal_names_test,max_len_test = DraupnirDatasets.load_simulations_ancestral_sequences(name,
+        #                                                                                 settings_config,
+        #                                                                                 build_config.align_seq_len,
+        #                                                                                 additional_load.tree_levelorder_names,
+        #                                                                                 root_sequence_name,
+        #                                                                                 build_config.aa_probs,
+        #                                                                                 script_dir)
+
+        test_data = np.load("{}/{}_dataset_numpy_aligned_integers_TEST.npz".format(settings_config.data_folder, name),allow_pickle=True)
+        dataset_test, internal_names_test, max_len_test = test_data["array"],test_data["internal_names_test"],test_data["max_lenght_internal_aligned"]
+
+        dataset_test = dataset_test[:,1:] #same as train, skip node names
+        dataset_test = torch.from_numpy(dataset_test.astype(np.float64))
 
         test_nodes_observed = dataset_test[:, 0, 1].tolist()
         test_nodes = torch.tensor(test_nodes_observed, device="cpu")
         patristic_matrix_full = additional_load.patristic_matrix_full
         cladistic_matrix_full = additional_load.cladistic_matrix_full
+        pairwise_matrix_full = additional_load.pairwise_matrix_full
+
         vals, idx = torch.sort(test_nodes)
         test_nodes = test_nodes[idx]
         dataset_test = dataset_test[idx]
@@ -703,7 +794,13 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
         else:
             cladistic_matrix_test = None
 
-        correspondence_dict = special_nodes_dict=None
+        if pairwise_matrix_full is not None:
+            pairwise_matrix_test = pairwise_matrix_full[test_indx_patristic]
+            pairwise_matrix_test = pairwise_matrix_test[:, test_indx_patristic]
+        else:
+            pairwise_matrix_test = None
+
+        correspondence_dict = special_nodes_dict = None
 
 
     elif name.startswith("benchmark"):
@@ -809,33 +906,21 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
     # cladistic_matrix_train,\
     # aa_frequencies_train = pretreatment(train_load, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
 
-    results_dict = pretreatment(train_load, additional_load.patristic_matrix_full,additional_load.cladistic_matrix_full, build_config,settings_config)
+    results_dict = test_pretreatment_helper(train_load, additional_load, build_config,settings_config)
 
     aa_frequencies_test = DraupnirUtils.calculate_aa_frequencies(dataset_test[:,2:,0].cpu().detach().numpy(),freq_bins=build_config.aa_probs)
     aa_frequencies_test = torch.from_numpy(aa_frequencies_test)
 
 
-    # test_load = TestLoad(dataset_test=dataset_test,
-    #                      evolutionary_matrix_test=test_load.evolutionary_matrix_test,
-    #                      patristic_matrix_test=patristic_matrix_test,
-    #                      cladistic_matrix_test=cladistic_matrix_test,
-    #                      leaves_names_test=test_load.leaves_names_test,
-    #                      position_test=test_load.position_test,
-    #                      internal_nodes_indexes=test_load.internal_nodes_indexes)
 
     test_load = test_load._replace(dataset_test=dataset_test,
                          evolutionary_matrix_test=test_load.evolutionary_matrix_test,
                          patristic_matrix_test=patristic_matrix_test,
                          cladistic_matrix_test=cladistic_matrix_test,
+                         pairwise_matrix_test=pairwise_matrix_test,
                          leaves_names_test=test_load.leaves_names_test,
                          position_test=test_load.position_test,
                          internal_nodes_indexes=test_load.internal_nodes_indexes)
-
-    # train_load = TrainLoad(dataset_train=results_dict["dataset_train"],
-    #                        embeddings_train = results_dict["embeddings_train"],
-    #                        evolutionary_matrix_train=train_load.evolutionary_matrix_train,
-    #                        patristic_matrix_train=results_dict["patristic_matrix_train"],
-    #                        cladistic_matrix_train=results_dict["cladistic_matrix_train"])
 
 
     train_load = train_load._replace(dataset_train=results_dict["dataset_train_sorted"],
@@ -843,30 +928,11 @@ def datasets_pretreatment(name,root_sequence_name,train_load,test_load,additiona
                            sequences_representations_train = results_dict["sequences_representations_train_sorted"],
                            evolutionary_matrix_train=train_load.evolutionary_matrix_train, #contains both leafs and internal nodes, do not remember why
                            patristic_matrix_train=results_dict["patristic_matrix_train"],
-                           cladistic_matrix_train=results_dict["cladistic_matrix_train"])
+                           cladistic_matrix_train=results_dict["cladistic_matrix_train"],
+                           pairwise_matrix_train=results_dict["pairwise_matrix_train"] #i need to replace all of each of them, otherwise it rejects the replace
+                                     )
 
 
-    # train_load = train_load._replace(embeddings_train=results_dict["embeddings_train"])
-    # train_load = train_load._replace(evolutionary_matrix_train=results_dict["evolutionary_matrix_train"])
-    # train_load = train_load._replace(patristic_matrix_train=results_dict["patristic_matrix_train"])
-    # train_load = train_load._replace(cladistic_matrix_train=results_dict["cladistic_matrix_train"])
-
-    # additional_load = AdditionalLoad(patristic_matrix_full=results_dict["patristic_matrix_full"],
-    #                                  cladistic_matrix_full=results_dict["cladistic_matrix_full"],
-    #                                  children_array=additional_load.children_array,
-    #                                  ancestor_info_numbers=additional_load.ancestor_info_numbers,
-    #                                  tree_levelorder_names=additional_load.tree_levelorder_names,
-    #                                  clades_dict_leaves =additional_load.clades_dict_leaves,
-    #                                  closest_leaves_dict=additional_load.closest_leaves_dict,
-    #                                  clades_dict_all=additional_load.clades_dict_all,
-    #                                  linked_nodes_dict = additional_load.linked_nodes_dict,
-    #                                  descendants_dict= additional_load.descendants_dict,
-    #                                  alignment_length=additional_load.alignment_length,
-    #                                  aa_frequencies_train=results_dict["aa_frequencies_train"],
-    #                                  aa_frequencies_test=aa_frequencies_test,
-    #                                  correspondence_dict = correspondence_dict,
-    #                                  special_nodes_dict=special_nodes_dict,
-    #                                  full_name=additional_load.full_name)
 
 
     additional_load = additional_load._replace(patristic_matrix_full=results_dict["patristic_matrix_full"],
