@@ -4,6 +4,7 @@
 Draupnir : Ancestral protein sequence reconstruction using a tree-structured Ornstein-Uhlenbeck variational autoencoder
 =======================
 """
+import inspect
 from collections import defaultdict
 import torch
 import numpy as np
@@ -95,7 +96,7 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: exam
             map_estimates[key] = val
     return  guide_map_estimates, map_estimates
 
-def train_batch_new(svi,training_function_input):
+def train_batch_new(svi,training_function_input,svi_model_no_obs):
     """Regular batch training without shuffling datatasets
     :param svi: pyro infer engine
     :param cladistic_matrix
@@ -111,6 +112,7 @@ def train_batch_new(svi,training_function_input):
     guide = training_function_input["guide"]
     args = training_function_input["args"]
     train_loss = 0.0
+    kl_divergence_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
 
@@ -150,13 +152,23 @@ def train_batch_new(svi,training_function_input):
                                    dataset_batch["batch_blosum_weighted"],
                                    map_estimates)
 
+            kl_divergence_loss += svi_model_no_obs.evaluate_loss(batch_datasets,
+                                   dataset_batch["batch_patristic"],
+                                   patristic_matrix_train,
+                                   dataset_batch["batch_data_blosum"],
+                                   dataset_batch["batch_blosum_weighted"],
+                                   map_estimates)
+
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
-    return total_epoch_loss_train, map_estimates
+    return {"total_loss": total_epoch_loss_train,
+            "map_estimates": map_estimates,
+            "kl_divergence": kl_divergence_loss
+            }
 
-def train_batch(svi,training_function_input):
+def train_batch(svi,training_function_input,svi_model_no_obs):
     """Regular batch training without shuffling datatasets
     :param svi: pyro infer engine
     :param cladistic_matrix
@@ -172,6 +184,7 @@ def train_batch(svi,training_function_input):
     args = training_function_input["args"]
     epoch = training_function_input["epoch"] + 1
     train_loss = 0.0
+    kl_divergence_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
     #from torch.profiler import profile, ProfilerActivity, record_function
@@ -214,9 +227,6 @@ def train_batch(svi,training_function_input):
 
                 # with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True,
                 #              with_stack=True) as prof:
-
-
-
                 guide_map_estimates = guide(batch_datasets,
                                       batch_patristic, #recall that the patristic is n_seqs + 1 to re-add the node names
                                       patristic_matrix_train,
@@ -239,6 +249,13 @@ def train_batch(svi,training_function_input):
                                        batch_blosum_weighted,
                                        map_estimates)
 
+                kl_divergence_loss += svi_model_no_obs.evaluate_loss(batch_datasets,
+                                       batch_patristic,
+                                       patristic_matrix_train,
+                                       batch_data_blosum,
+                                       batch_blosum_weighted,
+                                       map_estimates)
+
                 training_function_input["step"] += 1
                 torch.cuda.synchronize()
 
@@ -255,9 +272,12 @@ def train_batch(svi,training_function_input):
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
 
-    return total_epoch_loss_train, map_estimates
+    return {"total_loss": total_epoch_loss_train,
+            "map_estimates": map_estimates,
+            "kl_divergence": kl_divergence_loss
+            }
 
-def train(svi,training_function_input):
+def train(svi,training_function_input,svi_model_no_obs):
     """Non batched training
     :param svi: pyro infer engine
     :param cladistic_matrix
@@ -273,6 +293,7 @@ def train(svi,training_function_input):
     map_estimates = training_function_input["map_estimates"]
     args = training_function_input["args"]
     train_loss = 0.0
+    kl_divergence_loss = 0.0
     seq_lens = []
     map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
 
@@ -282,12 +303,19 @@ def train(svi,training_function_input):
             if args.use_cuda:
                 datasets = {key:val.cuda() for key,val in datasets.items()}
             train_loss += svi.step(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
+
+            #Highlight: without computing the gradients we check the kl divergence loss isolated by using the model with no observations
+            kl_divergence_loss += svi_model_no_obs.evaluate_loss(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates)
+
     # Normalize loss
     #normalizer_train = sum(seq_lens)
-    total_epoch_loss_train = train_loss #/ normalizer_train
-    return total_epoch_loss_train
 
-def train_batch_clade(svi,training_function_input):
+    total_epoch_loss_train = train_loss #/ normalizer_train
+    return {"total_loss": total_epoch_loss_train,
+            "kl_divergence":kl_divergence_loss
+            }
+
+def train_batch_clade(svi,training_function_input,svi_model_no_obs):
     """Batch by clade training
     :param svi: pyro infer engine
     :param cladistic_matrix
@@ -303,6 +331,7 @@ def train_batch_clade(svi,training_function_input):
     map_estimates = training_function_input["map_estimates"]
     args = training_function_input["args"]
     train_loss = 0.0
+    kl_divergence_loss = 0.0
     seq_lens = []
     for batch_number, dataset in enumerate(train_loader):
 
@@ -340,16 +369,17 @@ def train_batch_clade(svi,training_function_input):
                               "sequences_representations": dataset_batch["clade_seq_representation"]
                               }
 
-
-
             seq_lens += clade_datasets["int"][:, 0, 0].tolist()
             train_loss += svi.step(clade_datasets, dataset_batch["clade_patristic"], patristic_matrix_train,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
+            kl_divergence_loss += svi_model_no_obs.evaluate_loss(clade_datasets, dataset_batch["clade_patristic"], patristic_matrix_train,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
 
 
     # Normalize loss
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
-    return total_epoch_loss_train
+    return {"total_loss":total_epoch_loss_train,
+            "kl_divergence": kl_divergence_loss
+            }
 
 def random_masking(data):
 
@@ -361,7 +391,7 @@ def random_masking(data):
 
     return random_mask
 
-def train_transformer(svi,training_function_input):
+def train_transformer(svi,training_function_input,svi_model_no_obs):
     """Masked diffusion trasformer
     https://github.com/apapiu/transformer_latent_diffusion/blob/main/tld/train.py
     https://medium.com/@mickael.boillaud/denoising-diffusion-model-from-scratch-using-pytorch-658805d293b4
@@ -394,6 +424,7 @@ def train_transformer(svi,training_function_input):
     guide = training_function_input["guide"]
     args = training_function_input["args"]
     train_loss = 0.0
+    kl_divergence_loss = 0.0
     seq_lens = []
     map_estimates = defaultdict()
     for batch_number, dataset in enumerate(train_loader):
@@ -436,49 +467,57 @@ def train_transformer(svi,training_function_input):
                                    batch_blosum_weighted,
                                    map_estimates)  # TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
 
+            kl_divergence_loss += svi_model_no_obs.evaluate_loss(batch_datasets,
+                                   batch_patristic,
+                                   patristic_matrix_train,
+                                   batch_data_blosum,
+                                   batch_blosum_weighted,
+                                   map_estimates)  # TODO: Check trainng loop for vegvisir, something is off here, why the guide is separated?
 
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
     normalizer_train = sum(seq_lens)
     total_epoch_loss_train = train_loss / normalizer_train
-    return total_epoch_loss_train, map_estimates
+    return {"total_loss": total_epoch_loss_train,
+            "map_estimates": map_estimates,
+            "kl_divergence":kl_divergence_loss
+            }
 
-def select_training_function(clades_dict,svi, training_function_input):
+def select_training_function(clades_dict,svi, training_function_input, svi_model_no_obs):
     """Selects a training function
     :param : Stochastic variational inference engine
 
     """
     args = training_function_input["args"]
-    training_method= lambda f, svi, training_function_input: lambda svi, training_function_input: f(svi, training_function_input)
+    training_method= lambda f, svi, training_function_input, svi_model_no_obs: lambda svi, training_function_input, svi_model_no_obs: f(svi, training_function_input,svi_model_no_obs)
+    #training_method= lambda f: lambda svi, training_function_input, svi_model_no_obs: f(svi, training_function_input,svi_model_no_obs) #we cannot do this, because we want to be able to pass new arguments as we train
 
 
     if args.draupnir_version == "2":
         print("Using Draupnir 2.0")
-        training_function = training_method(train_transformer,
-                                            svi,
-                                            training_function_input)
+        training_function = training_method(train_transformer,                                                svi,
+                                                training_function_input,
+                                                svi_model_no_obs)
 
     else: #first draupnir version
-
         if args.batch_by_clade and clades_dict:
-            training_function = training_method(train_batch_clade,
-                                                svi,
-                                                training_function_input
-                                                )
+            training_function = training_method(train_batch_clade,                                                svi,
+                                                training_function_input,
+                                                svi_model_no_obs)
         elif args.batch_size == 1:#no batching or plating
-
             training_function = training_method(train,
                                                 svi,
-                                                training_function_input
+                                                training_function_input,
+                                                svi_model_no_obs
                                                 )
-
 
         else:#batching
-            training_function = training_method(train_batch,
-                                                svi,
-                                                training_function_input
-                                                )
+            training_function = training_method(train_batch,                                                svi,
+                                                training_function_input,
+                                                svi_model_no_obs)
 
-
+    # sig = inspect.signature(training_function)
+    # print(sig.parameters)
 
     return training_function
+

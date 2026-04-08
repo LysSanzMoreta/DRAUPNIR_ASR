@@ -10,6 +10,8 @@ import os
 import time
 import warnings
 from collections import namedtuple
+from operator import itemgetter
+
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -25,7 +27,7 @@ import pyro
 from pyro import poutine
 from pyro.infer import SVI
 from pyro.infer.autoguide import  AutoDiagonalNormal,AutoDelta,AutoNormal
-from pyro.infer import Trace_ELBO
+from pyro.infer import Trace_ELBO,TraceMeanField_ELBO
 import draupnir
 draupnir_path = draupnir.__file__
 import draupnir.utils as DraupnirUtils
@@ -1199,6 +1201,10 @@ def draupnir_train(train_load,
     optim = select_optimizer(args,params_config)
 
     svi = SVI(Draupnir.model, guide,optim,elbo)
+    draupnir_model_no_obs = pyro.poutine.block(Draupnir.model, hide=["obs"])
+    svi_model_no_obs = SVI(draupnir_model_no_obs,guide,optim,TraceMeanField_ELBO()) #to be able to calculate the kl divergence alone, we have to mask the observations
+
+
     text_file.write("Optimizer :  {} \n".format(optim))
 
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
@@ -1233,12 +1239,13 @@ def draupnir_train(train_load,
                    "args":args,
                    "map_estimates":map_estimates,
                    "guide":guide}
-    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input, svi_model_no_obs)
 
     ######################
     ####Training Loop#####
     ######################
     train_loss = []
+    kl_divergence_loss = []
     entropy = []
     average_pid_list = []
     std_pid_list = []
@@ -1253,6 +1260,7 @@ def draupnir_train(train_load,
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            DraupnirPlots.plot_kl_divergence(kl_divergence_loss, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
         start = time.time()
         map_estimates = guide(datasets_train,
@@ -1263,10 +1271,12 @@ def draupnir_train(train_load,
                               None)
 
         training_function_input["map_estimates"] = map_estimates
-        total_epoch_loss_train = training_function(svi, training_function_input)
+        total_epoch_loss_train, total_epoch_kl_divergence_loss_train = itemgetter("total_loss", "kl_divergence")(training_function(svi, training_function_input, svi_model_no_obs))
+
         memory_usage_mib = torch.cuda.max_memory_allocated()*9.5367*1e-7 #convert byte to MiB
         stop = time.time()
         train_loss.append(float(total_epoch_loss_train)) #convert to float because otherwise it's kept in torch's history
+        kl_divergence_loss.append(float(total_epoch_kl_divergence_loss_train))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (epoch_count, total_epoch_loss_train, stop - start,memory_usage_mib))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (epoch_count, total_epoch_loss_train, stop - start,memory_usage_mib),file=output_file)
         print("Current total time : {}".format(str(datetime.timedelta(seconds=stop-start_total))),file=output_file)
@@ -1357,6 +1367,7 @@ def draupnir_train(train_load,
         if epoch == (args.num_epochs-1):
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            DraupnirPlots.plot_kl_divergence(kl_divergence_loss, results_dir)
             plot_percent_id(average_pid_list, std_pid_list, results_dir)
             save_checkpoint(Draupnir,results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
@@ -1515,6 +1526,8 @@ def draupnir_train_batching(train_load,
 
 
     svi = SVI(Draupnir.model, guide, optim,elbo)
+    draupnir_model_no_obs = pyro.poutine.block(Draupnir.model, hide=["obs"])
+    svi_model_no_obs = SVI(draupnir_model_no_obs,guide,optim,TraceMeanField_ELBO()) #to be able to calculate the kl divergence alone, we have to mask the observations
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
 
     batching_method = ["batch_dim_0" if not args.batch_by_clade else "batch_by_clade"][0]
@@ -1544,11 +1557,6 @@ def draupnir_train_batching(train_load,
                                                         use_cuda=args.use_cuda)
 
 
-    #test_loader = DraupnirLoadUtils.setup_data_loaders(datasets_test, patristic_matrix_test,clades_dict,blosum,build_config,args,method=batching_method, use_cuda=args.use_cuda)
-    # map_estimates = None
-    # training_function = DraupnirTrain.select_training_function(clades_dict, svi, patristic_matrix_model,
-    #                                                            cladistic_matrix_full, dataset_train_blosum,
-    #                                                            train_loader, args, map_estimates)
     map_estimates = None
     total_n_steps= args.num_epochs * (n_train_seqs / build_config.batch_size)
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
@@ -1572,7 +1580,7 @@ def draupnir_train_batching(train_load,
     #                "map_estimates":map_estimates,
     #                "guide":guide,
     #                "args":args}
-    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input,svi_model_no_obs)
 
     ######################
     ####Training Loop#####
@@ -1580,6 +1588,7 @@ def draupnir_train_batching(train_load,
     blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs)
 
     train_loss = []
+    kl_divergence_loss = []
     entropy = []
     average_pid_list = []
     std_pid_list = []
@@ -1599,11 +1608,12 @@ def draupnir_train_batching(train_load,
         start = time.time()
 
         training_function_input["epoch"] = epoch
-        total_epoch_loss_train, map_estimates = training_function(svi, training_function_input)
+        total_epoch_loss_train, total_epoch_kl_divergence_loss_train, map_estimates = itemgetter("total_loss", "kl_divergence","map_estimates")(training_function(svi, training_function_input, svi_model_no_obs))
 
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
         stop = time.time()
         train_loss.append(float(total_epoch_loss_train))  # convert to float because otherwise it's kept in torch's history
+        kl_divergence_loss.append(float(total_epoch_kl_divergence_loss_train))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (
         epoch_count, total_epoch_loss_train, stop - start, memory_usage_mib))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (
@@ -1711,6 +1721,7 @@ def draupnir_train_batching(train_load,
         if epoch == (args.num_epochs - 1): #todo: delete convergence part
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            DraupnirPlots.plot_kl_divergence(kl_divergence_loss, results_dir)
             save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
             if len(train_loss) > 10 and args.activate_elbo_convergence:
@@ -1887,6 +1898,9 @@ def draupnir_train_batch_by_clade(train_load,
     load_tune_params(False)
 
     svi = SVI(Draupnir.model, guide, optim,elbo)  # TODO: TraceMeanField_ELBO() http://docs.pyro.ai/en/0.3.0-release/inference_algos.html#pyro.infer.trace_mean_field_elbo.TraceMeanField_ELBO
+    draupnir_model_no_obs = pyro.poutine.block(Draupnir.model, hide=["obs"])
+    svi_model_no_obs = SVI(draupnir_model_no_obs,guide,optim,TraceMeanField_ELBO()) #to be able to calculate the kl divergence alone, we have to mask the observations
+
     text_file.write("Optimizer :  {} \n".format(optim))
 
     check_point_epoch = [50 if args.num_epochs < 100 else (args.num_epochs / 100)][0]
@@ -1910,12 +1924,12 @@ def draupnir_train_batch_by_clade(train_load,
                                                         build_config, args, method=batching_method,
                                                         use_cuda=args.use_cuda)
 
-    training_method = lambda f, svi, patristic_matrix_model, cladistic_matrix_full, dataset_train_blosum, train_loader,args: lambda svi, patristic_matrix_model, cladistic_matrix_full, train_loader, args: f(svi,
-                                                                                                                    patristic_matrix_model,
-                                                                                                                    cladistic_matrix_full,
-                                                                                                                    dataset_train_blosum,
-                                                                                                                    train_loader,
-                                                                                                                    args)
+    # training_method = lambda f, svi, patristic_matrix_model, cladistic_matrix_full, dataset_train_blosum, train_loader,args: lambda svi, patristic_matrix_model, cladistic_matrix_full, train_loader, args: f(svi,
+    #                                                                                                                 patristic_matrix_model,
+    #                                                                                                                 cladistic_matrix_full,
+    #                                                                                                                 dataset_train_blosum,
+    #                                                                                                                 train_loader,
+    #                                                                                                                 args)
 
     map_estimates = None
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
@@ -1925,7 +1939,7 @@ def draupnir_train_batch_by_clade(train_load,
                    "train_loader":train_loader,
                    "map_estimates":map_estimates,
                    "args":args}
-    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input)
+    training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input,svi_model_no_obs)
 
     ######################
     ####Training Loop#####
@@ -1935,6 +1949,7 @@ def draupnir_train_batch_by_clade(train_load,
     blocks_train = [[value] if isinstance(value,int) else value for value in clades_dict.values()]
     blocks_test = [[value["internal"]] if isinstance(value["internal"],int) else value["internal"] for key, value in additional_load.clades_dict_all.items()]
     train_loss = []
+    kl_divergence_loss = []
     entropy = []
     start_total = time.time()
     epoch = 0
@@ -1945,13 +1960,15 @@ def draupnir_train_batch_by_clade(train_load,
         if check_point_epoch > 0 and epoch > 0 and epoch % check_point_epoch == 0:
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            DraupnirPlots.plot_kl_divergence(kl_divergence_loss, results_dir)
         start = time.time()
         map_estimates = guide(datasets_train, train_load.patristic_matrix_train, train_load.cladistic_matrix_train, dataset_train_blosum,batch_blosum=None,map_estimates=None)  # only saving 1 sample
         training_function_input["map_estimates"] = map_estimates
-        total_epoch_loss_train = training_function(svi, training_function_input)
+        total_epoch_loss_train, total_epoch_kl_divergence_loss_train = itemgetter("total_loss", "kl_divergence")(training_function(svi, training_function_input, svi_model_no_obs))
         memory_usage_mib = torch.cuda.max_memory_allocated() * 9.5367 * 1e-7  # convert byte to MiB
         stop = time.time()
         train_loss.append(float(total_epoch_loss_train))  # convert to float because otherwise it's kept in torch's history
+        kl_divergence_loss.append(float(total_epoch_kl_divergence_loss_train))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (
         epoch_count, total_epoch_loss_train, stop - start, memory_usage_mib))
         print("[epoch %03d]  average training loss: %.4f %.5g time/epoch %.2f MiB/epoch" % (
@@ -2054,6 +2071,7 @@ def draupnir_train_batch_by_clade(train_load,
         if epoch == (args.num_epochs - 1):
             DraupnirPlots.plot_ELBO(train_loss, results_dir)
             DraupnirPlots.plot_entropy(entropy, results_dir)
+            DraupnirPlots.plot_kl_divergence(kl_divergence_loss, results_dir)
             save_checkpoint(Draupnir, results_dir, optimizer=optim)  # Saves the parameters gradients
             save_checkpoint_guide(guide, results_dir)  # Saves the parameters gradients
             if len(train_loss) > 10 and args.activate_elbo_convergence:

@@ -51,6 +51,25 @@ def plot_ELBO(train_elbo,results_dict):
         plt.savefig("{}/ELBO_error.png".format(results_dict))
         plt.close()
     plt.clf()
+def plot_kl_divergence(train_kl_divergence,results_dict):
+    """Plots the model's error loss
+    :param list train_kl_divergence: list of accumulated error losses
+    :param str results_dict: path to results directory
+    """
+    train_kl_divergence = np.array(train_kl_divergence)
+    #list_epochs = np.arange(0,len(train_kl_divergence))
+    if np.isnan(train_kl_divergence).any():
+        print("Error loss contains nan")
+        pass
+    else:
+        #plt.plot(list_epochs,train_kl_divergence,color="dodgerblue")
+        plt.plot(train_kl_divergence, color="lime")
+        plt.xlabel("List of epochs")
+        plt.ylabel("KL_divergence")
+        plt.title("Training Error Loss (max -kl_divergence, min KL)")
+        plt.savefig("{}/KL_divergence_error.png".format(results_dict))
+        plt.close()
+    plt.clf()
 def plot_entropy(train_entropy,results_dict):
     """Plots the model's entropy
     :param list train_entropy: list of accumulated entropies
