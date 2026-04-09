@@ -296,10 +296,24 @@ folders_dict = {
 
 folders_dict = {  "simulations_src_sh3_3": {
         "draupnir_classic_blosum": "",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_16h29min59s341296ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_17h35min55s614522ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_18h19min00s229714ms_10000epochs_variational",
-    },}
+        "draupnir_classic_no_blosum": "",
+        "draupnir_z_esm": "",
+        "draupnir_hidden_esm": "",
+        "draupnir_whitening": "",
+        "draupnir_no_ou_params": "",
+    },
+    "simulations_1GMM": {
+        "draupnir_classic_blosum": "",
+        "draupnir_classic_no_blosum": "",
+        "draupnir_z_esm": "",
+        "draupnir_hidden_esm": "",
+        "draupnir_no_ou_params": ""
+    },
+
+
+
+
+}
 
 
 def analyze(results_dict=None):

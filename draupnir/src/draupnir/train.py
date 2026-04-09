@@ -249,12 +249,14 @@ def train_batch(svi,training_function_input,svi_model_no_obs):
                                        batch_blosum_weighted,
                                        map_estimates)
 
-                kl_divergence_loss += svi_model_no_obs.evaluate_loss(batch_datasets,
-                                       batch_patristic,
-                                       patristic_matrix_train,
-                                       batch_data_blosum,
-                                       batch_blosum_weighted,
-                                       map_estimates)
+                # kl_divergence_loss += svi_model_no_obs.evaluate_loss(batch_datasets,
+                #                        batch_patristic,
+                #                        patristic_matrix_train,
+                #                        batch_data_blosum,
+                #                        batch_blosum_weighted,
+                #                        map_estimates) #todo: fix this error :  guide_site = guide_trace.nodes[name] KeyError: 'log_lambda
+
+                kl_divergence_loss += 0
 
                 training_function_input["step"] += 1
                 torch.cuda.synchronize()
@@ -305,7 +307,8 @@ def train(svi,training_function_input,svi_model_no_obs):
             train_loss += svi.step(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
 
             #Highlight: without computing the gradients we check the kl divergence loss isolated by using the model with no observations
-            kl_divergence_loss += svi_model_no_obs.evaluate_loss(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates)
+            #kl_divergence_loss += svi_model_no_obs.evaluate_loss(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates)
+            kl_divergence_loss +=0
 
     # Normalize loss
     #normalizer_train = sum(seq_lens)

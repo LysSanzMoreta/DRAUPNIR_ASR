@@ -132,23 +132,44 @@ class TestModel():
         # print("min eigenvalue per batch",eigvals.min(dim=-1).values) #have to be > 0
 
         pass
-    def gp_prior_0(self,patristic_matrix_sorted): #just return the patristic
+
+    def psd_projection(self,matrix):
+
+        """positive semidefinite projection"""
+        matrix = (matrix + matrix.transpose(2, 1)) / 2 #symmetrize [zdim,nleaves,nleaves]
+        eigvals, eigvecs = torch.linalg.eigh(matrix) #eigvals [zdim,nleaves] eigvects [zdim, nleaves,nleaves]
+        eigvals = torch.clamp(eigvals, min=1e-6) #y_i = \min(\max(x_i, \text{min\_value}_i), \text{max\_value}_i)
+        matrix_psd = eigvecs @ torch.diag_embed(eigvals)@eigvecs.transpose(1,2)
+
+        return matrix_psd
+
+    def coloring_pca(self,matrix):
+
+        K = self.psd_projection(matrix)
+        eigvals,eigvecs = torch.linalg.eigh(K) #eigvals [zdim,nleaves] eigvects [zdim, nleaves,nleaves]
+        sqrt_eigvals = torch.sqrt(eigvals)
+        A = eigvecs @torch.diag_embed(sqrt_eigvals) # 1st) [zdim,nleaves] -> [zdim,nleaves,nleaves] 2nd) [zdim,nleaves,nleaves]@[zdim,nleaves,nleaves]
+
+        return A
+
+    def gp_prior_0(self,patristic_matrix_sorted):
+
+        """PCA coloring technique fix eigen values in case the matrix is not PSD """
 
         patristic_matrix = patristic_matrix_sorted[1:, 1:] #[n_leaves_batch,n_leaves_batch]
         OU_covariance = OUKernel_Fast(None, None, None, kernel_type="0").forward(patristic_matrix) #[z_dim, n_leaves,n_leaves ]
-        #assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
+
         assert OU_covariance.shape == (self.z_dim,self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
         self.test_invertibility(OU_covariance[0])
+        L = self.coloring_pca(OU_covariance)
+        eps_z = dist.Normal(0,1).sample([self.z_dim,self.n_leaves_batch]).to(OU_covariance.dtype)
+        latent_space = torch.matmul(L, eps_z[:,:,None]).squeeze(-1)
 
-        OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0).to(OU_covariance.dtype)
-        latent_space = dist.MultivariateNormal(OU_mean, OU_covariance).sample()
-
-        latent_space = latent_space.T
-
-        assert latent_space.shape == (self.n_leaves_batch,self.z_dim)
+        assert latent_space.shape == (self.z_dim,self.n_leaves_batch)
 
         return {
-                "latent_space": latent_space,
+                "latent_space": latent_space.T,
+                "eps_z": eps_z,
                 "covariance": OU_covariance,
                 "ou_params" : {}
                 }
@@ -298,8 +319,9 @@ class TestModel():
             assert patristic_matrix_batch.shape == (self.n_leaves_internal_batch, self.n_leaves_internal_batch), "Here we are using a slice of the patristic matrix with size n_leaves_batch = batch_size!"
             OU = OUKernel_Fast(None, None, None, kernel_type="0")
             OU_covariance_full = OU.forward(patristic_matrix_batch) #+ torch.eye(patristic_matrix_batch.shape[0])*1e-6
+            L_full = self.coloring_pca(OU_covariance_full)
 
-            self.test_invertibility(OU_covariance_full[0])
+            self.test_invertibility(L_full[0])
 
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
             inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
@@ -317,7 +339,10 @@ class TestModel():
             inverse_internal_leaves = inverse_internal_leaves[:,:,~internal_indexes]  # [z_dim,n_test,n_train]
             assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
             # Highlight: xb
-            xb = map_estimates["latent_space"].T
+            eps_z = map_estimates["eps_z"]
+            L_train = L_full[:,~internal_indexes]
+            L_train = L_train[:,:,~internal_indexes]
+            xb = (L_train@eps_z[:,:,None]).squeeze(-1) #[zdim, ntrain]
 
             # Highlight:µb
             OU_mean_leaves = torch.zeros((self.n_leaves,))
@@ -336,6 +361,8 @@ class TestModel():
             latent_space = latent_space.T
             assert latent_space.shape == (self.n_internal_batch, self.z_dim)
             return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
+
+
     def conditional_sampling_1(self,map_estimates, patristic_matrix):
             """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
 
@@ -634,7 +661,7 @@ init_params = dict(z_dim=z_dim,
                    n_leaves_batch = n_train,
                    n_leaves_internal_batch = n_seqs,
                    n_internal_batch = n_seqs - n_train,
-                   method = "5" # 1 is normal DRaupnir, 0 is no kernel function
+                   method = "0" # 1 is normal DRaupnir, 0 is no kernel function
                    )
 
 full_patristic  = cdist(X, X, 'cosine') #TODO: find other distances where the diagonal is 0, not sure why -1 does not work
@@ -691,10 +718,6 @@ full_patristic = torch.from_numpy(full_patristic)
 
 test_latent_samples,test_covariance_samples, train_map_estimates_collection = TestModel(init_params,test_patristic,tree_height=1).generate_samples(train_patristic,full_patristic,n_samples=5)
 
-
-print(train_map_estimates_collection["ou_params"]["lambd"])
-
-exit()
 
 
 print("Done sampling")

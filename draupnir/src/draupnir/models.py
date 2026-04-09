@@ -66,19 +66,36 @@ class DRAUPNIRModelClass(nn.Module):
         self.num_layers = 1
         self.tree_height = ModelLoad.tree_height
         self.h_0_MODEL = nn.Parameter(torch.randn(self.gru_hidden_dim), requires_grad=True).to(self.device)
-        self.gp_priors_experiments_dict = {"1":self.gp_prior_batched_experiment1,
+
+        self.gp_prior_experiment_dict = {
+                                        "0":self.gp_prior_experiment0,
+                                        "5":self.gp_prior_experiment5,
+                                         }
+
+        self.gp_priors_batched_experiments_dict = {
+                                           "0":self.gp_prior_batched_experiment0,
+                                           "1":self.gp_prior_batched_experiment1,
                                            "2":self.gp_prior_batched_experiment2,
                                            "3":self.gp_prior_batched_experiment3,
                                            "4":self.gp_prior_batched_experiment4,
                                            "5":self.gp_prior_batched_experiment5
                                            }
 
-        self.conditional_sampling_batch_dict = {"1":self.conditional_sampling_batch_experiment1,
-                                                       "2": self.conditional_sampling_batch_experiment2,
-                                                       "3": self.conditional_sampling_batch_experiment3,
-                                                       "4": self.conditional_sampling_batch_experiment4,
-                                                       "5": self.conditional_sampling_batch_experiment5,
-                                                       }
+        self.conditional_sampling_batched_experiments_dict = {
+                                               "0":self.conditional_sampling_batch_experiment0,
+                                               "1":self.conditional_sampling_batch_experiment1,
+                                               "2": self.conditional_sampling_batch_experiment2,
+                                               "3": self.conditional_sampling_batch_experiment3,
+                                               "4": self.conditional_sampling_batch_experiment4,
+                                               "5": self.conditional_sampling_batch_experiment5,
+                                               }
+
+        self.conditional_sampling_experiment_dict = {
+                                               "0":self.conditional_sampling_experiment0,
+                                               "5": self.conditional_sampling_experiment5,
+                                               }
+
+
         if self.args.use_cuda:
             self.cuda()
     @abstractmethod
@@ -95,6 +112,24 @@ class DRAUPNIRModelClass(nn.Module):
         full_name = self.__class__
         name = str(full_name).split(".")[-1].replace("'>","")
         return name
+
+    def psd_projection(self, matrix):
+
+        """positive semidefinite projection"""
+        matrix = (matrix + matrix.transpose(2, 1)) / 2  # symmetrize [zdim,nleaves,nleaves]
+        eigvals, eigvecs = torch.linalg.eigh(matrix)  # eigvals [zdim,nleaves] eigvects [zdim, nleaves,nleaves]
+        eigvals = torch.clamp(eigvals, min=1e-6)  # y_i = \min(\max(x_i, \text{min\_value}_i), \text{max\_value}_i)
+        matrix_psd = eigvecs @ torch.diag_embed(eigvals) @ eigvecs.transpose(1, 2)
+
+        return matrix_psd
+
+    def coloring_pca(self, matrix):
+
+        K = self.psd_projection(matrix)
+        eigvals, eigvecs = torch.linalg.eigh(K)  # eigvals [zdim,nleaves] eigvects [zdim, nleaves,nleaves]
+        sqrt_eigvals = torch.sqrt(eigvals)
+        A = eigvecs @ torch.diag_embed(sqrt_eigvals)  # 1st) [zdim,nleaves] -> [zdim,nleaves,nleaves] 2nd) [zdim,nleaves,nleaves]@[zdim,nleaves,nleaves]
+        return A
     def gp_prior(self,patristic_matrix_sorted):
         """Computes an Ornstein Ulenbeck process prior over the latent space, representing the evolutionary process.
         The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances tu build a covariance matrix"""
@@ -134,13 +169,49 @@ class DRAUPNIRModelClass(nn.Module):
 
 
         return {"latent_space": latent_space,"covariance": OU_covariance}
+    def gp_prior_experiment0(self,patristic_matrix_sorted):
+        "Directly transform the patristic matrix into a covariance matrix with no OU parameters"
+        print("gp prior non batched experiment 0")
+        patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
+        OU_covariance = OUKernel_Fast_experiment(None, None, None,kernel_type="0").forward(patristic_matrix)  # [n_leaves,n_leaves ]
+
+        L = self.coloring_pca(OU_covariance)
+        eps_z = pyro.sample("eps_z", dist.Normal(0, 1).expand_by([self.z_dim, self.n_leaves_batch]))  # adds some noise to each of the leaves?
+        print("eps_z shape", eps_z.shape)
+        print("ou covar shape",OU_covariance.shape)
+        print("l shape", L.shape)
+
+        latent_space = torch.matmul(L, eps_z[:,:,None]).squeeze(-1)
+
+        assert latent_space.shape == (self.z_dim,self.n_leaves)
+
+        return {"latent_space": latent_space.T,"covariance": OU_covariance}
+
     def gp_prior_experiment5(self,patristic_matrix_sorted):
-        "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
+        """Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix
+        In this approach, we will use a linear transformation trick called whitening to guarantee that
+        the c
+        https://en.wikipedia.org/wiki/Whitening_transformation?utm_source=chatgpt.com
+
+        whitening techniques:
+
+        a) W^T.W = \Sigma^-1 # cholesky decomposition of the covariance matrix -> preferred O(n³/3)
+        b ) mahalanobis or zca whitening -> O(n^3) & more unstable
+        c) pca eigen whitening -> O(n^3)
+
+        eps_z ~ N(0,I) # I is a symmetric, positive definite matrix (eig vals = 1) and non-zero determinant (det(I) = 1)
+        Z = W@eps_z #linear transformation
+
+        Note: if we do not chose 0 as the mean for epz_Z then we need to use Z = W(eps_z - mu)
+
+        """
+
         patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
 
-        D_max = patristic_matrix.max()
+        #D_max = patristic_matrix.max()
         #log_lambd = pyro.sample("log_lambda", dist.Normal(torch.log(D_max / 2), 1.0).expand_by([1]))
-        log_lambd = pyro.sample("log_lambda", dist.Beta(0.5, 0.5).expand_by([1]))
+        #log_lambd = pyro.sample("log_lambda", dist.Beta(0.5, 0.5).expand_by([1]))
+        log_lambd = pyro.sample("log_lambda", dist.Normal(0.5, 8).expand_by([1]))
         lambd = torch.exp(log_lambd)
 
         lambd = DraupnirUtils.squeeze_tensor(1,lambd)
@@ -150,8 +221,10 @@ class DRAUPNIRModelClass(nn.Module):
 
         assert OU_covariance.shape == (self.n_leaves,self.n_leaves), f"Expected shape: ({self.n_leaves},{self.n_leaves}), got ({OU_covariance.shape})"
         L = torch.linalg.cholesky(OU_covariance)
-        eps_z = pyro.sample("eps_z", dist.Normal(0, 1).expand_by([self.n_leaves, self.z_dim]))  # adds some noise to each of the leaves?
-        latent_space = L @ eps_z
+        eps_z = pyro.sample("eps_z", dist.Normal(0, 1).expand_by([self.n_leaves, self.z_dim]))
+
+
+        latent_space = L @ eps_z #is this correct? should i use matmul?
 
         assert latent_space.shape == (self.n_leaves,self.z_dim)
 
@@ -196,6 +269,7 @@ class DRAUPNIRModelClass(nn.Module):
             print("matrix is not symmetric")
         eigvals = torch.linalg.eigvalsh(matrix)
         print("min eigenvalue per batch",eigvals.min(dim=-1).values) #have to be > 0
+
     def gp_prior_batched(self,patristic_matrix_sorted,map_estimates=None):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         # Highlight; OU kernel parameters #TODO: Add noise to OU parameters to avoid error in cholesky decomposition
@@ -237,8 +311,29 @@ class DRAUPNIRModelClass(nn.Module):
 
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
         latent_space = latent_space.T
-        return {"latent_space": latent_space, "covariance": OU_covariance}
 
+        assert latent_space.shape == (self.n_leaves, self.z_dim)
+
+        return {"latent_space": latent_space, "covariance": OU_covariance}
+    def gp_prior_batched_experiment0(self,patristic_matrix_sorted,map_estimates=None):
+        "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
+        patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
+
+        #TODO: check that the shapes are correct
+        OU_covariance = OUKernel_Fast_experiment(None, None, None,kernel_type="0").forward(patristic_matrix)  # [n_leaves,n_leaves ]
+        OU_covariance = DraupnirUtils.squeeze_tensor(2, OU_covariance)
+
+        OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
+
+        assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
+        assert OU_mean.shape == (1,self.n_leaves_batch)
+
+        latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
+        latent_space = latent_space.T
+
+        assert latent_space.shape == (self.n_leaves_batch,self.z_dim)
+
+        return {"latent_space": latent_space,"covariance": OU_covariance}
     def gp_prior_batched_experiment1(self,patristic_matrix_sorted,map_estimates=None):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         # Highlight; OU kernel parameters #TODO: Add noise to OU parameters to avoid error in cholesky decomposition
@@ -358,7 +453,7 @@ class DRAUPNIRModelClass(nn.Module):
 
         return {"latent_space": latent_space,"covariance": OU_covariance}
 
-
+    #########################################
     def prediction_batching_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_test,batch_idx,use_test,use_test2):
         """Correction of a few parameters to be able to carry on with the batched sampling"""
         if use_test or use_test2:# internal nodes. Only Marginal posterior available when batching
@@ -534,8 +629,6 @@ class DRAUPNIRModelClass(nn.Module):
 
         else: #training/leaves
 
-
-
             n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
             indexes = (patristic_matrix_full[:, 0][..., None] == self.leaves_nodes).any(-1)
             indexes[0] = True
@@ -640,7 +733,6 @@ class DRAUPNIRModelClass(nn.Module):
                     else:
                         covariance = covariance[:, batch_idx[0]:batch_idx[1]] if batch_idx[1] is not None else covariance[:, batch_idx[0]:]  # this should be in the same order  as the map estimates
 
-
             latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])] if batch_idx is not None else latent_space
             assert latent_space.shape == (n_nodes, self.z_dim)
 
@@ -712,63 +804,6 @@ class DRAUPNIRModelClass(nn.Module):
 
             return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
 
-    def conditional_sampling_experiment5(self,map_estimates, patristic_matrix):
-            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
-            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
-            :param patristic_matrix: full patristic matrix"""
-            log_lambd = map_estimates["log_lambd"] #+ 1e-6
-            lambd = torch.exp(log_lambd)
-            internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
-            #n_internal = family_data_test.shape[0]
-            # Highlight: Sample the ancestors conditioned on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
-            # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
-            patristic_matrix_full = patristic_matrix[1:, 1:]
-            assert patristic_matrix_full.shape == (self.n_all, self.n_all), "Remember to use the entire/full patristic matrix for conditional sampling!"
-            OU_covariance_full = OUKernel_Fast_experiment(None,lambd,None,kernel_type="3").forward(patristic_matrix_full)
-            L_full = torch.linalg.cholesky(OU_covariance_full)
-            # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
-            inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
-            assert inverse_full.shape == (self.n_all, self.n_all), f"Expected dimensions : {( self.n_all, self.n_all)}, got {inverse_full.shape}"
-            # Highlight: B.49 Λ−1aa
-            inverse_internal = inverse_full[internal_indexes, :]
-            inverse_internal = inverse_internal[:, internal_indexes]  # [z_dim,n_test,n_test]
-            assert inverse_internal.shape == (self.n_internal, self.n_internal)
-            # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
-            # Highlight: µa
-            OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
-            # Highlight: Λab
-            inverse_internal_leaves = inverse_full[internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
-            inverse_internal_leaves = inverse_internal_leaves[:, ~internal_indexes]  # [z_dim,n_test,n_train]
-            assert inverse_internal_leaves.shape == (self.n_internal, self.n_leaves)
-            # Highlight: xb
-
-            eps_z = map_estimates["eps_z"]
-            L_train = L_full[~internal_indexes]
-            L_train = L_train[:,~internal_indexes]
-            xb = (L_train@eps_z).T #[zdim, ntrain]
-
-            # Highlight:µb
-            OU_mean_leaves = torch.zeros((self.n_leaves,))
-            # Highlight:µa|b---> Splitted Equation  B-50
-            inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
-            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
-            # X will be the A-1
-            # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0), 1, 1)
-            # inverse_internal_bis = torch.linalg.solve(inverse_internal, internal_identity)
-
-            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
-
-            assert part1.shape == (self.n_internal, self.n_leaves)
-            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
-            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
-            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
-
-            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis + 1e-6).to_event(1).sample()
-            latent_space = latent_space.T
-            assert latent_space.shape == (self.n_internal, self.z_dim)
-
-            return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
-
     def conditional_samplingMAP(self,map_estimates, patristic_matrix):
             """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
             :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
@@ -823,6 +858,132 @@ class DRAUPNIRModelClass(nn.Module):
 
             return {"latent_space": OU_mean.squeeze(-1).T, "covariance": OU_covariance_full, "internal_idx": internal_indexes}
 
+    def conditional_sampling_experiment0(self,map_estimates, patristic_matrix):
+            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
+            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
+            :param patristic_matrix: full patristic matrix"""
+
+
+            internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
+            #n_internal = family_data_test.shape[0]
+            # Highlight: Sample the ancestors conditiones on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
+            # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
+            patristic_matrix_full = patristic_matrix[1:, 1:] #remove the node names
+
+            assert patristic_matrix_full.shape == (self.n_all, self.n_all), "Remember to use the entire/full patristic matrix for conditional sampling!"
+
+            OU_covariance_full = OUKernel_Fast_experiment(None, None, None, kernel_type="0").forward(patristic_matrix_full) #+ torch.eye(patristic_matrix_batch.shape[0])*1e-6
+            L_full = self.coloring_pca(OU_covariance_full)
+            self.test_invertibility(L_full[0])
+            # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
+            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            inverse_full = torch.eye(OU_covariance_full.size(1)).repeat(OU_covariance_full.size(0), 1, 1)
+            inverse_full = torch.linalg.solve(OU_covariance_full, inverse_full)
+
+            #inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
+            assert inverse_full.shape == (self.z_dim, self.n_all, self.n_all)
+            # Highlight: B.49 Λ−1aa
+            inverse_internal = inverse_full[:,internal_indexes]
+            inverse_internal = inverse_internal[:,:, internal_indexes]  # [z_dim,n_test,n_test]
+
+            assert inverse_internal.shape == (self.z_dim, self.n_internal, self.n_internal)
+            # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
+            # Highlight: µa
+            OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
+            # Highlight: Λab
+            inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:,:,~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal, self.n_leaves)
+            # Highlight: xb
+            eps_z = map_estimates["eps_z"] #[zdim, nleaves]
+            # OU_covariance_train = L_full[:,~internal_indexes]
+            # OU_covariance_train = OU_covariance_train[:,:,~internal_indexes]
+            # L_train = torch.linalg.inv(OU_covariance_train)
+            L_train = L_full[:,~internal_indexes]
+            L_train = L_train[:,:,~internal_indexes]
+
+            xb = (L_train@eps_z[:,:,None]).squeeze(-1) #[zdim, ntrain]
+            # Highlight:µb
+            OU_mean_leaves = torch.zeros((self.n_leaves,))
+            # Highlight:µa|b---> Splitted Equation  B-50
+            inverse_internal_bis = torch.linalg.inv(inverse_internal)#https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            assert part1.shape == (self.z_dim,self.n_internal,self.n_leaves)
+
+            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
+            OU_mean = OU_mean_internal[None, :,None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
+            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
+
+            self.test_invertibility(inverse_internal_bis[0])
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis).to_event(1).sample()
+            latent_space = latent_space.T
+
+            assert latent_space.shape == (self.n_internal, self.z_dim)
+            return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
+
+    def conditional_sampling_experiment5(self,map_estimates, patristic_matrix):
+            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
+            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
+            :param patristic_matrix: full patristic matrix"""
+            log_lambd = map_estimates["log_lambd"] #+ 1e-6
+            lambd = torch.exp(log_lambd)
+            internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
+            #n_internal = family_data_test.shape[0]
+            # Highlight: Sample the ancestors conditioned on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
+            # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
+            patristic_matrix_full = patristic_matrix[1:, 1:]
+            assert patristic_matrix_full.shape == (self.n_all, self.n_all), "Remember to use the entire/full patristic matrix for conditional sampling!"
+            OU_covariance_full = OUKernel_Fast_experiment(None,lambd,None,kernel_type="3").forward(patristic_matrix_full)
+            L_full = torch.linalg.cholesky(OU_covariance_full) #[ntest+ntrain,ntest+ntrain]
+            # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
+            #inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train] #Todo: should be this be L_full?
+
+            identity_full = torch.eye(OU_covariance_full.size(1))
+            inverse_full = torch.linalg.solve(OU_covariance_full, identity_full) #why is this not L_full? it does not work
+
+            assert inverse_full.shape == (self.n_all, self.n_all), f"Expected dimensions : {( self.n_all, self.n_all)}, got {inverse_full.shape}"
+            # Highlight: B.49 Λ−1aa
+            inverse_internal = inverse_full[internal_indexes, :]
+            inverse_internal = inverse_internal[:, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.n_internal, self.n_internal)
+            # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
+            # Highlight: µa
+            OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
+            # Highlight: Λab
+            inverse_internal_leaves = inverse_full[internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.n_internal, self.n_leaves)
+            # Highlight: xb
+
+            eps_z = map_estimates["eps_z"]
+            L_train = L_full[~internal_indexes]
+            L_train = L_train[:,~internal_indexes]
+            xb = (L_train@eps_z).T #[zdim, ntrain]
+
+            # Highlight:µb
+            OU_mean_leaves = torch.zeros((self.n_leaves,))
+            # Highlight:µa|b---> Splitted Equation  B-50
+            #inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            internal_identity = torch.eye(inverse_internal.size(1))
+            inverse_internal_bis = torch.linalg.solve(inverse_internal, internal_identity)
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
+
+            assert part1.shape == (self.n_internal, self.n_leaves)
+            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
+            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
+            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
+
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis + 1e-6).to_event(1).sample()
+            latent_space = latent_space.T
+            assert latent_space.shape == (self.n_internal, self.z_dim)
+
+            return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
+
+    ######################################################
+
     def conditional_sampling_batch(self,map_estimates, patristic_matrix):
             """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
 
@@ -839,6 +1000,56 @@ class DRAUPNIRModelClass(nn.Module):
             assert patristic_matrix_batch.shape == (self.n_leaves_internal_batch, self.n_leaves_internal_batch), "Here we are using a slice of the patristic matrix with size n_leaves_batch = batch_size!"
             OU = OUKernel_Fast(sigma_f, sigma_n, lambd)
             OU_covariance_full = OU.forward(patristic_matrix_batch)
+            # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
+            inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
+            assert inverse_full.shape == (self.z_dim, self.n_leaves_internal_batch, self.n_leaves_internal_batch)
+            # Highlight: B.49 Λ−1aa
+            inverse_internal = inverse_full[:, internal_indexes, :]
+            inverse_internal = inverse_internal[:, :, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.z_dim, self.n_internal_batch, self.n_internal_batch)
+            # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
+            # Highlight: µa
+            OU_mean_internal = torch.zeros((self.n_internal_batch,))  # [n_internal,]
+            # Highlight: Λab
+            inverse_internal_leaves = inverse_full[:,internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, :, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.z_dim, self.n_internal_batch, self.n_leaves)
+            # Highlight: xb
+            xb = map_estimates["latent_z"]  # [z_dim,n_train] # ok, so we need to get the map estimates for all the train latents
+            # if self.leaves_testing:
+            #     leaves_indexes = (patristic_matrix[1:, 0][..., None] == self.leaves_nodes).any(-1) #only the indexes of the training leaves
+            #     xb = xb[:,leaves_indexes]
+            # Highlight:µb
+            OU_mean_leaves = torch.zeros((self.n_leaves,))
+            # Highlight:µa|b---> Splitted Equation  B-50
+            inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            #solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            # internal_identity = torch.eye(inverse_internal.size(1)).repeat(inverse_internal.size(0),1,1)
+            # inverse_internal_bis = torch.linalg.solve(inverse_internal,internal_identity)
+            # residual = torch.matmul(inverse_internal, inverse_internal_bis) - internal_identity  # should be close to zero
+            # max_err = residual.abs().max()
+            # print(f"max err: {max_err}")
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
+            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
+            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
+            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal_batch)
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis).to_event(1).sample()
+            #latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), torch.cholesky_inverse(Inverse_internal) + 1e-6).to_event(1).sample()
+
+            latent_space = latent_space.T
+            assert latent_space.shape == (self.n_internal_batch, self.z_dim)
+            return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
+
+    def conditional_sampling_batch_experiment0(self,map_estimates, patristic_matrix):
+            """Conditional sampling from Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)"""
+            internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes_batch).any(-1)
+            # Highlight: Sample the ancestors conditiones on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
+            # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
+            patristic_matrix_batch = patristic_matrix[1:, 1:]
+
+            assert patristic_matrix_batch.shape == (self.n_leaves_internal_batch, self.n_leaves_internal_batch), "Here we are using a slice of the patristic matrix with size n_leaves_batch = batch_size!"
+            OU_covariance_full = OUKernel_Fast_experiment(None, None, None, kernel_type="0").forward(patristic_matrix_batch)
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
             inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train]
             assert inverse_full.shape == (self.z_dim, self.n_leaves_internal_batch, self.n_leaves_internal_batch)
@@ -1300,6 +1511,142 @@ class DRAUPNIRModel_classic(DRAUPNIRModelClass):
 
         return sampling_out
 
+class DRAUPNIRModel_classic_1nbA(DRAUPNIRModelClass): #not batching + experimental prior
+    """Implements the ordinary version of Draupnir without blosum embeddings.
+    It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
+    def __init__(self,ModelLoad):
+        DRAUPNIRModelClass.__init__(self,ModelLoad)
+        self.input_size = self.z_dim + self.aa_probs
+        self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
+        self.embed = EmbedComplex(self.aa_probs, self.embedding_dim, self.pretrained_params)
+        self.gp_prior = self.gp_prior_experiment_dict[self.args.prior_experiment] #if we need to do a lot of test, do the dictionary trick again
+        self.conditional_sampling =self.conditional_sampling_experiment_dict[self.args.prior_experiment]
+
+    def model_variational(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum = None,map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        nodes_idx = datasets["int"][:, 0, 1]
+        patristic_nodes = patristic_matrix_sorted[1:,0]
+        assert torch.equal(nodes_idx,patristic_nodes), "Patristic matrix is disordered or the dataset, node indices must coincide"
+        # Highlight: Register GRU module
+        pyro.module("decoder", self.decoder)
+        with pyro.plate("plate_batch", dim=-2, device=self.device):
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1, self.align_seq_len).reshape(latent_space.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
+            blosum = self.blosum_weighted.repeat(latent_space.shape[0], 1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
+            blosum = self.embed(blosum)
+            latent_space = torch.cat((latent_space, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
+            with pyro.plate("plate_len",  dim=-1):
+                        logits = self.decoder.forward(
+                            input=latent_space,
+                            hidden=decoder_hidden)
+                        pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+
+        self.covariance = out_dict["covariance"]
+
+    def model_delta_map(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum = None,map_estimates=None):
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+        # Highlight: Register GRU module
+        pyro.module("decoder", self.decoder)
+
+        #with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
+        with pyro.plate("plate_batch", dim=-2, device=self.device):
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1,self.align_seq_len).reshape(latent_space.shape[0],self.align_seq_len,self.z_dim) #[n_nodes,max_seq,z_dim]
+            blosum = self.blosum_weighted.repeat(latent_space.shape[0], 1).reshape(latent_space.shape[0],
+                                                                                   self.align_seq_len,
+                                                                                   self.aa_probs)  # [n_nodes,max_seq,21]
+            blosum = self.embed(blosum)
+            latent_space = torch.cat((latent_space, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
+
+            #with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1), pyro.plate("plate_seq",aminoacid_sequences.shape[0], dim=-2):
+            with pyro.plate("plate_len",aminoacid_sequences.shape[1], dim=-1):
+                    logits = self.decoder.forward(
+                        input=latent_space,
+                        hidden=decoder_hidden)
+                    pyro.sample("aa_sequences", dist.Categorical(logits=logits),obs=aminoacid_sequences)  # aa_seq = [n_nodes,align_seq_len]
+
+        self.covariance = out_dict["covariance"]
+
+    def model(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum,map_estimates):
+        if self.args.select_guide == "delta_map":
+            self.model_delta_map(datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,batch_blosum, map_estimates)
+        else:
+            self.model_variational(datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,batch_blosum, map_estimates)
+
+    def sample(self, map_estimates, n_samples, family_data_test, patristic_matrix,patristic_matrix_eval,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
+        """NOTE TO SELF: in the other models the cladistic matrix becomes the patristic test matrix"""
+
+        if use_test or use_test2:
+            assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
+            out_prediction_dict = self.conditional_sampling(map_estimates,patristic_matrix)
+            latent_space,covariance, internal_idx = out_prediction_dict["latent_space"],out_prediction_dict["covariance"], out_prediction_dict["internal_idx"]
+            n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
+            covariance = covariance[internal_idx]
+            covariance = covariance[:,internal_idx]
+
+        else:
+            if "eps_z" in map_estimates.keys():
+
+                if self.args.prior_experiment == "0":
+                    patristic_matrix_eval = patristic_matrix_eval[1:,1:]
+                    covariance = OUKernel_Fast_experiment(None, None, None, kernel_type="0").forward(patristic_matrix_eval)
+                    L = self.coloring_pca(covariance)
+                    eps_z = map_estimates["eps_z"]
+                    latent_space = torch.matmul(L, eps_z[:, :, None]).squeeze(-1).T
+
+                elif self.args.prior_experiment == "5":
+
+                    lambd = torch.exp(map_estimates["log_lambd"])
+                    patristic_matrix_eval = patristic_matrix_eval[1:,1:]
+                    covariance = OUKernel_Fast_experiment(None, lambd, None, kernel_type="3").forward(patristic_matrix_eval)
+                    L = torch.linalg.cholesky(covariance)
+                    latent_space = L @ map_estimates["eps_z"]
+
+            else:
+                latent_space = map_estimates["latent_z"].T
+                covariance = self.covariance
+
+            assert latent_space.shape == (self.n_leaves, self.z_dim)
+            n_nodes = self.n_leaves
+
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
+        blosum = self.embed(blosum)
+        latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,align_seq_len,z_dim + 21]
+
+        #with pyro.plate("plate_len",self.align_seq_len, dim=-1), pyro.plate("plate_seq",n_nodes,dim=-2,subsample_size=n_nodes):
+        logits = self.decoder.forward(
+            input=latent_space_,
+            hidden=decoder_hidden)
+        if use_argmax:
+            #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
+            aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
+        else:
+            aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+        #return aa_sequences,latent_space, logits, None, None
+        sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
+                                      latent_space=latent_space.detach(),
+                                      logits=logits.detach(),
+                                      phis=None,
+                                      psis=None,
+                                      mean_phi=None,
+                                      mean_psi=None,
+                                      kappa_phi=None,
+                                      kappa_psi=None,
+                                      covariance=covariance)
+
+        return sampling_out#experimen
+
 class DRAUPNIRModel_classic_no_blosum(DRAUPNIRModelClass):
     """Implements the ordinary version of Draupnir without blosum embeddings.
     It receives as an input the entire leaf dataset, uses a GRU as the mapping function WITHOUT blosum embeddings"""
@@ -1410,7 +1757,8 @@ class DRAUPNIRModel_classic_no_blosum_1nbA(DRAUPNIRModelClass): #not batching + 
         DRAUPNIRModelClass.__init__(self,ModelLoad)
         self.input_size = self.z_dim
         self.decoder = RNNDecoder_Tiling(self.align_seq_len, self.aa_probs, self.gru_hidden_dim, self.z_dim, self.input_size,self.kappa_addition,self.num_layers,self.pretrained_params)
-        self.gp_prior = self.gp_prior_experiment5 #if we need to do a lot of test, do the dictionary trick again
+        self.gp_prior = self.gp_prior_experiment_dict[self.args.prior_experiment] #if we need to do a lot of test, do the dictionary trick again
+        self.conditional_sampling =self.conditional_sampling_experiment_dict[self.args.prior_experiment]
 
     def model_variational(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum = None,map_estimates=None):
         aminoacid_sequences = datasets["int"][:, 2:, 0]
@@ -1469,18 +1817,34 @@ class DRAUPNIRModel_classic_no_blosum_1nbA(DRAUPNIRModelClass): #not batching + 
 
         if use_test or use_test2:
             assert patristic_matrix[1:,1:].shape == (self.n_all,self.n_all)
-            out_prediction_dict = self.conditional_sampling_experiment5(map_estimates,patristic_matrix)
+            out_prediction_dict = self.conditional_sampling(map_estimates,patristic_matrix)
             latent_space,covariance, internal_idx = out_prediction_dict["latent_space"],out_prediction_dict["covariance"], out_prediction_dict["internal_idx"]
             n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
             covariance = covariance[internal_idx]
             covariance = covariance[:,internal_idx]
 
         else:
-            lambd = torch.exp(map_estimates["log_lambd"])
-            patristic_matrix_eval = patristic_matrix_eval[1:,1:]
-            covariance = OUKernel_Fast_experiment(None, lambd, None, kernel_type="3").forward(patristic_matrix_eval)
-            L = torch.linalg.cholesky(covariance)
-            latent_space = L @ map_estimates["eps_z"]
+            if "eps_z" in map_estimates.keys():
+
+                if self.args.prior_experiment == "0":
+                    patristic_matrix_eval = patristic_matrix_eval[1:,1:]
+                    covariance = OUKernel_Fast_experiment(None, None, None, kernel_type="0").forward(patristic_matrix_eval)
+                    L = self.coloring_pca(covariance)
+                    eps_z = map_estimates["eps_z"]
+                    latent_space = torch.matmul(L, eps_z[:, :, None]).squeeze(-1).T
+
+                elif self.args.prior_experiment == "5":
+
+                    lambd = torch.exp(map_estimates["log_lambd"])
+                    patristic_matrix_eval = patristic_matrix_eval[1:,1:]
+                    covariance = OUKernel_Fast_experiment(None, lambd, None, kernel_type="3").forward(patristic_matrix_eval)
+                    L = torch.linalg.cholesky(covariance)
+                    latent_space = L @ map_estimates["eps_z"]
+
+            else:
+                latent_space = map_estimates["latent_z"].T
+                covariance = self.covariance
+
             assert latent_space.shape == (self.n_leaves, self.z_dim)
             n_nodes = self.n_leaves
 
@@ -1602,6 +1966,105 @@ class DRAUPNIRModel_classic_batching(DRAUPNIRModelClass):
                                       kappa_phi=None,
                                       kappa_psi=None,
                                       covariance=covariance)
+
+        return sampling_out
+
+class DRAUPNIRModel_classic_batching_1bB(DRAUPNIRModelClass): #prior experiments
+    """Implements independent batching. Selects n sequences (in tree level order or random) and generates independent Gaussian processes.
+    It uses batched Blosum weighted average embeddings."""
+    def __init__(self,ModelLoad):
+        DRAUPNIRModelClass.__init__(self,ModelLoad)
+        self.input_size = self.z_dim + self.aa_probs
+        self.decoder = RNNDecoder_Tiling(align_seq_len=self.align_seq_len,
+                                            aa_probs=self.aa_probs,
+                                            gru_hidden_dim=self.gru_hidden_dim,
+                                            z_dim = self.z_dim,
+                                            input_size=self.input_size,
+                                            kappa_addition = self.kappa_addition,
+                                            num_layers = self.num_layers,
+                                            pretrained_params = self.pretrained_params)
+        self.embed = EmbedComplex(self.aa_probs,self.embedding_dim, self.pretrained_params)
+        self.internal_nodes_batch = None
+        self.n_leaves_internal_batch = None
+
+        self.gp_prior_batched = self.gp_priors_batched_experiments_dict[self.args.prior_experiment]
+        self.conditional_sampling_batch= self.conditional_sampling_batched_experiments_dict[self.args.prior_experiment]
+
+    def model_variational(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum,map_estimates=None):
+
+        aminoacid_sequences = datasets["int"][:, 2:, 0]
+        batch_nodes = datasets["int"][:, 0, 1]
+
+        self.n_leaves_batch = aminoacid_sequences.shape[0] #need this for sampling from a pretrained model
+        #batch_indexes = (patristic_matrix_sorted[1:, 0][..., None] == batch_nodes).any(-1)
+        # Highlight: Register GRU module
+        pyro.module("embeddings",self.embed)
+        pyro.module("decoder", self.decoder)
+
+        with pyro.plate("plate_batch", dim=-2, device=self.device):
+
+            # Highlight: GP prior over the latent space
+            out_dict = self.gp_prior_batched(patristic_matrix_sorted)
+            latent_space = out_dict["latent_space"]
+            # Highlight: MAP the latent space to logits using the Decoder from a Seq2seq model with/without attention
+            latent_space = latent_space.repeat(1, self.align_seq_len).reshape(latent_space.shape[0], self.align_seq_len,self.z_dim)  # [n_nodes,max_seq,z_dim]
+
+            blosum = self.blosum_weighted.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.align_seq_len,self.aa_probs) #[n_nodes,max_seq,21] #Highlight: it workedwith the entire blosum weighted matrix
+            #blosum = batch_blosum.repeat(latent_space.shape[0],1).reshape(latent_space.shape[0],self.max_seq_len,self.aa_prob) #[n_nodes,max_seq,21] #only use the weighted average of the batch sequences
+            blosum = self.embed(blosum)
+            latent_space = torch.cat((latent_space,blosum),dim=2) #[n_nodes,max_seq_len,z_dim + 21]
+
+            decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # bidirectional
+
+            with pyro.plate("plate_len", aminoacid_sequences.shape[1], dim=-1):
+
+                logits = self.decoder.forward(
+                        input=latent_space,
+                        hidden=decoder_hidden)
+                pyro.sample("aa_sequences", dist.Categorical(logits=logits), obs=aminoacid_sequences) #aa_seq = [n_nodes,max_seq_len]
+
+            self.n_leaves_batch = self.batch_size  # need this for sampling from a pretrained model
+            #self.covariance[str(batch_nodes.long().tolist())] = out_dict["covariance"]
+
+        self.covariance = out_dict["covariance"]
+
+    def model(self, datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum,map_estimates):
+
+        self.model_variational(datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,batch_blosum, map_estimates)
+
+    def sample_batched(self, map_estimates, n_samples, family_data_test, patristic_matrix_full,patristic_matrix_test,batch_idx=None,use_argmax=False,use_test=True,use_test2=False):
+        """Batched sampling for large data sets"""
+
+
+        out_prediction_dict = self.prediction_batching_preprocessing_experiment(map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,use_test, use_test2)
+        latent_space, n_nodes, covariance = out_prediction_dict["latent_space"], out_prediction_dict["n_nodes"], out_prediction_dict["covariance"]
+
+        decoder_hidden = self.h_0_MODEL.expand(self.decoder.num_layers * 2, latent_space.shape[0],self.gru_hidden_dim).contiguous()  # Not bidirectional
+        latent_space_ = latent_space.repeat(1, self.align_seq_len).reshape(n_nodes,self.align_seq_len, self.z_dim)
+        blosum = self.blosum_weighted.repeat(latent_space_.shape[0], 1).reshape(latent_space_.shape[0], self.align_seq_len,self.aa_probs)  # [n_nodes,max_seq,21]
+        blosum = self.embed(blosum)
+        latent_space_ = torch.cat((latent_space_, blosum), dim=2)  # [n_nodes,max_seq_len,z_dim + 21]
+
+        logits = self.decoder.forward(
+            input=latent_space_,
+            hidden=decoder_hidden)
+
+        if use_argmax:
+            #Pick the sequence with the highest likelihood, now n_samples, n_samples = 1
+            aa_sequences = torch.argmax(logits,dim=2).unsqueeze(0) #I add one dimension at the beginning to resemble 1 sample and not have to change all the plotting code
+        else:
+            aa_sequences = dist.Categorical(logits=logits).sample([n_samples])
+        sampling_out = SamplingOutput(aa_sequences=aa_sequences.detach(),
+                                      latent_space=latent_space.detach(),
+                                      logits=logits.detach(),
+                                      phis=None,
+                                      psis=None,
+                                      mean_phi=None,
+                                      mean_psi=None,
+                                      kappa_phi=None,
+                                      kappa_psi=None,
+                                      covariance= covariance
+                                      )
 
         return sampling_out
 

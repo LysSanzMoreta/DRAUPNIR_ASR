@@ -91,12 +91,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Draupnir args",formatter_class=RawTextHelpFormatter)
 
     parser.add_argument('-name','--dataset-name', type=str, nargs='?',
-                        default="simulations_src_sh3_3", #200
+                        #default="simulations_src_sh3_3", #200
                         #default="simulations_src_sh3_1", #100
                         #default="simulations_src_sh3_2", #800
                         #default="simulations_calcitonin_1",  #50
                         #default="simulations_blactamase_1", #32
-                        #default="simulations_PIGBOS_1", #300
+                        default="simulations_PIGBOS_1", #300
                         #default="simulations_1GMM", #1000 #todo: add gdrive link
                         #default = "simulations_sirtuins_1", #150
                         #default="ABO", #TODO: fix fasta and tree file to have same names?
@@ -141,7 +141,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -185,21 +185,21 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1", type=str,
+    parser.add_argument('-draupnir-version', default="1bB", type=str,
                         help='Draupnir version.'
                              '1: first version as published (not batching) and the batched version'
-                             '1bA: experiments with draupnir model batched 1 decoder & encoder communication'
-                             '1bB: experimental priors over the batched version'
-                             '1nbA: experimental priors over the NON-batched version with no blosum help'
+                             '1bA: experiments with draupnir model batched 1 decoder & encoder communication' #todo: remove
+                             '1bB: experimental priors over the batched version with no blosum help' #todo: make version with blosum as well
+                             '1nbA: experimental priors over the NON-batched version with no blosum help' #todo: make version with blosum as well
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
                              '4: xlstm embeddings'
                              '5: minigru embeddings'
 
-                        ,
                         )
-    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="5", help="1: removed alpha and sigma_n \n"
+    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="5", help="0: no hyperparameters for the OU kernel, not working"
+                                                                                               "1: removed alpha and sigma_n \n"
                                                                            "2: classic prior but tiled ou parameters,\n "
                                                                            "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
                                                                            "4: only lambda + cholesky decomposition \n "

@@ -39,7 +39,9 @@ class DRAUPNIRGUIDES(EasyGuide):
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
         if self.draupnir.args.draupnir_version in ["1bB","1nbA"]:
-            if self.draupnir.args.prior_experiment == "1":
+            if self.draupnir.args.prior_experiment == "0":
+                pass
+            elif self.draupnir.args.prior_experiment == "1":
                 self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
                 self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
             elif self.draupnir.args.prior_experiment == "2":
@@ -54,6 +56,7 @@ class DRAUPNIRGUIDES(EasyGuide):
             elif self.draupnir.args.prior_experiment == "5":
 
                 self.log_lambd = PyroParam(torch.tensor([0.]), event_dim=0)
+
 
         else:
             self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]),constraint=constraints.positive,event_dim=0) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
@@ -103,12 +106,12 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         :param data_blosum : data encoded with blosum vectors
         :param batch_blosum : weighted average of blosum scores per column alignment for a batch of sequences"""
 
-
         if self.batch_size == None or self.args.batch_size > 1: #batch_size != args.batch_size
             if self.batch_by_clade:
                 return self.guide_batch_by_clade(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum)
             else:
-                if self.draupnir.args.draupnir_version == ["1bB","1nbA"]:
+
+                if self.draupnir.args.draupnir_version in ["1bB","1nbA"]:
                     if self.draupnir.args.prior_experiment == "1":
                         return self.guide_batch_experiment1(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
                     elif self.draupnir.args.prior_experiment == "2":
@@ -139,13 +142,17 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                                                 batch_blosum=None,map_estimates=map_estimates)
         else:
             if self.draupnir.args.draupnir_version == "1nbA":
-                if self.draupnir.args.prior_experiment == "5":
+                if self.draupnir.args.prior_experiment == "0":
+                    print("reached here")
+                    return self.guide_not_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
+                                                batch_blosum=None, map_estimates=map_estimates)
+                elif self.draupnir.args.prior_experiment == "5":
                     return self.guide_batch_experiment5(datasets,
                                                         patristic_matrix,
                                                         patristic_matrix_eval,
                                                         data_blosum,
                                                         batch_blosum=None,
-                                                        map_estimates=map_estimates)
+                                                        map_estimates=map_estimates) #in the guide the batched and non batched look the same
             else: #classic guide
                 return self.guide_not_batch(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
                                         batch_blosum=None,map_estimates=map_estimates)
@@ -181,6 +188,37 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
+                "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
+                "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                }
+
+    def guide_not_batch_experiment0(self,datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum=None,map_estimates=None):
+        """
+        :param tensor data_blosum here is the ENTIRE data encoded in blosum vector form instead of integers ---> EQUAL to self.dataset_train_blosum
+        """
+        pyro.module("encoder", self.encoder)
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
+
+            #Highlight: embed the amino acids represented by their respective blosum scores (data_blosim=self.dataset_train_blosum)
+            aminoacid_sequences = self.embeddingencoder(self.dataset_train_blosum) #remember for the corals the aa_prob is 24 #TODO: Change to datasets["blosum"]
+
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            encoder_output = self.encoder(aminoacid_sequences,encoder_h_0) #[n,z_dim]
+            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+
+            eps_z = pyro.sample("eps_z", dist.Normal(z_loc.T, z_scale.T).to_event(2))  # [n,z_dim]
+
+            assert eps_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0], )
+
+
+        return {
+                "z_loc": z_loc,
+                "z_scale": z_scale,
+                "eps_z": eps_z,
                 "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
@@ -391,10 +429,8 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("embeddingsencoder", self.embeddingencoder)
         # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
 
-
         log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd).expand_by([1]))  # characteristic length-scale
         #log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
-
         with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
             # Highlight: embed the amino acids represented by their respective blosum scores

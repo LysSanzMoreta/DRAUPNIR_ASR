@@ -509,7 +509,9 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_full
     elif args.draupnir_version != "1" and args.batch_size > 1:
         if args.use_blosum:
-            raise ValueError("Not implemented other models with blosum and not classic formula yet")
+            draupnir_dict = {
+                "1bB": DraupnirModels.DRAUPNIRModel_classic_batching_1bB
+            }
         else:
             print("batch size",args.batch_size)
             draupnir_dict= {
@@ -522,13 +524,15 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
                         "5": DraupnirModels.DRAUPNIRModel_miniRNN_batching_no_blosum
                         }
         if not args.draupnir_version in draupnir_dict.keys():
-            raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = {args.batch_size}, perhaps for batch_size == 1")
+            raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = {args.batch_size} and blosum {args.use_blosum}, perhaps for batch_size == 1 or change blosum usage ")
         Draupnir = draupnir_dict[args.draupnir_version](model_load)
         patristic_matrix_model = patristic_matrix_train
 
     elif args.draupnir_version != "1" and args.batch_size == 1:
         if args.use_blosum:
-            raise ValueError("Not implemented other models with blosum and not classic formula yet")
+            draupnir_dict = {
+                "1nbA": DraupnirModels.DRAUPNIRModel_classic_1nbA,
+            }
         else:
             draupnir_dict= {
                         "1nbA": DraupnirModels.DRAUPNIRModel_classic_no_blosum_1nbA,
@@ -1240,6 +1244,7 @@ def draupnir_train(train_load,
                    "map_estimates":map_estimates,
                    "guide":guide}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input, svi_model_no_obs)
+
 
     ######################
     ####Training Loop#####
