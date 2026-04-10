@@ -177,10 +177,6 @@ class DRAUPNIRModelClass(nn.Module):
 
         L = self.coloring_pca(OU_covariance)
         eps_z = pyro.sample("eps_z", dist.Normal(0, 1).expand_by([self.z_dim, self.n_leaves_batch]))  # adds some noise to each of the leaves?
-        print("eps_z shape", eps_z.shape)
-        print("ou covar shape",OU_covariance.shape)
-        print("l shape", L.shape)
-
         latent_space = torch.matmul(L, eps_z[:,:,None]).squeeze(-1)
 
         assert latent_space.shape == (self.z_dim,self.n_leaves)
@@ -211,7 +207,7 @@ class DRAUPNIRModelClass(nn.Module):
         #D_max = patristic_matrix.max()
         #log_lambd = pyro.sample("log_lambda", dist.Normal(torch.log(D_max / 2), 1.0).expand_by([1]))
         #log_lambd = pyro.sample("log_lambda", dist.Beta(0.5, 0.5).expand_by([1]))
-        log_lambd = pyro.sample("log_lambda", dist.Normal(0.5, 8).expand_by([1]))
+        log_lambd = pyro.sample("log_lambd", dist.Normal(0.5, 8).expand_by([1]))
         lambd = torch.exp(log_lambd)
 
         lambd = DraupnirUtils.squeeze_tensor(1,lambd)
@@ -323,17 +319,14 @@ class DRAUPNIRModelClass(nn.Module):
         OU_covariance = OUKernel_Fast_experiment(None, None, None,kernel_type="0").forward(patristic_matrix)  # [n_leaves,n_leaves ]
         OU_covariance = DraupnirUtils.squeeze_tensor(2, OU_covariance)
 
-        OU_mean = torch.zeros((patristic_matrix.shape[0],)).unsqueeze(0)
+        L = self.coloring_pca(OU_covariance)
+        eps_z = pyro.sample("eps_z", dist.Normal(0, 1).expand_by([self.z_dim, self.n_leaves_batch]))  # adds some noise to each of the leaves?
+        latent_space = torch.matmul(L, eps_z[:,:,None]).squeeze(-1)
 
-        assert OU_covariance.shape == (self.z_dim, self.n_leaves_batch, self.n_leaves_batch), f"Expected shape: ({self.z_dim},{self.n_leaves_batch},{self.n_leaves_batch}), got ({OU_covariance.shape})"
-        assert OU_mean.shape == (1,self.n_leaves_batch)
+        assert latent_space.shape == (self.z_dim,self.n_leaves)
 
-        latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
-        latent_space = latent_space.T
 
-        assert latent_space.shape == (self.n_leaves_batch,self.z_dim)
-
-        return {"latent_space": latent_space,"covariance": OU_covariance}
+        return {"latent_space": latent_space.T,"covariance": OU_covariance}
     def gp_prior_batched_experiment1(self,patristic_matrix_sorted,map_estimates=None):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         # Highlight; OU kernel parameters #TODO: Add noise to OU parameters to avoid error in cholesky decomposition
@@ -436,7 +429,7 @@ class DRAUPNIRModelClass(nn.Module):
         "Computes a Gaussian prior over the latent space. The Gaussian prior consists of a Ornstein - Ulenbeck kernel that uses the patristic distances to build a covariance matrix"
         patristic_matrix = patristic_matrix_sorted[1:, 1:]  # [n_leaves_batch,n_leaves_batch]
         D_max = patristic_matrix.max()
-        log_lambd = pyro.sample("log_lambda", dist.Normal(torch.log(D_max / 2), 1.0).expand_by([1]))
+        log_lambd = pyro.sample("log_lambd", dist.Normal(torch.log(D_max / 2), 1.0).expand_by([1]))
         lambd = torch.exp(log_lambd)
 
         lambd = DraupnirUtils.squeeze_tensor(1,lambd)
@@ -1590,8 +1583,13 @@ class DRAUPNIRModel_classic_1nbA(DRAUPNIRModelClass): #not batching + experiment
             out_prediction_dict = self.conditional_sampling(map_estimates,patristic_matrix)
             latent_space,covariance, internal_idx = out_prediction_dict["latent_space"],out_prediction_dict["covariance"], out_prediction_dict["internal_idx"]
             n_nodes = self.n_internal #I had to split it up because of some weird data cases (coral), otherwise family_data_test.shape[0] would have sufficed
-            covariance = covariance[internal_idx]
-            covariance = covariance[:,internal_idx]
+
+            if covariance.ndim > 2:
+                covariance = covariance[:,internal_idx]
+                covariance = covariance[:,:,internal_idx]
+            else:
+                covariance = covariance[internal_idx]
+                covariance = covariance[:,internal_idx]
 
         else:
             if "eps_z" in map_estimates.keys():
