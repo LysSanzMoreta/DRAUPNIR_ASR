@@ -145,7 +145,6 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         else:
             if self.draupnir.args.draupnir_version == "1nbA":
                 if self.draupnir.args.prior_experiment == "0":
-                    print("reached hereeeee")
                     return self.guide_not_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
                                                 batch_blosum=None, map_estimates=map_estimates)
                 elif self.draupnir.args.prior_experiment == "5":

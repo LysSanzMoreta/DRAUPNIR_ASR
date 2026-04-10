@@ -308,6 +308,8 @@ class DRAUPNIRModelClass(nn.Module):
         latent_space = pyro.sample('latent_z', dist.MultivariateNormal(OU_mean, OU_covariance ).to_event(1)) #[z_dim=30,n_nodes] #+ noise[None,:,:]
         latent_space = latent_space.T
 
+        print("latet_space shape",print(latent_space.shape))
+
         assert latent_space.shape == (self.n_leaves, self.z_dim)
 
         return {"latent_space": latent_space, "covariance": OU_covariance}

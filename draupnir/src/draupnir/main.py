@@ -904,56 +904,60 @@ def start_sampling(args,
     save_samples(train_load.dataset_train, train_load.patristic_matrix_train, sample_out_train_argmax, train_entropies,additional_load.correspondence_dict,"{}/train_argmax_info_dict.torch".format(args.results_dir + "/Train_argmax_Plots"))
 
 
-    visualize_latent_space(sample_out_train_argmax.latent_space,
-                           sample_out_test_argmax.latent_space,
-                           train_load.patristic_matrix_train.detach().cpu(),
-                           test_load.patristic_matrix_test.detach().cpu(),
-                           additional_load,
-                           build_config,
-                           args,
-                           args.results_dir)
-    visualize_latent_space(sample_out_train_argmax.latent_space,
-                           sample_out_test_argmax2.latent_space,
-                           train_load.patristic_matrix_train.detach().cpu(),
-                           test_load.patristic_matrix_test.detach().cpu(),
-                           additional_load,
-                           build_config,
-                           args,
-                           "{}/Test2_Plots".format(args.results_dir))
+    if args.make_plots:
+        visualize_latent_space(sample_out_train_argmax.latent_space,
+                               sample_out_test_argmax.latent_space,
+                               train_load.patristic_matrix_train.detach().cpu(),
+                               test_load.patristic_matrix_test.detach().cpu(),
+                               additional_load,
+                               build_config,
+                               args,
+                               args.results_dir)
+        visualize_latent_space(sample_out_train_argmax.latent_space,
+                               sample_out_test_argmax2.latent_space,
+                               train_load.patristic_matrix_train.detach().cpu(),
+                               test_load.patristic_matrix_test.detach().cpu(),
+                               additional_load,
+                               build_config,
+                               args,
+                               "{}/Test2_Plots".format(args.results_dir))
 
-    if settings_config.one_hot_encoding: #TODO: has not been checked, simply change the model to have OneHotCategorical
-        print("Transforming one-hot back to integers")
-        sample_out_train = transform_to_integers(sample_out_train,build_config)
-        # sample_out_train_argmax = transform_to_integers(sample_out_train_argmax) #argmax sets directly the aa to the highest logit
-        sample_out_test = transform_to_integers(sample_out_test,build_config)
-        # sample_out_test_argmax = transform_to_integers(sample_out_test_argmax)
-        sample_out_test2 = transform_to_integers(sample_out_test2,build_config)
-        # sample_out_test_argmax2 = transform_to_integers(sample_out_test_argmax2)
-        dataset_train = DraupnirUtils.convert_to_integers(train_load.dataset_train.cpu(), build_config.aa_probs, axis=2)
-        if build_config.leaves_testing:  # TODO: Check that this works, when one hot encoding is fixed
-            dataset_test = DraupnirUtils.convert_to_integers(test_load.dataset_test.cpu(), build_config.aa_probs,
-                                                           axis=2)  # no need to do it with the test of the simulations, never was one hot encoded. Only for when we are testing leaves
+        if settings_config.one_hot_encoding: #TODO: has not been checked, simply change the model to have OneHotCategorical
+            print("Transforming one-hot back to integers")
+            sample_out_train = transform_to_integers(sample_out_train,build_config)
+            # sample_out_train_argmax = transform_to_integers(sample_out_train_argmax) #argmax sets directly the aa to the highest logit
+            sample_out_test = transform_to_integers(sample_out_test,build_config)
+            # sample_out_test_argmax = transform_to_integers(sample_out_test_argmax)
+            sample_out_test2 = transform_to_integers(sample_out_test2,build_config)
+            # sample_out_test_argmax2 = transform_to_integers(sample_out_test_argmax2)
+            dataset_train = DraupnirUtils.convert_to_integers(train_load.dataset_train.cpu(), build_config.aa_probs, axis=2)
+            if build_config.leaves_testing:  # TODO: Check that this works, when one hot encoding is fixed
+                dataset_test = DraupnirUtils.convert_to_integers(test_load.dataset_test.cpu(), build_config.aa_probs,
+                                                               axis=2)  # no need to do it with the test of the simulations, never was one hot encoded. Only for when we are testing leaves
 
-    send_to_plot(train_load.dataset_train.detach().cpu(),
-                     test_load.dataset_test.detach().cpu(),
-                     train_load.patristic_matrix_train.detach().cpu(),
-                     test_load.patristic_matrix_test.detach().cpu(),
-                     train_entropies.detach().cpu(),
-                     test_entropies.detach().cpu(),
-                     test_entropies2.detach().cpu(),
-                     sample_out_train,
-                     sample_out_train_argmax,
-                     sample_out_test,
-                     sample_out_test_argmax,
-                     sample_out_test2,
-                     sample_out_test_argmax2,
-                     additional_load,
-                     additional_info,
-                     build_config,
-                     args,
-                     model_load,
-                     map_estimates
-                 )
+
+        send_to_plot(train_load.dataset_train.detach().cpu(),
+                         test_load.dataset_test.detach().cpu(),
+                         train_load.patristic_matrix_train.detach().cpu(),
+                         test_load.patristic_matrix_test.detach().cpu(),
+                         train_entropies.detach().cpu(),
+                         test_entropies.detach().cpu(),
+                         test_entropies2.detach().cpu(),
+                         sample_out_train,
+                         sample_out_train_argmax,
+                         sample_out_test,
+                         sample_out_test_argmax,
+                         sample_out_test2,
+                         sample_out_test_argmax2,
+                         additional_load,
+                         additional_info,
+                         build_config,
+                         args,
+                         model_load,
+                         map_estimates
+                     )
+
+    return True
 
 def draupnir_sample(train_load,
                     test_load,
@@ -1079,7 +1083,7 @@ def draupnir_sample(train_load,
     blocks_train = DraupnirModelsUtils.intervals(n_train_seqs // build_config.batch_size, n_train_seqs) if build_config.batch_size > 1 else None
 
     print("Generating new samples!...")
-    start_sampling(args,
+    out = start_sampling(args,
                    train_load,
                    test_load,
                    additional_load,
@@ -1096,6 +1100,9 @@ def draupnir_sample(train_load,
                    model_load,
                    blocks_train
                    )
+    print("out", out)
+
+    return out
 
 def draupnir_train(train_load,
                    test_load,
@@ -1412,7 +1419,7 @@ def draupnir_train(train_load,
     #DraupnirUtils.GradientsPlot(gradient_norms, args.num_epochs, results_dir) #Highlight: Very cpu intensive to compute
     print("Final Sampling....")
     warnings.warn("With delta_map guide (Test folder results = Marginal) != (Test2 folder results = MAP)")
-    start_sampling(args,
+    out = start_sampling(args,
                    train_load,
                    test_load,
                    additional_load,
@@ -1428,6 +1435,7 @@ def draupnir_train(train_load,
                    settings_config,
                    model_load,
                    blocks_train=None)
+    return out
 
 
 
@@ -1771,7 +1779,7 @@ def draupnir_train_batching(train_load,
     print("Sampling is also divided in batches")
 
 
-    start_sampling(args,
+    out = start_sampling(args,
                    train_load,
                    test_load,
                    additional_load,
@@ -1788,6 +1796,8 @@ def draupnir_train_batching(train_load,
                    model_load,
                    blocks_train,
                    )
+
+    return out
 
 
 
@@ -2275,6 +2285,8 @@ def draupnir_train_batch_by_clade(train_load,
                  sample_out_test2, sample_out_test_argmax2,
                  additional_load, additional_info, build_config, args, model_load, None)
 
+    return True
+
 
 
 def send_to_plot(dataset_train,
@@ -2686,7 +2698,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     #graph_coo = additional_info.graph_coo
     if args.generate_samples: #TODO: generate samples by batch for large data sets
         print("Generating samples not training!")
-        draupnir_sample(train_load,
+        out = draupnir_sample(train_load,
                         test_load,
                         additional_load,
                         additional_info,
@@ -2703,7 +2715,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
     elif args.batch_size in [None] or int(args.batch_size) > 1:
         print("Batching, splits the OU stochastic process, no guarantee on latent space with tree structure")
         if args.batch_by_clade:
-            draupnir_train_batch_by_clade(train_load,
+            out = draupnir_train_batch_by_clade(train_load,
                         test_load,
                         additional_load,
                         additional_info,
@@ -2717,7 +2729,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
                         graph_coo,
                         clades_dict)
         else:
-            draupnir_train_batching(train_load,
+            out = draupnir_train_batching(train_load,
                         test_load,
                         additional_load,
                         additional_info,
@@ -2732,7 +2744,7 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
                         clades_dict)
     else:
         print("Training Draupnir with the entire tree at once, not batching")
-        draupnir_train(train_load,
+        out = draupnir_train(train_load,
                        test_load,
                        additional_load,
                        additional_info,
@@ -2745,6 +2757,8 @@ def run(root_sequence_name,args,settings_config,build_config,script_dir):
                        results_dir,
                        graph_coo,
                        clades_dict)
+
+    return out
 
 
 

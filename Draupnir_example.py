@@ -26,11 +26,47 @@ else:#pip installed module
 from draupnir import str2bool,str2None
 print("Loading draupnir module from {}".format(draupnir.__file__))
 
-def main():
+def general_setup(parser):
+
+
+    if isinstance(parser,argparse.ArgumentParser):
+        args = parser.parse_args()
+    else:
+        args = parser
+
+    if args.use_cuda:
+        #torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+        torch.set_default_dtype(torch.float64)
+
+        if torch.cuda.is_available():
+            device = "cuda"
+            torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+        else:
+            device= "cpu"
+            raise warnings.warn("Cuda not found, falling back to cpu")
+        torch.set_default_device(device)
+    else:
+        torch.set_default_tensor_type(torch.DoubleTensor)
+        device = "cpu"
+
+    num_threads = torch.get_num_threads()
+    print(f"Current number of threads: {num_threads}")
+
+    torch.set_num_threads(4)
+    args.__dict__["device"] = device
+    #pyro.set_rng_seed(0) # torch is already running with different seeds
+    #torch.manual_seed(0)
+    pyro.enable_validation(False)
+
+    return args
+
+def main(args):
     """Executes the Draupnir pipeline:
     a) Generate a dataset in the appropiate form
     b) Run Draupnir model and generate results
     c) Produce additional results with the output from the -run- step"""
+
+    args = general_setup(args)
 
 
     draupnir.available_datasets(print_dict=True)
@@ -75,7 +111,9 @@ def main():
 
 
     #Highlight: Runs draupnir
-    draupnir.run(root_sequence_name,args,settings_config,build_config,script_dir)
+    out = draupnir.run(root_sequence_name,args,settings_config,build_config,script_dir)
+
+    print("Done!!!!!!!")
 
     # Highlight: Calculate mutual information---> Only use AFTER at least the model has been run at least once with the variational guide
     run_mutual_information = False
@@ -85,6 +123,8 @@ def main():
                                               draupnir_folder_variational = ".../DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h23min14s337405ms_5epochs_variational", #example
                                               draupnir_folder_MAP=".../DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map",
                                               draupnir_folder_marginal=".../DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_1_2022_03_22_20h19min54s739903ms_5epochs_delta_map")
+
+    return out
 
 if __name__ == "__main__":
 
@@ -231,30 +271,32 @@ if __name__ == "__main__":
     parser.add_argument('-activate-entropy-convergence', default=False, type=bool, help='extends the running time until a convergence criteria in the sequence entropy is met')
     parser.add_argument('-d', '--config-dict', default=None,type=str, help="Used with parameter search")
     parser.add_argument('--parameter-search', type=str2bool, default=False, help="Activates a mini grid search for parameter search. TODO: Improve") #TODO: Change to something that makes more sense
+    parser.add_argument('--make-plots', type=str2bool, default=True, help="Post-training plots") #TODO: Change to something that makes more sense
 
-    args = parser.parse_args()
-    if args.use_cuda:
-        #torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-        torch.set_default_dtype(torch.float64)
 
-        if torch.cuda.is_available():
-            device = "cuda"
-            torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-        else:
-            device= "cpu"
-            raise warnings.warn("Cuda not found, falling back to cpu")
-        torch.set_default_device(device)
-    else:
-        torch.set_default_tensor_type(torch.DoubleTensor)
-        device = "cpu"
+    # args = parser.parse_args()
+    # if args.use_cuda:
+    #     #torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+    #     torch.set_default_dtype(torch.float64)
+    #
+    #     if torch.cuda.is_available():
+    #         device = "cuda"
+    #         torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+    #     else:
+    #         device= "cpu"
+    #         raise warnings.warn("Cuda not found, falling back to cpu")
+    #     torch.set_default_device(device)
+    # else:
+    #     torch.set_default_tensor_type(torch.DoubleTensor)
+    #     device = "cpu"
+    #
+    # num_threads = torch.get_num_threads()
+    # print(f"Current number of threads: {num_threads}")
+    #
+    # torch.set_num_threads(4)
+    # args.__dict__["device"] = device
+    # #pyro.set_rng_seed(0) # torch is already running with different seeds
+    # #torch.manual_seed(0)
+    # pyro.enable_validation(False)
 
-    num_threads = torch.get_num_threads()
-    print(f"Current number of threads: {num_threads}")
-
-    torch.set_num_threads(4)
-    args.__dict__["device"] = device
-    #pyro.set_rng_seed(0) # torch is already running with different seeds
-    #torch.manual_seed(0)
-    pyro.enable_validation(False)
-
-    main()
+    main(parser)
