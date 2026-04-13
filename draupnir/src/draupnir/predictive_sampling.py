@@ -52,7 +52,7 @@ def predictive_test_full_train_full_delta_map(args,
         latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
         logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len, build_config.aa_probs)).detach().cpu()
 
-        if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
+        if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
             covariance_test_samples = torch.zeros((args.n_samples, n_seq_test, n_seq_test))
         else:
             covariance_test_samples = torch.zeros((args.n_samples, args.z_dim, n_seq_test, n_seq_test))
@@ -221,7 +221,7 @@ def predictive_test_full_train_full_variational(args,
     latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len, build_config.aa_probs)).detach().cpu()
 
-    if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
+    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -373,7 +373,7 @@ def predictive_test_batched_train_full_ATTEMPT1(args,
 
 
 
-    if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
+    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -576,7 +576,7 @@ def predictive_test_batched_train_full_ATTEMPT2(args,
     latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len,build_config.aa_probs)).detach().cpu()
 
-    if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
+    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -798,7 +798,7 @@ def predictive_test_batched_train_full(args,
     latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len,build_config.aa_probs)).detach().cpu()
 
-    if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
+    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -995,7 +995,7 @@ def predictive_test_batched_train_batched(args,
     # batch_test = test_load.dataset_test[batch_idx_test[0]:batch_idx_test[1]] if batch_idx_test[1] is not None else test_load.dataset_test[batch_idx_test[0]:]
 
 
-    if args.prior_experiment in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
+    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
         covariance_train_samples = torch.zeros((args.n_samples,n_train_leaves,n_train_leaves)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_test_internal,n_test_internal)).detach().cpu()
     else:

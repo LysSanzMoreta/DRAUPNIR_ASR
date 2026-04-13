@@ -565,27 +565,6 @@ def infer_alignment(alignment_file,input_name_file,output_name_file):
         alignment_seqs = [alignment[i].seq for i, aligned in enumerate(alignment)]
         dict_alignment = dict(zip(alignment_ids, alignment_seqs))
         return dict_alignment, alignment
-def calculate_pairwise_distance_old(name,alignment,storage_folder):
-    """Calculates the pairwise distance matrix accross the sequences in the alignment
-    :param str name: data set project name
-    :param biopython alignment object: object containing aligned sequences
-    :param str storage_folder: path where to store the calculated pairwise matrix"""
-    print("Building pairwise distance matrix ...")
-    if len(alignment) <= 200: #very slow method
-        calculator = DistanceCalculator('identity')
-        distance_matrix_biopython = calculator.get_distance(alignment)
-        distance_df = pd.DataFrame(index=distance_matrix_biopython.names, columns=distance_matrix_biopython.names)
-        distance_df = distance_df.fillna(0)
-        for i, t1 in enumerate(distance_matrix_biopython.names):
-            for j, t2 in enumerate(list(distance_matrix_biopython.names)[i + 1:]):
-                distance_df.loc[[t1], [t2]] = distance_matrix_biopython[t1,t2]
-                distance_df.loc[[t2], [t1]] = distance_matrix_biopython[t1,t2]
-        distance_df.to_csv("{}/{}_pairwise_distance_matrix.csv".format(storage_folder,name))
-
-    else: #TODO: faster implementation---> it's done elsewhere
-        print("Finish implementing for larger datasets")
-        #Highlight: Turn alignment into numpy array, vectorize to numbers, computer pairwise in fast manner
-        pass
 def calculate_pairwise_distance(name,dataset,storage_folder,file_suffix,batched=False):
         """calculates the pairwise distances between each of the aligned sequences
            :param str name: dataset name
@@ -612,7 +591,6 @@ def calculate_pairwise_distance(name,dataset,storage_folder,file_suffix,batched=
             pairwise_sim_df.to_csv(pairwise_dist_file)
         else:
             print(f"File {pairwise_dist_file} already exists, not re-calculating pairwise distances. Please delete the file if you want recalculate the distances")
-
 def calculate_patristic_cladistic_fast(tree,nodes_and_leafs_names):
     """Parallel implementation of the patristic and cladistic matrices calculations"""
     #nodes_and_leafs_names = [node.name for node in tree.traverse()]

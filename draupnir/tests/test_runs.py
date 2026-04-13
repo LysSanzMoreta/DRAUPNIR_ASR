@@ -11,20 +11,27 @@ sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR")
 from Draupnir_example import main as DraupnirMain
 
 test_cases = [
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","prior_experiment": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","prior_experiment": "0"}, #fails
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","prior_experiment": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","prior_experiment": "0"}, #fails latent space shape
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
+
+
+
+
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"}, #fails latent space shape
         # #non batched experiments
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1nbA","prior_experiment": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1nbA","prior_experiment": "0"}, #fails covariance
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "5"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "5"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1nbA","covariance_prior": "0"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1nbA","covariance_prior": "0"}, #fails covariance
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
         # # batched experiments
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "0"}, #fails
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "5"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","prior_experiment": "5"}, # passes
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "0"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "0"}, #fails
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
+        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"}, # passes
         # sampling from checkpoint
 ]
 
@@ -58,7 +65,7 @@ def test_start(case):
                      generate_samples=False,
                      leaf_embeddings=None,
                      draupnir_version=case["draupnir_version"],
-                     prior_experiment=case["prior_experiment"],
+                     covariance_prior=case["covariance_prior"],
                      one_hot_encoded=False,
                      use_align_seq=True,
                      batch_by_clade=False,

@@ -39,21 +39,21 @@ class DRAUPNIRGUIDES(EasyGuide):
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
         if self.draupnir.args.draupnir_version in ["1bB","1nbA"]:
-            if self.draupnir.args.prior_experiment == "0":
+            if self.draupnir.args.covariance_prior == "0":
                 pass
-            elif self.draupnir.args.prior_experiment == "1":
+            elif self.draupnir.args.covariance_prior == "1":
                 self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
                 self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
-            elif self.draupnir.args.prior_experiment == "2":
+            elif self.draupnir.args.covariance_prior == "2":
                 self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]), constraint=constraints.positive,event_dim=0)  # constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
                 self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
                 self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
                 self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
-            elif self.draupnir.args.prior_experiment == "3":
+            elif self.draupnir.args.covariance_prior == "3":
                 self.rho = PyroParam(dist.Beta(8,2).sample([self.draupnir.z_dim]),constraint=constraints.unit_interval, event_dim=0)
-            elif self.draupnir.args.prior_experiment == "4":
+            elif self.draupnir.args.covariance_prior == "4":
                 self.rho = PyroParam(torch.tensor(0.8),constraint=constraints.unit_interval, event_dim=0)
-            elif self.draupnir.args.prior_experiment == "5":
+            elif self.draupnir.args.covariance_prior == "5":
 
                 self.log_lambd = PyroParam(torch.tensor([0.]), event_dim=0)
 
@@ -112,27 +112,27 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
             else:
 
                 if self.draupnir.args.draupnir_version in ["1bB"]:
-                    if self.draupnir.args.prior_experiment == "0":
+                    if self.draupnir.args.covariance_prior == "0":
                         return self.guide_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    if self.draupnir.args.prior_experiment == "1":
+                    if self.draupnir.args.covariance_prior == "1":
                         return self.guide_batch_experiment1(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    elif self.draupnir.args.prior_experiment == "2":
+                    elif self.draupnir.args.covariance_prior == "2":
                         return self.guide_batch_experiment2(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    elif self.draupnir.args.prior_experiment == "3":
+                    elif self.draupnir.args.covariance_prior == "3":
                         return self.guide_batch_experiment3(datasets,
                                                             patristic_matrix,
                                                             patristic_matrix_eval,
                                                             data_blosum,
                                                             batch_blosum=None,
                                                             map_estimates=map_estimates)
-                    elif self.draupnir.args.prior_experiment == "4":
+                    elif self.draupnir.args.covariance_prior == "4":
                         return self.guide_batch_experiment4(datasets,
                                                             patristic_matrix,
                                                             patristic_matrix_eval,
                                                             data_blosum,
                                                             batch_blosum=None,
                                                             map_estimates=map_estimates)
-                    elif self.draupnir.args.prior_experiment == "5":
+                    elif self.draupnir.args.covariance_prior == "5":
                         return self.guide_batch_experiment5(datasets,
                                                             patristic_matrix,
                                                             patristic_matrix_eval,
@@ -144,10 +144,10 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                                                 batch_blosum=None,map_estimates=map_estimates)
         else:
             if self.draupnir.args.draupnir_version == "1nbA":
-                if self.draupnir.args.prior_experiment == "0":
+                if self.draupnir.args.covariance_prior == "0":
                     return self.guide_not_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
                                                 batch_blosum=None, map_estimates=map_estimates)
-                elif self.draupnir.args.prior_experiment == "5":
+                elif self.draupnir.args.covariance_prior == "5":
                     return self.guide_batch_experiment5(datasets,
                                                         patristic_matrix,
                                                         patristic_matrix_eval,

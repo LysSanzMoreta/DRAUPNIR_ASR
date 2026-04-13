@@ -146,7 +146,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=10, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -225,13 +225,13 @@ if __name__ == "__main__":
     parser.add_argument('--leaf-embeddings', type=str2None, nargs='?',
                         default=None,
                         help='Path to dataframe containing pre-computed embeddings for the leaf sequences (i.e ESM embeddings)') #TODO: IMPLEMENT? ESM is dead, not sure about esm3
-    parser.add_argument('-draupnir-version', default="1nbA", type=str,
+    parser.add_argument('-draupnir-version', default="1", type=str,
                         help='Draupnir version.'
                              '1: first version as published (not batching) and the batched version'
-                             '1bA: experiments with draupnir model batched 1 decoder & encoder communication' #todo: remove
+                             '1bA: experiments with draupnir model batched 1 decoder & encoder communication' #todo: remove?
                              
-                             '1bB: experimental priors over the batched version with no blosum help' #todo: make version with blosum as well
-                             '1nbA: experimental priors over the NON-batched version with no blosum help' #todo: make version with blosum as well
+                             '1bB: experimental priors over the batched version with no blosum help' #todo: remove
+                             '1nbA: experimental priors over the NON-batched version with no blosum help' #todo: remove
                              
                              '2: transformer attempt'
                              '3a: pre-computed latent representation from ESM embeddings'
@@ -240,12 +240,14 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
 
                         )
-    parser.add_argument('-prior-experiment', '--prior-experiment', type=str, default="0", help="0: no hyperparameters for the OU kernel, not working"
-                                                                                               "1: removed alpha and sigma_n \n"
-                                                                           "2: classic prior but tiled ou parameters,\n "
-                                                                           "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
-                                                                           "4: only lambda + cholesky decomposition \n "
-                                                                          "5: different priors over the lambda parameter")
+    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="og", help= "Kernel function used to compute the covariance matrix of the OU process"
+                                                                            "og: Original prior with 3 parameters (sigma_n, sigma_f, lambda) to build a psd"
+                                                                            "0: no hyperparameters for the OU kernel, svd decompositions"
+                                                                            "1: removed alpha and sigma_n \n"
+                                                                            "2: classic prior but tiled ou parameters,\n "
+                                                                            "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
+                                                                            "4: only lambda + cholesky decomposition \n "
+                                                                            "5: different priors over the lambda parameter + cholesky decomposition to build a psd")
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '
