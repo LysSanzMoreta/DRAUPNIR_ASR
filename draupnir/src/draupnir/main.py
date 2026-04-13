@@ -11,7 +11,6 @@ import time
 import warnings
 from collections import namedtuple
 from operator import itemgetter
-
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -509,14 +508,10 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
             patristic_matrix_model = patristic_matrix_full
     elif args.draupnir_version != "1" and args.batch_size > 1:
         if args.use_blosum:
-            draupnir_dict = {
-                "1bB": DraupnirModels.DRAUPNIRModel_classic_batching_1bB
-            }
+            raise ValueError("Not available")
         else:
             print("batch size",args.batch_size)
             draupnir_dict= {
-                        "1bA": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum_1bA,
-                        "1bB": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum_1bB,
                         "2": DraupnirModels.DRAUPNIRModel_transformer_batching_no_blosum,
                         "3a": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum,
                         "3b": DraupnirModels.DRAUPNIRModel_classic_batching_no_blosum,
@@ -525,22 +520,6 @@ def save_and_select_model(args,build_config, model_load, patristic_matrix_train,
                         }
         if not args.draupnir_version in draupnir_dict.keys():
             raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = {args.batch_size} and blosum {args.use_blosum}, perhaps for batch_size == 1 or change blosum usage ")
-        Draupnir = draupnir_dict[args.draupnir_version](model_load)
-        patristic_matrix_model = patristic_matrix_train
-
-    elif args.draupnir_version != "1" and args.batch_size == 1:
-        if args.use_blosum:
-            draupnir_dict = {
-                "1nbA": DraupnirModels.DRAUPNIRModel_classic_1nbA,
-            }
-        else:
-            draupnir_dict= {
-                        "1nbA": DraupnirModels.DRAUPNIRModel_classic_no_blosum_1nbA,
-                        }
-
-        if not args.draupnir_version in draupnir_dict.keys():
-            raise ValueError(f"Version {args.draupnir_version} does not exist for batch_size = 1, perhaps for batch_size > 1")
-
         Draupnir = draupnir_dict[args.draupnir_version](model_load)
         patristic_matrix_model = patristic_matrix_train
 

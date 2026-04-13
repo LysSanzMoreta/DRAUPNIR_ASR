@@ -1095,6 +1095,28 @@ class SVIEngine(Engine):
     def _update(self, engine, batch):
         return -engine.svi.step(batch, **self._step_args)
 
+
+class PottsNN(nn.Module):
+    def __init__(self, feat_dim, K):
+        super().__init__()
+        self.K = K
+        self.unary = torch.nn.Linear(feat_dim, K)
+        self.pairwise = torch.nn.Linear(feat_dim, K * K)
+
+    def forward(self, x):
+        # x: [N, L, feat_dim]
+        N, L, D = x.shape
+
+        # Unary logits: [N, L, K]
+        h = self.unary(x)
+
+        # Pairwise logits (simple shared form)
+        pw = self.pairwise(x)  # [N, L, K*K]
+        pw = pw.view(N, L, self.K, self.K)
+
+        return h, pw
+
+
 class OUKernel_SimulationFunctionalValuesTraits(GPKernel):
     """ Kernel that computes the covariance matrix for a z Ornstein Ulenbeck processes. As stated in Equation 2.1 https://arxiv.org/pdf/1208.0628.pdf
     :param tensor sigma_f: Quantifies the intensity of inherited variation ---> Signal variance

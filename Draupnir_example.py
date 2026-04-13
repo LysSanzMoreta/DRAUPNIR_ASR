@@ -248,6 +248,11 @@ if __name__ == "__main__":
                                                                             "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
                                                                             "4: only lambda + cholesky decomposition \n "
                                                                             "5: different priors over the lambda parameter + cholesky decomposition to build a psd")
+
+    parser.add_argument('-likelihood-type', type=str, nargs='?', default=False,
+                        help='og:'
+                             'potts: ')
+
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
                         help='Build a one-hot-encoded dataset. Do not use, for now, Draupnir works with blosum-encoded and integers as amino acid representations, '
