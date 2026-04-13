@@ -198,7 +198,7 @@ if __name__ == "__main__":
                              'test_batched_train_full: The batched test is sampled conditionally on all the map estimates from the train leaves \n'
                              'test_batched_train_batched: The batched test is sampled conditionally on each of the train batches (slower, breaks some correlations, less memory consumption) '
                         )
-    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=True,help='Use blosum matrix average pre-computed embedding')
+    parser.add_argument('-use-blosum','--use-blosum', type=str2bool, nargs='?',default=False,help='Use blosum matrix average pre-computed embedding')
     parser.add_argument('-subs_matrix', default="BLOSUM62", type=str, help='blosum matrix to create blosum embeddings, choose one from https://github.com/biopython/biopython/tree/master/Bio/Align/substitution_matrices/data')
     parser.add_argument('-embedding-dim', default=50, type=int, help='Blosum embedding dim')
     parser.add_argument('-use-cuda', type=str2bool, nargs='?', default=True,
@@ -240,7 +240,7 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
 
                         )
-    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="og", help= "Kernel function used to compute the covariance matrix of the OU process"
+    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="5", help= "Kernel function used to compute the covariance matrix of the OU process"
                                                                             "og: Original prior with 3 parameters (sigma_n, sigma_f, lambda) to build a psd"
                                                                             "0: no hyperparameters for the OU kernel, svd decompositions"
                                                                             "1: removed alpha and sigma_n \n"

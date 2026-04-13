@@ -206,7 +206,7 @@ def load_data(name,settings_config,build_config,param_config,results_dir,script_
 
     hyperparameters()
 
-    if args.covariance_prior in ["0","3","4","5"] and args.draupnir_version in ["1bB","1nbA"]:
+    if args.covariance_prior in ["0","3","4","5"]: #and args.draupnir_version in ["1bB","1nbA"]:
         warnings.warn(f"Prior experiment is {args.covariance_prior} and draupnir version is {args.draupnir_version}. Loading ULTRAMETRIC tree/patristic distance")
         patristic_matrix = pd.read_csv("{}/{}_patristic_distance_matrix_ULTRAMETRIC.csv".format(settings_config.data_folder,name,name), low_memory=False)
     else:

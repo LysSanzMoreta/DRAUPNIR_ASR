@@ -38,31 +38,27 @@ class DRAUPNIRGUIDES(EasyGuide):
         else:
             self.h_0_GUIDE = nn.Parameter(torch.randn(self.draupnir.gru_hidden_dim), requires_grad=True).to(self.draupnir.device)
 
-        if self.draupnir.args.draupnir_version in ["1bB","1nbA"]:
-            if self.draupnir.args.covariance_prior == "0":
-                pass
-            elif self.draupnir.args.covariance_prior == "1":
-                self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
-                self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
-            elif self.draupnir.args.covariance_prior == "2":
-                self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]), constraint=constraints.positive,event_dim=0)  # constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
-                self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
-                self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
-                self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
-            elif self.draupnir.args.covariance_prior == "3":
-                self.rho = PyroParam(dist.Beta(8,2).sample([self.draupnir.z_dim]),constraint=constraints.unit_interval, event_dim=0)
-            elif self.draupnir.args.covariance_prior == "4":
-                self.rho = PyroParam(torch.tensor(0.8),constraint=constraints.unit_interval, event_dim=0)
-            elif self.draupnir.args.covariance_prior == "5":
-
-                self.log_lambd = PyroParam(torch.tensor([0.]), event_dim=0)
-
-
-        else:
+        if self.draupnir.args.covariance_prior == "og":
             self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]),constraint=constraints.positive,event_dim=0) #constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
             self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
             self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
             self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive,event_dim=0)
+        elif self.draupnir.args.covariance_prior == "0":
+            pass
+        elif self.draupnir.args.covariance_prior == "1":
+            self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
+            self.lambd = PyroParam(dist.Normal(torch.log(self.draupnir.tree_height/2),torch.Tensor([0.5])).sample([self.draupnir.z_dim]),constraint=constraints.positive, event_dim=0)
+        elif self.draupnir.args.covariance_prior == "2":
+            self.alpha = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([3]), constraint=constraints.positive,event_dim=0)  # constraint=constraints.interval(0., 10.)--->TODO:Event dimension??
+            self.sigma_n = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
+            self.sigma_f = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
+            self.lambd = PyroParam(dist.HalfNormal(torch.tensor([1.0])).sample([1]),constraint=constraints.positive,event_dim=0)
+        elif self.draupnir.args.covariance_prior == "3":
+            self.rho = PyroParam(dist.Beta(8,2).sample([self.draupnir.z_dim]),constraint=constraints.unit_interval, event_dim=0)
+        elif self.draupnir.args.covariance_prior == "4":
+            self.rho = PyroParam(torch.tensor(0.8),constraint=constraints.unit_interval, event_dim=0)
+        elif self.draupnir.args.covariance_prior == "5":
+            self.log_lambd = PyroParam(torch.tensor([0.]), event_dim=0)
 
 
         if self.draupnir.plating:
@@ -111,52 +107,80 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 return self.guide_batch_by_clade(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum)
             else:
 
-                if self.draupnir.args.draupnir_version in ["1bB"]:
-                    if self.draupnir.args.covariance_prior == "0":
-                        return self.guide_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    if self.draupnir.args.covariance_prior == "1":
-                        return self.guide_batch_experiment1(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    elif self.draupnir.args.covariance_prior == "2":
-                        return self.guide_batch_experiment2(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
-                    elif self.draupnir.args.covariance_prior == "3":
-                        return self.guide_batch_experiment3(datasets,
+                #if self.draupnir.args.draupnir_version in ["1bB"]:
+                #     if self.draupnir.args.covariance_prior == "0":
+                #         return self.guide_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                #     if self.draupnir.args.covariance_prior == "1":
+                #         return self.guide_batch_experiment1(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                #     elif self.draupnir.args.covariance_prior == "2":
+                #         return self.guide_batch_experiment2(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=map_estimates)
+                #     elif self.draupnir.args.covariance_prior == "3":
+                #         return self.guide_batch_experiment3(datasets,
+                #                                             patristic_matrix,
+                #                                             patristic_matrix_eval,
+                #                                             data_blosum,
+                #                                             batch_blosum=None,
+                #                                             map_estimates=map_estimates)
+                #     elif self.draupnir.args.covariance_prior == "4":
+                #         return self.guide_batch_experiment4(datasets,
+                #                                             patristic_matrix,
+                #                                             patristic_matrix_eval,
+                #                                             data_blosum,
+                #                                             batch_blosum=None,
+                #                                             map_estimates=map_estimates)
+                #     elif self.draupnir.args.covariance_prior == "5":
+                #         return self.guide_batch_experiment5(datasets,
+                #                                             patristic_matrix,
+                #                                             patristic_matrix_eval,
+                #                                             data_blosum,
+                #                                             batch_blosum=None,
+                #                                             map_estimates=map_estimates)
+                # else:
+                #     return self.guide_batch(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
+                #                                 batch_blosum=None,map_estimates=map_estimates)
+
+                self.guide_batched_dict = {
+                    "og": self.guide_batch,
+                    "0": self.guide_batch_experiment0,
+                    "1": self.guide_batch_experiment1,
+                    "2": self.guide_batch_experiment2,
+                    "3": self.guide_batch_experiment3,
+                    "4": self.guide_batch_experiment4,
+                    "5": self.guide_batch_experiment5,
+                }
+
+
+            return self.guide_batched_dict[self.draupnir.args.covariance_prior](datasets,
                                                             patristic_matrix,
                                                             patristic_matrix_eval,
                                                             data_blosum,
                                                             batch_blosum=None,
                                                             map_estimates=map_estimates)
-                    elif self.draupnir.args.covariance_prior == "4":
-                        return self.guide_batch_experiment4(datasets,
-                                                            patristic_matrix,
-                                                            patristic_matrix_eval,
-                                                            data_blosum,
-                                                            batch_blosum=None,
-                                                            map_estimates=map_estimates)
-                    elif self.draupnir.args.covariance_prior == "5":
-                        return self.guide_batch_experiment5(datasets,
-                                                            patristic_matrix,
-                                                            patristic_matrix_eval,
-                                                            data_blosum,
-                                                            batch_blosum=None,
-                                                            map_estimates=map_estimates)
-                else:
-                    return self.guide_batch(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
-                                                batch_blosum=None,map_estimates=map_estimates)
-        else:
-            if self.draupnir.args.draupnir_version == "1nbA":
-                if self.draupnir.args.covariance_prior == "0":
-                    return self.guide_not_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
-                                                batch_blosum=None, map_estimates=map_estimates)
-                elif self.draupnir.args.covariance_prior == "5":
-                    return self.guide_batch_experiment5(datasets,
-                                                        patristic_matrix,
-                                                        patristic_matrix_eval,
-                                                        data_blosum,
-                                                        batch_blosum=None,
-                                                        map_estimates=map_estimates) #in the guide the batched and non batched look the same
-            else: #classic guide
-                return self.guide_not_batch(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
-                                        batch_blosum=None,map_estimates=map_estimates)
+
+        else: #no batching
+            # if self.draupnir.args.draupnir_version == "1nbA":
+            #     if self.draupnir.args.covariance_prior == "0":
+            #         return self.guide_not_batch_experiment0(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
+            #                                     batch_blosum=None, map_estimates=map_estimates)
+            #     elif self.draupnir.args.covariance_prior == "5":
+            #         return self.guide_batch_experiment5(datasets,
+            #                                             patristic_matrix,
+            #                                             patristic_matrix_eval,
+            #                                             data_blosum,
+            #                                             batch_blosum=None,
+            #                                             map_estimates=map_estimates) #in the guide the batched and non batched look the same
+            # else: #classic guide
+            #     return self.guide_not_batch(datasets, patristic_matrix, patristic_matrix_eval, data_blosum,
+            #                             batch_blosum=None,map_estimates=map_estimates)
+
+
+            self.guide_dict = { "og": self.guide_not_batch,
+                                "0": self.guide_not_batch_experiment0,
+                                "5": self.guide_not_batch_experiment5, #in the guide the batched and non batched look the same
+                               }
+            assert self.draupnir.args.covariance_prior in self.guide_dict.keys(), "guide type not found"
+
+            return self.guide_dict[self.draupnir.args.covariance_prior](datasets, patristic_matrix, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=map_estimates)
 
     def guide_not_batch(self,datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum=None,map_estimates=None):
         """
@@ -218,11 +242,50 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         return {
                 "z_loc": z_loc,
                 "z_scale": z_scale,
-                "eps_z": eps_z,
+                "eps_z": eps_z, #we have to return it transposed for stacking the map estimates in the right dimensions
                 "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
                 }
+
+
+    def guide_not_batch_experiment5(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,
+                                batch_blosum=None, map_estimates=None):
+        """
+        :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
+        """
+
+
+        pyro.module("encoder", self.encoder)
+        pyro.module("embeddingsencoder", self.embeddingencoder)
+        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
+
+        log_lambd = pyro.sample("log_lambd", dist.Delta(self.log_lambd).expand_by([1]))  # characteristic length-scale
+        #log_lambd = DraupnirUtils.squeeze_tensor(1, log_lambd)
+        with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
+
+            # Highlight: embed the amino acids represented by their respective blosum scores
+            aminoacid_sequences = self.embeddingencoder(datasets["blosum"])  # remember for the corals the aa_prob is 24
+            # aminoacid_sequences = self.dataset_train_blosum
+            encoder_h_0 = self.h_0_GUIDE.expand(self.encoder.num_layers * 2, aminoacid_sequences.shape[0],self.draupnir.gru_hidden_dim).contiguous()
+            # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
+            encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
+            z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
+            eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
+
+            assert eps_z.shape == (aminoacid_sequences.shape[0], self.draupnir.z_dim)
+
+        return {
+            "log_lambd": log_lambd.squeeze(),
+            "lambd": torch.exp(log_lambd).squeeze(),
+            "z_loc": z_loc,
+            "z_scale": z_scale,
+            "eps_z": eps_z,
+            "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
+            "rnn_final_forward_backward_sum": encoder_output["rnn_final_forward_backward_sum"],
+            "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
+            "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+        }
 
     def guide_batch(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
         """
@@ -272,11 +335,9 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
 
-
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
-        # aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-
+        # aminoacid_sequences = datasets["int"][:, 2:, 0]
         with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
             # Highlight: embed the amino acids represented by their respective blosum scores
@@ -286,14 +347,16 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
             # Highlight: Everything, n_leaves and n_z, is independent (we can plate over any of them , is fine)
             encoder_output = self.encoder(aminoacid_sequences, encoder_h_0)  # [n,z_dim]
             z_loc, z_scale = encoder_output["z_loc"], encoder_output["z_scale"]
-            eps_z = pyro.sample("eps_z", dist.Normal(z_loc, z_scale).to_event(2))  # [n,z_dim]
+            eps_z = pyro.sample("eps_z", dist.Normal(z_loc.T, z_scale.T).to_event(2))  # [n,z_dim]
 
-            assert eps_z.shape == (aminoacid_sequences.shape[0], self.draupnir.z_dim)
+            assert eps_z.shape == (self.draupnir.z_dim,aminoacid_sequences.shape[0])
+
+
 
         return {
             "z_loc": z_loc,
             "z_scale": z_scale,
-            "eps_z": eps_z,
+            "eps_z": eps_z.T, #we have to return it transposed for stacking the map estimates in the right dimensions
             "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
             "rnn_final_forward_backward_sum": encoder_output["rnn_final_forward_backward_sum"],
             "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],

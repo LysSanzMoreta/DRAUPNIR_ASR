@@ -80,7 +80,7 @@ def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: exam
         elif key in ["alpha", "sigma_n", "sigma_f", "lambd","rho", "log_lambd"]:
             guide_map_estimates[key] = DraupnirUtils.squeeze_tensor(required_ndims=1, tensor=val)
             map_estimates[key] = val
-        elif key in ["rnn_final_hidden_state", "z_scale", "z_loc","eps_z"]:
+        elif key in ["rnn_final_hidden_state", "z_scale", "z_loc","eps_z"]: #todo: warning eps_z is in 2 guides, and one guide returns it transposed
             if key not in map_estimates:
                 map_estimates[key] = val
             else:
@@ -233,6 +233,11 @@ def train_batch(svi,training_function_input,svi_model_no_obs):
                                       dataset_train_blosum,
                                       batch_blosum=None,
                                       map_estimates=None)  # only saving 1 sample
+
+
+                # for key,val in guide_map_estimates.items():
+                #     print(key, val.shape)
+                # exit()
 
                 guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
                 torch.cuda.synchronize()

@@ -221,7 +221,7 @@ def predictive_test_full_train_full_variational(args,
     latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len, build_config.aa_probs)).detach().cpu()
 
-    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
+    if args.covariance_prior in ["3", "4", "5"]: # and args.draupnir_version in ["1bB","1nbA"]:
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -798,7 +798,7 @@ def predictive_test_batched_train_full(args,
     latent_space_test_samples = torch.zeros((args.n_samples, n_seq_test, int(params_config["z_dim"]))).detach().cpu()
     logits_test_samples = torch.zeros((args.n_samples, n_seq_test, max_len,build_config.aa_probs)).detach().cpu()
 
-    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
+    if args.covariance_prior in ["3", "4", "5"]: # and args.draupnir_version in ["1bB","1nbA"]: #TODO: right now we are saving over and over again the covariance matrix from the last batch, needs to be fixed
         covariance_train_samples = torch.zeros((args.n_samples,n_seq_train,n_seq_train)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_seq_test,n_seq_test)).detach().cpu()
     else:
@@ -819,7 +819,7 @@ def predictive_test_batched_train_full(args,
 
                 map_estimates = {val: key.detach() for val, key in map_estimates.items() if key is not None}
                 print("sample idx {}".format(sample_idx))
-                if args.draupnir_version in ["1bB","1nbA","2", "4","5"]:
+                if args.covariance_prior in ["0","5"] or args.draupnir_version in ["2","3"]:
                     map_estimates_test = guide(datasets_test, test_load.patristic_matrix_test,test_load.patristic_matrix_test, dataset_test_blosum,batch_blosum=None)  # i extracted the "test" estimates here for some experiment
                     map_estimates["test"] = {val: key.detach() for val, key in map_estimates_test.items() if key is not None}
 
@@ -841,6 +841,7 @@ def predictive_test_batched_train_full(args,
                     logits_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.logits.detach().cpu()
 
                     #TODO: why this does not work when loading from pre-trained model
+
 
 
                     if covariance_train_samples.ndim == 4:
@@ -995,7 +996,7 @@ def predictive_test_batched_train_batched(args,
     # batch_test = test_load.dataset_test[batch_idx_test[0]:batch_idx_test[1]] if batch_idx_test[1] is not None else test_load.dataset_test[batch_idx_test[0]:]
 
 
-    if args.covariance_prior in ["3", "4", "5"] and args.draupnir_version in ["1bB","1nbA"]:
+    if args.covariance_prior in ["3", "4", "5"]:  #and args.draupnir_version in ["1bB","1nbA"]:
         covariance_train_samples = torch.zeros((args.n_samples,n_train_leaves,n_train_leaves)).detach().cpu()
         covariance_test_samples = torch.zeros((args.n_samples,n_test_internal,n_test_internal)).detach().cpu()
     else:

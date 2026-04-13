@@ -11,28 +11,23 @@ sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR")
 from Draupnir_example import main as DraupnirMain
 
 test_cases = [
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
         {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
-
-
-
-
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"}, #fails latent space shape
-        # #non batched experiments
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1nbA","covariance_prior": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1nbA","covariance_prior": "0"}, #fails covariance
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
-        # # batched experiments
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "0"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "0"}, #fails
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"},
-        #{"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1, "draupnir_version": "1nbA","covariance_prior": "5"}, # passes
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
+        ##prior 0
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
+        #prior 5
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1","covariance_prior": "5"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50, "draupnir_version": "1", "covariance_prior": "5"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "5"},
         # sampling from checkpoint
+
+        # different likelihood
 ]
 
 @pytest.mark.parametrize("case", test_cases)
