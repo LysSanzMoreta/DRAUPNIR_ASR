@@ -812,8 +812,10 @@ def predictive_test_batched_train_full(args,
             blocks_test[-1] = (blocks_test[-1][0],None)  # correcting the indexes of the test, this trick works by re-using blocks train, but this approach is more flexible
             for sample_idx, sample in enumerate(samples_names):
                 #print("Recalculating train map estimates")
-                map_estimates = guide(datasets_train, train_load.patristic_matrix_train,
-                                      train_load.patristic_matrix_train, dataset_train_blosum,
+                map_estimates = guide(datasets_train,
+                                      train_load.patristic_matrix_train,
+                                      train_load.patristic_matrix_train,
+                                      dataset_train_blosum,
                                       batch_blosum=None,
                                       map_estimates=None)  # todo: ideally we we would load the pre.learnt map estimates, i need to make sure the right ones are saved
 
@@ -840,12 +842,10 @@ def predictive_test_batched_train_full(args,
                     latent_space_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.latent_space.detach().cpu()
                     logits_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.logits.detach().cpu()
 
-                    #TODO: why this does not work when loading from pre-trained model
-
-
 
                     if covariance_train_samples.ndim == 4:
-                        covariance_train_samples[sample_idx, :, int(batch_idx[0]):int(batch_idx[1]),int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.covariance.detach().cpu()  # we only subset once, because it is [n_train_batch,n_train]
+                        covariance_train_samples[sample_idx, :, int(batch_idx[0]):int(batch_idx[1]),int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.covariance.detach().cpu()
+
                     else:
                         covariance_train_samples[sample_idx, int(batch_idx[0]):int(batch_idx[1])] = batch_train_sample.covariance.detach().cpu() #we only subset once, because it is [n_train_batch,n_train]
 

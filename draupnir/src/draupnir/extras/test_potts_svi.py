@@ -151,4 +151,6 @@ https://github.com/xqding/DCA
 
 https://github.com/kminartz/NeuralCPM
 
+https://www.sintef.no/globalassets/project/evitameeting/2014/pseudolikelihoodlectures.pdf
+
 """

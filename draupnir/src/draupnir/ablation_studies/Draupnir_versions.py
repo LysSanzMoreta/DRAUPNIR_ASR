@@ -145,7 +145,6 @@ def lowass_calculation(tree_results_dict,metrics_dict,metric_array,metric_name,l
 
     return lowass_dict
 
-
 def lowass_scores(storage_folder:str,dataset_name:str, mode_name:str, metrics_dict:dict,model_output:dict,lowass_dict:Union[dict | None]):
     """Calculation of the LOWESS (Locally Weighted Scatterplot Smoothing) between the """
 
@@ -245,78 +244,50 @@ def metrics(predictions_dict:dict,mode_name:str="") -> dict:
     return metrics_dict
 
 
-#todo: include batched vs no batched
-#classic_blosum uses the blosum weighted
-folders_dict = {
-    "simulations_src_sh3_1": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_20_21h08min29s151422ms_10000epochs_variational",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_20_21h31min54s951820ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_19_20h23min58s667738ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_1_2026_01_19_20h40min49s587822ms_10000epochs_variational",
+folders_dict = {  "simulations_src_sh3_3": {
+        "draupnir_classic_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_13_17h36min09s766115ms_8000epochs_variational",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_13_16h04min53s711255ms_8000epochs_variational",
+        # "draupnir_z_esm": "",
+        # "draupnir_hidden_esm": "",
+        "draupnir_whitening_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_14_05h11min51s663287ms_8000epochs_variational",
+        "draupnir_whitening_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_14_03h50min30s581252ms_8000epochs_variational",
+        "draupnir_no_ou_params_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_13_23h24min52s453150ms_8000epochs_variational",
+        "draupnir_no_ou_params_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_13_19h11min56s768538ms_8000epochs_variational",
     },
-    "simulations_src_sh3_2": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_16_19h25min29s965361ms_10000epochs_variational",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_16_23h26min19s155055ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_12h14min37s844603ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_2_2026_01_19_14h44min01s395934ms_10000epochs_variational",
-    },
-    "simulations_src_sh3_3": {
-        "draupnir_classic_blosum": "",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_16h29min59s341296ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_17h35min55s614522ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_src_sh3_3_2026_01_16_18h19min00s229714ms_10000epochs_variational",
-    },
-    "simulations_blactamase_1": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_20_21h53min12s628284ms_10000epochs_variational",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_20_23h10min50s249395ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_21_00h23min24s640140ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_blactamase_1_2026_01_21_01h08min11s963248ms_10000epochs_variational",
-    },
-    "simulations_calcitonin_1": {
-        "draupnir_classic_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_18h43min49s404503ms_10000epochs_variational",
-        "draupnir_classic_no_blosum":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h01min07s450467ms_10000epochs_variational",
-        "draupnir_z_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h17min09s563094ms_10000epochs_variational",
-        "draupnir_hidden_esm":"draupnir_models/PLOTS_Draupnir_simulations_calcitonin_1_2026_01_29_19h29min23s604870ms_10000epochs_variational",
-                                 },
-    "simulations_sirtuins_1": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_21h01min46s029776ms_10000epochs_variational",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_19_23h39min47s797048ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_01h59min03s763175ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_sirtuins_1_2026_01_20_03h18min33s750688ms_10000epochs_variational",
-    },
-    "simulations_1GMM": {
-        "draupnir_classic_blosum": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
-        "draupnir_classic_no_blosum": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_00h59min19s996824ms_10000epochs_variational",
-        "draupnir_z_esm": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_16_06h38min12s618111ms_10000epochs_variational",
-        "draupnir_hidden_esm": "draupnir_models/PLOTS_Draupnir_simulations_1GMM_2026_01_15_18h11min01s898288ms_10000epochs_variational",
-    },
+    # "simulations_1GMM": {
+    #     "draupnir_classic_blosum": "",
+    #     "draupnir_classic_no_blosum": "",
+    #     # "draupnir_z_esm": "",
+    #     # "draupnir_hidden_esm": "",
+    #     "draupnir_whitening": "",
+    #     "draupnir_no_ou_params": ""
+    # },
 
 }
 
-
-folders_dict = {  "simulations_src_sh3_3": {
+folders_dict_batching = {  "simulations_src_sh3_3": {
         "draupnir_classic_blosum": "",
-        "draupnir_classic_no_blosum": "",
-        "draupnir_z_esm": "",
-        "draupnir_hidden_esm": "",
-        "draupnir_whitening": "",
-        "draupnir_no_ou_params": "",
+        "draupnir_classic_no_blosum": "/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PLOTS_Draupnir_simulations_src_sh3_3_2026_04_13_16h41min04s629902ms_8000epochs_variational_batched_no_blosum",
+        # "draupnir_z_esm": "",
+        # "draupnir_hidden_esm": "",
+        "draupnir_whitening_blosum": "",
+        "draupnir_whitening_no_blosum": "",
+        "draupnir_no_ou_params_blosum": "",
+        "draupnir_no_ou_params_no_blosum": "",
     },
     "simulations_1GMM": {
         "draupnir_classic_blosum": "",
         "draupnir_classic_no_blosum": "",
-        "draupnir_z_esm": "",
-        "draupnir_hidden_esm": "",
+        # "draupnir_z_esm": "",
+        # "draupnir_hidden_esm": "",
+        "draupnir_whitening": "",
         "draupnir_no_ou_params": ""
     },
 
-
-
-
 }
 
 
-def analyze(results_dict=None):
+def analyze(folders_dict,results_dict=None):
 
 
     if not results_dict is not None:
@@ -354,7 +325,7 @@ def analyze(results_dict=None):
                 results_dict[dataset_name][f"{mode}_test"] = metrics_dict
                 results_dict[dataset_name][f"{mode}_consensus"] = metrics_dict["consensus_metrics"]
                 del results_dict[dataset_name][f"{mode}_test"]["consensus_metrics"] #otherwise it is saved twice
-                torch.save(results_dict,"draupnir_models/metrics/results_dict2.torch")
+                torch.save(results_dict,"draupnir_models/metrics/results_dict.torch")
             else:
                 print(f"{mode} found")
 
@@ -364,16 +335,17 @@ def analyze(results_dict=None):
     return results_dict
 
 
-#results_dict = torch.load("draupnir_models/metrics/results_dict.torch",weights_only=False)
-analyze(None)
-#analyze(results_dict)
-
-exit()
-
 
 def build_metrics_table(results_dict,name):
     table_keys = ["average_pid","average_pid_std","average_cosine_similarity","correlations_leaves_samples_mi"]
-    skip = ["draupnir_classic_no_blosum_consensus","draupnir_z_esm_consensus","draupnir_hidden_esm_consensus"]
+    skip = ["draupnir_classic_no_blosum_consensus",
+            "draupnir_z_esm_consensus",
+            "draupnir_hidden_esm_consensus",
+            "draupnir_whitening_blosum_consensus",
+            "draupnir_whitening_no_blosum_consensus",
+            "draupnir_no_ou_params_no_blosum_consensus",
+            "draupnir_no_ou_params_blosum_consensus",
+            ]
     results_dict_reoriented = defaultdict(dict)
     for dataset in results_dict.keys():
         for model in results_dict[dataset].keys():
@@ -401,6 +373,15 @@ def build_metrics_table(results_dict,name):
         "draupnir_z_esm_test": matplotlib.colors.to_hex("violet"),
         "draupnir_hidden_esm_train": matplotlib.colors.to_hex("dodgerblue"),
         "draupnir_hidden_esm_test": matplotlib.colors.to_hex("royalblue"),
+        "draupnir_whitening_blosum_train": matplotlib.colors.to_hex("dodgerblue"),
+        "draupnir_whitening_blosum_test": matplotlib.colors.to_hex("royalblue"),
+        "draupnir_whitening_no_blosum_train": matplotlib.colors.to_hex("darkgoldenrod"),
+        "draupnir_whitening_no_blosum_test": matplotlib.colors.to_hex("gold"),
+        "draupnir_no_ou_params_blosum_train": matplotlib.colors.to_hex("mediumorchid"),
+        "draupnir_no_ou_params_blosum_test": matplotlib.colors.to_hex("violet"),
+        "draupnir_no_ou_params_no_blosum_train": matplotlib.colors.to_hex("magenta"),
+        "draupnir_no_ou_params_no_blosum_test": matplotlib.colors.to_hex("pink"),
+
 
               }
 
@@ -442,14 +423,26 @@ def compute_lowass_curves(results_dict):
     #             "no": [matplotlib.colors.to_hex("orangered"),matplotlib.colors.to_hex("darkorange")],
     #                }
 
-    colors_dict2 = {
-                "hidden_esm": ["dodgerblue","royalblue"],
-                "z_esm": ["mediumorchid","violet"],
-                "classic_blosum_consensus": ["turquoise", "turquoise"], #keep in this order
-                "classic_blosum": ["forestgreen","greenyellow"],
-                "no_blosum": ["orangered","darkorange"],
+    # colors_dict2 = {
+    #             "hidden_esm": ["dodgerblue","royalblue"],
+    #             "z_esm": ["mediumorchid","violet"],
+    #             "classic_blosum_consensus": ["turquoise", "turquoise"], #keep in this order
+    #             "classic_blosum": ["forestgreen","greenyellow"],
+    #             "no_blosum": ["orangered","darkorange"],
+    #
+    #                }
 
+
+    colors_dict2 = {
+                "classic_blosum": ["forestgreen", "greenyellow"],
+                "classic_no_blosum": ["orangered", "darkorange"],
+                "whitening_blosum": ["dodgerblue","royalblue"],
+                "whitening_no_blosum": ["darkgoldenrod","gold"],
+                "no_ou_params_blosum": ["mediumorchid","violet"],
+                "no_ou_params_no_blosum": ["magenta","pink"],
+                "classic_blosum_consensus": ["turquoise", "turquoise"], #keep in this order
                    }
+
     #skip = ["draupnir_classic_no_blosum_consensus", "draupnir_classic_z_esm_consensus","draupnir_classic_hidden_esm_consensus"]
 
     skip=[]
@@ -494,6 +487,12 @@ def compute_lowass_curves(results_dict):
 
 
 
+
+
+
+#results_dict = torch.load("draupnir_models/metrics/results_dict.torch",weights_only=False)
+#analyze(folders_dict,None)
+#analyze(folders_dict,results_dict)
 
 results_dict = torch.load("draupnir_models/metrics/results_dict.torch",weights_only=False)
 build_metrics_table(results_dict,"results_dict_metrics")

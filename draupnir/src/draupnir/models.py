@@ -112,9 +112,10 @@ class DRAUPNIRModelClass(nn.Module):
             "5": self.prediction_batched_preprocessing5,
         }
 
-        if self.args.likelihood_type == "potts":
+        if hasattr(self.args, 'likelihood_type'):
+            if self.args.likelihood_type == "potts":
 
-            pass
+                pass
 
 
         if self.args.use_cuda:
@@ -473,7 +474,7 @@ class DRAUPNIRModelClass(nn.Module):
 
     #########################################
 
-    def prediction_preprocessing(self, map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,use_test, use_test2):
+    def prediction_preprocessing(self, map_estimates, patristic_matrix_full, patristic_matrix_eval, batch_idx,use_test, use_test2):
         if use_test2: #MAP estimate
             assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
             out_prediction_dict = self.conditional_samplingMAP(map_estimates,patristic_matrix_full)
@@ -498,7 +499,7 @@ class DRAUPNIRModelClass(nn.Module):
 
         return {"latent_space": latent_space, "n_nodes": n_nodes, "covariance": covariance}
 
-    def prediction_preprocessing0(self, map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx, use_test, use_test2):
+    def prediction_preprocessing0(self, map_estimates, patristic_matrix_full, patristic_matrix_eval, batch_idx, use_test, use_test2):
 
         self.leaves_nodes = map_estimates[
             "train_leaves_nodes"] if "train_leaves_nodes" in map_estimates.keys() else self.leaves_nodes
@@ -536,7 +537,7 @@ class DRAUPNIRModelClass(nn.Module):
 
         return {"latent_space": latent_space, "n_nodes": n_nodes, "covariance": covariance}
 
-    def prediction_preprocessing5(self, map_estimates, patristic_matrix_full, patristic_matrix_test, batch_idx,use_test, use_test2):
+    def prediction_preprocessing5(self, map_estimates, patristic_matrix_full, patristic_matrix_eval, batch_idx,use_test, use_test2):
 
         self.leaves_nodes = map_estimates["train_leaves_nodes"] if "train_leaves_nodes" in map_estimates.keys() else self.leaves_nodes
         # if use_test2:  # MAP estimate #todo: make?
@@ -575,15 +576,15 @@ class DRAUPNIRModelClass(nn.Module):
 
         return {"latent_space": latent_space, "n_nodes": n_nodes, "covariance": covariance}
 
-    def prediction_batched_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_test,batch_idx,use_test,use_test2):
+    def prediction_batched_preprocessing(self,map_estimates,patristic_matrix_full,patristic_matrix_eval,batch_idx,use_test,use_test2):
         """Correction of a few parameters to be able to carry on with the batched sampling"""
         if use_test or use_test2:# internal nodes. Only Marginal posterior available when batching
             assert patristic_matrix_full[1:,1:].shape == (self.n_all,self.n_all)
             #Highlight: Slice out the train sequences and only a batch from the test sequences
             if batch_idx[1] is None:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0]) + 1:, 0]
+                self.internal_nodes_batch = patristic_matrix_eval[int(batch_idx[0]) + 1:, 0]
             else:
-                self.internal_nodes_batch = patristic_matrix_test[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
+                self.internal_nodes_batch = patristic_matrix_eval[int(batch_idx[0])+1:int(batch_idx[1])+1,0]
             self.n_internal_batch = len(self.internal_nodes_batch)
             self.leaves_nodes = map_estimates["train_leaves_nodes"] if "train_leaves_nodes" in map_estimates.keys() else self.leaves_nodes
             self.n_leaves = len(self.leaves_nodes)
@@ -611,23 +612,18 @@ class DRAUPNIRModelClass(nn.Module):
 
         else: #training/leaves
 
-            n_nodes = self.n_leaves_batch #here n_leaves has been overloaded by the batch size
-            latent_space = map_estimates["latent_z"].T #the map estimates have been pre-concatenated, that is why we have to index them out
+            n_nodes =  self.n_leaves_batch #here n_leaves has been overloaded by the batch size
+            latent_space = map_estimates["latent_z"].T # computed for all the dataset
             latent_space = latent_space[int(batch_idx[0]):int(batch_idx[1])] if batch_idx is not None else latent_space
 
-            # if batch_idx is not None:  # if it is None then the shape should be correct already (for the test_batched_train_batched approach)
-            #     if self.covariance.ndim == 2:
-            #         covariance = self.covariance[batch_idx[0]:batch_idx[1]] if batch_idx[1] is not None else self.covariance[batch_idx[0]:] # this should be in the same order as the predicted dataset (we override the self.covariance when we predict)
-            #     else:
-            #         print("BEFORE !prediction batching preprocessing ", self.covariance.shape)
-            #
-            #         print(batch_idx[0],batch_idx[1])
-            #
-            #         covariance = self.covariance[:,batch_idx[0]:batch_idx[1]] if batch_idx[1] is not None else self.covariance[:,batch_idx[0]:batch_idx[1]]
-            #
-            #         print("AFTER !prediction batching preprocessing ", covariance.shape)
-            # else:
-            covariance = self.covariance #i think here we are returning the covariance from the last batch over and over -> should be overwritten
+            leaves_nodes = map_estimates["node_names"][int(batch_idx[0]):int(batch_idx[1])] if batch_idx is not None else map_estimates["node_names"]
+            #we do not concatenate the covariance matrix, so it is best to recompute it
+            idx_train = (patristic_matrix_full[:,0][...,None] == leaves_nodes).any(-1)
+            idx_train[0] = True
+            patristic_matrix_train = patristic_matrix_full[idx_train]
+            patristic_matrix_train = patristic_matrix_train[:,idx_train]
+            covariance = itemgetter("covariance")(self.gp_prior_batched(patristic_matrix_train))
+            #covariance = self.covariance[:,int(batch_idx[0]):int(batch_idx[1]),int(batch_idx[0]):int(batch_idx[1])] if batch_idx is not None else self.covariance #i think here we are returning the covariance from the last batch over and over -> should be overwritten
 
             assert latent_space.shape == (n_nodes, self.z_dim)
 

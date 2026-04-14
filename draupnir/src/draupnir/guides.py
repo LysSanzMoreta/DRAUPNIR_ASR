@@ -216,6 +216,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:,0,1]
                 }
 
     def guide_not_batch_experiment0(self,datasets, patristic_matrix_sorted,patristic_matrix_eval,data_blosum,batch_blosum=None,map_estimates=None):
@@ -225,8 +226,6 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingsencoder", self.embeddingencoder)
         #aminoacid_sequences = datasets["blosum"][:, 2:, 0]
-
-        print("not batched experiment 0")
 
         with pyro.plate("plate_batch", dim=-2, device=self.draupnir.device):
 
@@ -246,6 +245,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
 
@@ -285,6 +285,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
             "rnn_final_forward_backward_sum": encoder_output["rnn_final_forward_backward_sum"],
             "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
             "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+            "node_names": datasets["int"][:, 0, 1]
         }
 
     def guide_batch(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
@@ -327,10 +328,10 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
-    def guide_batch_experiment0(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,
-                                batch_blosum=None, map_estimates=None):
+    def guide_batch_experiment0(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=None):
         """
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
@@ -361,6 +362,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
             "rnn_final_forward_backward_sum": encoder_output["rnn_final_forward_backward_sum"],
             "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
             "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+            "node_names": datasets["int"][:, 0, 1]
         }
 
     def guide_batch_experiment1(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
@@ -396,6 +398,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
     def guide_batch_experiment2(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
@@ -441,6 +444,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
     def guide_batch_experiment3(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
@@ -477,6 +481,7 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
     def guide_batch_experiment4(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
@@ -513,10 +518,10 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "rnn_final_forward_backward_sum":encoder_output["rnn_final_forward_backward_sum"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
                 "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
-    def guide_batch_experiment5(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,
-                                batch_blosum=None, map_estimates=None):
+    def guide_batch_experiment5(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum,batch_blosum=None, map_estimates=None):
         """
         :param tensor data_blosum here is the BATCH data encoded in blosum vector form instead of integers
         """
@@ -551,8 +556,8 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
             "rnn_final_forward_backward_sum": encoder_output["rnn_final_forward_backward_sum"],
             "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
             "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+            "node_names": datasets["int"][:, 0, 1]
         }
-
 
     def guide_batch_by_clade(self, datasets, patristic_matrix_sorted, patristic_matrix_eval, data_blosum, batch_blosum=None,map_estimates=None):
 
@@ -588,7 +593,8 @@ class DRAUPNIRGuides_classic(DRAUPNIRGUIDES):
                 "latent_z": latent_z,
                 "rnn_final_bidirectional": encoder_output["rnn_final_bidirectional"],
                 "rnn_final_hidden_state": encoder_output["rnn_final_hidden_state"],
-                "rnn_hidden_states": encoder_output["rnn_hidden_states"]
+                "rnn_hidden_states": encoder_output["rnn_hidden_states"],
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
 class DRAUPNIRGuides_classic_1bA(DRAUPNIRGUIDES):
@@ -853,6 +859,7 @@ class DRAUPNIRGuides_z_esm(DRAUPNIRGUIDES):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
 class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
@@ -913,6 +920,7 @@ class DRAUPNIRGuides_hidden_esm(DRAUPNIRGUIDES):
                 "z_loc": z_loc,
                 "z_scale": z_scale,
                 "latent_z": latent_z,
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
 class DRAUPNIRGuides_xlstm(DRAUPNIRGUIDES):
@@ -980,7 +988,7 @@ class DRAUPNIRGuides_xlstm(DRAUPNIRGUIDES):
                 "z_scale": z_scale,
                 "latent_z": latent_z,
                 "embeddings": encoder_1_output["embeddings"],
-                "batch_nodes" :batch_nodes
+                "node_names": batch_nodes
                 }
 
 class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
@@ -1005,8 +1013,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
 
         pyro.module("encoder", self.encoder)
         pyro.module("embeddingencoder", self.embeddingencoder)
-        aa_sequences_int = datasets["int"][:, 2:, 0]
-        batch_nodes = datasets["int"][:, 0, 1]
+        #aa_sequences_int = datasets["int"][:, 2:, 0]
         aa_sequences_blosum = datasets["blosum"]#blosum does not contain the indexes
         nseqs = aa_sequences_blosum.shape[0]
 
@@ -1036,7 +1043,7 @@ class DRAUPNIRGuides_minrnn(DRAUPNIRGUIDES):
                 "z_scale": z_scale,
                 "latent_z": latent_z,
                 "embeddings": encoder_output["embeddings"],
-                "batch_nodes" :batch_nodes
+                "node_names": datasets["int"][:, 0, 1]
                 }
 
 
