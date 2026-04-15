@@ -967,6 +967,74 @@ class DRAUPNIRModelClass(nn.Module):
 
             return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
 
+    def conditional_sampling_experiment5_slow(self,map_estimates, patristic_matrix):
+            """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
+            :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
+            :param patristic_matrix: full patristic matrix"""
+            log_lambd = map_estimates["log_lambd"] #+ 1e-6
+            lambd = torch.exp(log_lambd)
+            internal_indexes = (patristic_matrix[1:, 0][..., None] == self.internal_nodes).any(-1)
+            #n_internal = family_data_test.shape[0]
+            # Highlight: Sample the ancestors conditioned on the leaves (by using the full patristic matrix). See Page 689 at Patter Recongnition and Ml (Bishop)
+            # Highlight: Formula is: p(xa|xb) = N (x|µa|b, Λ−1aa ) , a = test/internal; b= train/leaves
+            patristic_matrix_full = patristic_matrix[1:, 1:]
+            assert patristic_matrix_full.shape == (self.n_all, self.n_all), "Remember to use the entire/full patristic matrix for conditional sampling!"
+            OU_covariance_full = OUKernel_Fast(None,lambd,None,kernel_type="3").forward(patristic_matrix_full)
+            L_full = torch.linalg.cholesky(OU_covariance_full) #[ntest+ntrain,ntest+ntrain]
+            # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
+            #alternative inverse: \Lambda = L^{-T}L^{-1}
+            # identity_full = torch.eye(OU_covariance_full.size(1))
+            # inverse_full = torch.linalg.solve(OU_covariance_full, identity_full) #why is this not L_full? it does not work
+
+
+            identity_full = torch.eye(L_full.size(1))
+            L_full_inverse = torch.linalg.solve(L_full, identity_full) #why is this not L_full? it does not work
+
+            inverse_full = L_full_inverse.transpose(1,0)@L_full_inverse
+
+            print("here")
+
+            assert inverse_full.shape == (self.n_all, self.n_all), f"Expected dimensions : {( self.n_all, self.n_all)}, got {inverse_full.shape}"
+            # Highlight: B.49 Λ−1aa
+            inverse_internal = inverse_full[internal_indexes, :]
+            inverse_internal = inverse_internal[:, internal_indexes]  # [z_dim,n_test,n_test]
+            assert inverse_internal.shape == (self.n_internal, self.n_internal)
+            # Highlight: Conditional mean Mean ---->B-50:  µa|b = µa − Λ−1aa Λab(xb − µb)
+            # Highlight: µa
+            OU_mean_internal = torch.zeros((self.n_internal,))  # [n_internal,]
+            # Highlight: Λab
+            inverse_internal_leaves = inverse_full[internal_indexes]  # [z_dim,n_test,n_test+n_train]---> [z_dim,n_train,]
+            inverse_internal_leaves = inverse_internal_leaves[:, ~internal_indexes]  # [z_dim,n_test,n_train]
+            assert inverse_internal_leaves.shape == (self.n_internal, self.n_leaves)
+            # Highlight: xb
+
+            eps_z = map_estimates["eps_z"]
+            L_train = L_full[~internal_indexes]
+            L_train = L_train[:,~internal_indexes]
+            xb = (L_train@eps_z).T #[zdim, ntrain]
+
+            # Highlight:µb
+            OU_mean_leaves = torch.zeros((self.n_leaves,))
+            # Highlight:µa|b---> Splitted Equation  B-50
+            #inverse_internal_bis = torch.linalg.inv(inverse_internal) #https://stackoverflow.com/questions/79417996/efficient-matrix-inversion-multiplication-with-multiple-batch-dimensions-in-pyto
+            # solve A@A-1 = I with torch.linalg.solve to have a faster and more stable calculation. torch.linal.solve calculates X from the A@X= B equation, here A is the inverse_internal, B is the Identity function
+            # X will be the A-1
+            internal_identity = torch.eye(inverse_internal.size(1))
+            inverse_internal_bis = torch.linalg.solve(inverse_internal, internal_identity)
+            part1 = torch.matmul(inverse_internal_bis, inverse_internal_leaves)  # [z_dim,n_test,n_train]
+
+            assert part1.shape == (self.n_internal, self.n_leaves)
+            part2 = xb - OU_mean_leaves[None, :]  # [z_dim,n_train]
+            OU_mean = OU_mean_internal[None, :, None] - torch.matmul(part1, part2[:, :,None])  # [:,n_test,:] - [z_dim,n_test,None]
+            assert OU_mean.squeeze(-1).shape == (self.z_dim, self.n_internal)
+
+            latent_space = dist.MultivariateNormal(OU_mean.squeeze(-1), inverse_internal_bis + 1e-6).to_event(1).sample()
+            latent_space = latent_space.T
+            assert latent_space.shape == (self.n_internal, self.z_dim)
+
+            return {"latent_space": latent_space,"covariance": OU_covariance_full, "internal_idx": internal_indexes}
+
+
     def conditional_sampling_experiment5(self,map_estimates, patristic_matrix):
             """Conditional sampling the internal nodes given the leaves from a Multivariate Normal according to page 698 at Pattern Recognition and ML (Bishop)
             :param map_estimates: dictionary conatining the MAP estimates for the OU process parameters
@@ -982,10 +1050,36 @@ class DRAUPNIRModelClass(nn.Module):
             OU_covariance_full = OUKernel_Fast(None,lambd,None,kernel_type="3").forward(patristic_matrix_full)
             L_full = torch.linalg.cholesky(OU_covariance_full) #[ntest+ntrain,ntest+ntrain]
             # Highlight: Calculate the inverse of the covariance matrix Λ ≡ Σ−1
-            #inverse_full = torch.linalg.inv(OU_covariance_full)  # [z_dim,n_test+n_train,n_test+n_train] #Todo: should be this be L_full?
+            #alternative inverse: \Lambda = L^{-T}L^{-1}
+            # identity_full = torch.eye(OU_covariance_full.size(1))
+            # inverse_full = torch.linalg.solve(OU_covariance_full, identity_full) #why is this not L_full? it does not work
 
-            identity_full = torch.eye(OU_covariance_full.size(1))
-            inverse_full = torch.linalg.solve(OU_covariance_full, identity_full) #why is this not L_full? it does not work
+            """
+            Sigma_aa = OU_covariance_full[internal_indexes][:, internal_indexes]
+            Sigma_ab = OU_covariance_full[internal_indexes][:, ~internal_indexes]
+            Sigma_bb = OU_covariance_full[~internal_indexes][:, ~internal_indexes]
+            
+            L_bb = torch.linalg.cholesky(Sigma_bb)
+            
+            # Solve for conditional mean
+            y = torch.linalg.solve(L_bb, (xb - OU_mean_leaves).T)
+            alpha = torch.linalg.solve(L_bb.T, y)
+            
+            mu_cond = OU_mean_internal + (Sigma_ab @ alpha).T
+            
+            # Conditional covariance
+            v = torch.linalg.solve(L_bb, Sigma_ab.T)
+            Sigma_cond = Sigma_aa - v.T @ v
+            
+            
+            """
+
+
+
+
+            identity_full = torch.eye(L_full.size(1))
+            L_full_inverse = torch.linalg.solve(L_full, identity_full) #why is this not L_full? it does not work
+            inverse_full = L_full_inverse.transpose(1,0)@L_full_inverse
 
             assert inverse_full.shape == (self.n_all, self.n_all), f"Expected dimensions : {( self.n_all, self.n_all)}, got {inverse_full.shape}"
             # Highlight: B.49 Λ−1aa

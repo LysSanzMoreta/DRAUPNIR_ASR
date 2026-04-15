@@ -181,7 +181,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -237,18 +237,19 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
 
                         )
-    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="og", help= "Kernel function used to compute the covariance matrix of the OU process"
+    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="5", help= "Kernel function used to compute the covariance matrix of the OU process"
                                                                             "og: Original prior with 3 parameters (sigma_n, sigma_f, lambda) to build a psd"
                                                                             "0: no hyperparameters for the OU kernel, svd decompositions"
                                                                             "1: removed alpha and sigma_n \n"
                                                                             "2: classic prior but tiled ou parameters,\n "
                                                                             "3:: removed alpha, sigma_n and sigma_f, only lambda left \n "
                                                                             "4: only lambda + cholesky decomposition \n "
-                                                                            "5: different priors over the lambda parameter + cholesky decomposition to build a psd")
+                                                                            "5: whitening trick via cholesky lower matrix decomposition, 1 lambda parameter")
 
-    parser.add_argument('-likelihood-type', type=str, nargs='?', default=False,
-                        help='og:'
+    parser.add_argument('-likelihood-type', type=str, nargs='?', default="categorical",
+                        help='categorical:'
                              'potts: ')
+    #TODO: kl annealing argument?
 
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
