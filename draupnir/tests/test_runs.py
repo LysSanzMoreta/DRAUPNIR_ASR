@@ -11,21 +11,24 @@ sys.path.insert(1,"/home/lys/Dropbox/PhD/DRAUPNIR_ASR")
 from Draupnir_example import main as DraupnirMain
 
 test_cases = [
-        #og
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og"},
+        # ##og
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "og","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "og","kl_annealing_type":None},
         # ##prior 0
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "0","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "0","kl_annealing_type":None},
         #prior 5
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1","covariance_prior": "5"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50, "draupnir_version": "1", "covariance_prior": "5"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5"},
-        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "5"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 1, "draupnir_version": "1","covariance_prior": "5","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": True, "batch_size": 50, "draupnir_version": "1", "covariance_prior": "5","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 50,"draupnir_version": "1","covariance_prior": "5","kl_annealing_type":None},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5", "kl_annealing_type":"cyclical"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5", "kl_annealing_type": "linear"},
+        {"dataset_name": "simulations_src_sh3_3", "use_blosum": False, "batch_size": 1,"draupnir_version": "1","covariance_prior": "5", "kl_annealing_type": "logistic"},
         # sampling from checkpoint
 
         # different likelihood
@@ -78,7 +81,8 @@ def test_start(case):
                      device="cuda",
                      results_dir="",
                      make_plots=False,
-                     likelihood_type="categorical"
+                     likelihood_type="categorical",
+                     kl_annealing_type=case["kl_annealing_type"],
                      )
 
     args = Namespace(**args_dict)

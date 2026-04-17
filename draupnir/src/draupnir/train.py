@@ -6,22 +6,16 @@ Draupnir : Ancestral protein sequence reconstruction using a tree-structured Orn
 """
 import inspect
 from collections import defaultdict
+from operator import itemgetter
 import torch
-import numpy as np
-from dataclasses import dataclass
 import draupnir
 import draupnir.utils as DraupnirUtils
-from pyro import poutine
 
-# @dataclass
-# class TrainConfig:
-#     beta_a: float = 1
-#     beta_b : float = 2.5
 
 def index_generator(indexes):
     """Call method to subsample in order.
-    model (args, iter_num = index_generator())
-    plate(..., next(iter_num))"""
+    model (args, step_num = index_generator())
+    plate(..., next(step_num))"""
     i=0
     while True:
         yield indexes[i]
@@ -68,6 +62,43 @@ def index_generator(indexes):
 #                 map_estimates[key] = val
 #                 #map_estimates[key] = torch.concat([map_estimates[key], guide_map_estimates[key]], dim=0)
 #     return  guide_map_estimates, map_estimates
+
+def kl_annealing(info,type="cyclical"):
+    """
+    Sources: https://medium.com/@ragy202/addressing-posterior-collapse-in-chemical-vaes-151c0f210388
+
+    M = Number of cycles
+    R = Proportion used to increase beta, higher values, the max_kl_weight is maintained for a shorter time
+    t = Global step
+
+
+    """
+
+    step,total_step = itemgetter("step","total_step")(info)
+    max_kl_weight = 1.
+    k= torch.tensor([0.00005])
+    T = total_step
+    R = torch.tensor([0.5])  # higher values, the max_kl_weight is maintained for a shorter time
+    M = torch.tensor([6])  # number of cycles - 1
+
+    if type == "cyclical": #https://arxiv.org/pdf/1903.10145
+        period = (T / M)
+        internal_period = (step) % (period)  # Itteration_number/(Global Period)
+        beta = internal_period / period
+        if beta > R:
+            beta = max_kl_weight
+        else:
+            beta = min(max_kl_weight, beta / R)  # Linear function
+        return torch.Tensor([beta])
+    elif type == "linear":
+        return torch.Tensor([min(max_kl_weight, step / T)])
+    elif type == "logistic":
+        return torch.Tensor([float(max_kl_weight / (1 + torch.exp(-k * (step - T))))])
+    elif type == None:
+        return torch.tensor([max_kl_weight])
+
+
+
 
 def fill_estimates(guide_map_estimates,map_estimates,batching=True): #todo: examine one by one and see which one breaks it
     for key, val in guide_map_estimates.items():
@@ -145,7 +176,8 @@ def train_batch_new(svi,training_function_input,svi_model_no_obs):
 
             guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
             #map_estimates["annealing_factor"] = torch.Tensor([min(1,0.1 + ((training_function_input["epoch"] +1) / 50))]).to(args.device) #until epoch 49 rampage
-            map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
+            info_dict = dict(step=training_function_input["step"], total_step=training_function_input["total_n_steps"])
+            map_estimates["kl_annealing_factor"] = kl_annealing(info_dict, type=args.kl_annealing_type)
 
             train_loss += svi.step(batch_datasets,
                                    dataset_batch["batch_patristic"],
@@ -160,6 +192,8 @@ def train_batch_new(svi,training_function_input,svi_model_no_obs):
                                    dataset_batch["batch_data_blosum"],
                                    dataset_batch["batch_blosum_weighted"],
                                    map_estimates)
+
+            training_function_input["step"] += 1
 
             # Normalize loss
             # torch.cuda.reset_max_memory_allocated() #necessary?
@@ -192,24 +226,6 @@ def train_batch(svi,training_function_input,svi_model_no_obs):
     #from torch.profiler import profile, ProfilerActivity, record_function
 
     for batch_number, dataset in enumerate(train_loader):
-        # for batch_name, batch_dataset_int, batch_patristic, batch_blosum_weighted, batch_data_blosum , batch_dataset_embedding, batch_sequences_representation in zip(
-        #         dataset["batch_name"],
-        #         dataset["batch_data_int"],
-        #         dataset["batch_patristic"],
-        #         dataset["batch_blosum_weighted"],
-        #         dataset["batch_data_blosum"],
-        #         dataset["batch_embedding"],
-        #         dataset["batch_sequence_representation"],
-        # ):
-        #
-        #         if args.use_cuda:
-        #             batch_dataset_int = batch_dataset_int.cuda()
-        #             batch_blosum_weighted = batch_blosum_weighted.cuda()
-        #             batch_patristic = batch_patristic.cuda()
-        #             batch_data_blosum = batch_data_blosum.cuda()
-        #             batch_dataset_embedding = batch_dataset_embedding.cuda()
-        #             batch_sequences_representation = batch_sequences_representation.cuda()
-
                 if args.use_cuda:
                     batch_dataset_int = dataset["batch_data_int"].squeeze(0).to('cuda', non_blocking=True)
                     batch_blosum_weighted = dataset["batch_blosum_weighted"].squeeze(0).to('cuda', non_blocking=True)
@@ -243,11 +259,11 @@ def train_batch(svi,training_function_input,svi_model_no_obs):
 
                 guide_map_estimates,map_estimates = fill_estimates(guide_map_estimates,map_estimates,batching=True)
                 torch.cuda.synchronize()
+                
+                info_dict = dict(step=training_function_input["step"],total_step=training_function_input["total_n_steps"])
+                map_estimates["kl_annealing_factor"] = kl_annealing(info_dict, type=args.kl_annealing_type)
 
-                #map_estimates["annealing_factor"] = torch.Tensor([min(1,training_function_input["step"]/training_function_input["temp_anneal"])]).to(args.device)
-                #map_estimates["annealing_factor"] = torch.Tensor([0.3]).to(args.device) if epoch < 500 else torch.Tensor([1.]).to(args.device)
-                map_estimates["annealing_factor"] = torch.Tensor([1.]).to(args.device)
-                #print("step:",training_function_input["step"],"annealing factor",map_estimates["annealing_factor"])
+
 
                 train_loss += svi.step(batch_datasets,
                                        batch_patristic,
@@ -264,8 +280,7 @@ def train_batch(svi,training_function_input,svi_model_no_obs):
                 #                        map_estimates) #todo: fix this error :  guide_site = guide_trace.nodes[name] KeyError: 'log_lambda
 
                 kl_divergence_loss += 0
-
-                training_function_input["step"] += 1
+                training_function_input["step"] += len(batch_dataset_int)
                 torch.cuda.synchronize()
 
                 #
@@ -311,7 +326,13 @@ def train(svi,training_function_input,svi_model_no_obs):
             seq_lens += data_int[:, 0, 0].tolist()
             if args.use_cuda:
                 datasets = {key:val.cuda() for key,val in datasets.items()}
+
+            info_dict = dict(step=training_function_input["step"], total_step=training_function_input["total_n_steps"])
+            map_estimates["kl_annealing_factor"] = kl_annealing(info_dict,type=args.kl_annealing_type)
+            print("kl_annealing fator", map_estimates["kl_annealing_factor"])
+
             train_loss += svi.step(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates) #None is the clade blosum, it's None because here we do not do clade batching
+            training_function_input["step"] += len(seq_lens)
 
             #Highlight: without computing the gradients we check the kl divergence loss isolated by using the model with no observations
             #kl_divergence_loss += svi_model_no_obs.evaluate_loss(datasets,patristic_matrix,patristic_matrix_train,dataset_blosum,None,map_estimates)
@@ -380,9 +401,14 @@ def train_batch_clade(svi,training_function_input,svi_model_no_obs):
                               }
 
             seq_lens += clade_datasets["int"][:, 0, 0].tolist()
+            
+            info_dict = dict(step=training_function_input["step"], total_step=training_function_input["total_n_steps"])
+            map_estimates["kl_annealing_factor"] = kl_annealing(info_dict,type=args.kl_annealing_type)
+            
+            
             train_loss += svi.step(clade_datasets, dataset_batch["clade_patristic"], patristic_matrix_train,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
             kl_divergence_loss += svi_model_no_obs.evaluate_loss(clade_datasets, dataset_batch["clade_patristic"], patristic_matrix_train,dataset_batch["clade_blosum_weighted"],map_estimates)  # Highlight: if we want to use this for plating, input the entire patristic distance
-
+            training_function_input["step"] += len(seq_lens)
 
     # Normalize loss
     normalizer_train = sum(seq_lens)

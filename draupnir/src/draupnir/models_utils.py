@@ -1188,6 +1188,10 @@ class OUKernel_Fast(GPKernel):
 
     def prior0(self, t: torch.Tensor) -> torch.Tensor:
 
+        assert self.sigma_f is None, "sigma_f should be None"
+        assert self.lambd is None, "sigma_f should be None"
+        assert self.sigma_n is None, "sigma_n should be None"
+
         t = t.repeat(self.z_dim,1,1)
 
         return torch.exp(-t)

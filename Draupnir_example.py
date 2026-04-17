@@ -146,7 +146,7 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=3, type=int, help='number of training epochs')
+    parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -207,6 +207,10 @@ if __name__ == "__main__":
     parser.add_argument('-scheduler-type', type=str, nargs='?', default="reduce_on_plateau",
                         help='reduce_on_plateau \n'
                              'noam ')
+    parser.add_argument('-kl-annealing-type', type=str2None, nargs='?', default=None, help="-linear- monotonic, \n"
+                                                                                   "-logistic-, \n "
+                                                                                   "-cyclical- as in -Cyclical Annealing Schedule: A Simple Approach to Mitigating KL Vanishing \n"
+                                                                                   "None- beta annealing factor is set to 1 ")
     parser.add_argument('-test-frequency', default=10, type=int, help='sampling frequency (in epochs) during training, every <n> epochs, sample')
     parser.add_argument('-guide', '--select_guide', default="variational", type=str,help='choose a guide, available types: "delta_map" , "diagonal_normal" or "variational"')
     #Highlight: Sample from a pre-trained model
@@ -230,14 +234,14 @@ if __name__ == "__main__":
                              '1bB: experimental priors over the batched version with no blosum help' #todo: remove
                              '1nbA: experimental priors over the NON-batched version with no blosum help' #todo: remove
                              
-                             '2: transformer attempt'
+                             '2: transformer attempt' #todo: delete
                              '3a: pre-computed latent representation from ESM embeddings'
                              '3b: pre-computed -aligned- embeddings from ESM, which we process with the GRU'
                              '4: xlstm embeddings'
                              '5: minigru embeddings'
 
                         )
-    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="5", help= "Kernel function used to compute the covariance matrix of the OU process"
+    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="og", help= "Kernel function used to compute the covariance matrix of the OU process"
                                                                             "og: Original prior with 3 parameters (sigma_n, sigma_f, lambda) to build a psd"
                                                                             "0: no hyperparameters for the OU kernel, svd decompositions"
                                                                             "1: removed alpha and sigma_n \n"
@@ -248,8 +252,8 @@ if __name__ == "__main__":
 
     parser.add_argument('-likelihood-type', type=str, nargs='?', default="categorical",
                         help='categorical:'
-                             'potts: ')
-    #TODO: kl annealing argument?
+                             'potts: ') #tdo: not finished
+
 
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
                         default=False,
@@ -279,29 +283,5 @@ if __name__ == "__main__":
     parser.add_argument('--make-plots', type=str2bool, default=True, help="Post-training plots") #TODO: Change to something that makes more sense
 
 
-    # args = parser.parse_args()
-    # if args.use_cuda:
-    #     #torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-    #     torch.set_default_dtype(torch.float64)
-    #
-    #     if torch.cuda.is_available():
-    #         device = "cuda"
-    #         torch.set_default_tensor_type(torch.cuda.DoubleTensor)
-    #     else:
-    #         device= "cpu"
-    #         raise warnings.warn("Cuda not found, falling back to cpu")
-    #     torch.set_default_device(device)
-    # else:
-    #     torch.set_default_tensor_type(torch.DoubleTensor)
-    #     device = "cpu"
-    #
-    # num_threads = torch.get_num_threads()
-    # print(f"Current number of threads: {num_threads}")
-    #
-    # torch.set_num_threads(4)
-    # args.__dict__["device"] = device
-    # #pyro.set_rng_seed(0) # torch is already running with different seeds
-    # #torch.manual_seed(0)
-    # pyro.enable_validation(False)
 
     main(parser)

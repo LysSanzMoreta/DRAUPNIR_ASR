@@ -24,9 +24,8 @@ from Bio import AlignIO
 import torch
 import pyro
 from pyro import poutine
-from pyro.infer import SVI
+from pyro.infer import SVI,Trace_ELBO,TraceMeanField_ELBO
 from pyro.infer.autoguide import  AutoDiagonalNormal,AutoDelta,AutoNormal
-from pyro.infer import Trace_ELBO,TraceMeanField_ELBO
 import draupnir
 draupnir_path = draupnir.__file__
 import draupnir.utils as DraupnirUtils
@@ -1219,6 +1218,10 @@ def draupnir_train(train_load,
 
 
     map_estimates = None
+
+    total_n_steps = args.num_epochs * (n_train_seqs / (build_config.batch_size if build_config.batch_size < n_train_seqs else 1))
+
+
     training_function_input = {
                    "patristic_matrix_model":patristic_matrix_model,
                    "patristic_matrix_train":train_load.patristic_matrix_train,
@@ -1228,7 +1231,10 @@ def draupnir_train(train_load,
                    "train_loader":train_loader,
                    "args":args,
                    "map_estimates":map_estimates,
+                   "total_n_steps": total_n_steps,
+                    "step": 1,
                    "guide":guide}
+
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input, svi_model_no_obs)
 
 
@@ -1256,7 +1262,7 @@ def draupnir_train(train_load,
         start = time.time()
         map_estimates = guide(datasets_train,
                               train_load.patristic_matrix_train,
-                              train_load.cladistic_matrix_train,
+                              train_load.patristic_matrix_train,
                               dataset_train_blosum,
                               None,
                               None)
@@ -1274,7 +1280,6 @@ def draupnir_train(train_load,
         # # Register hooks to monitor gradient norms.
         # for name_i, value in pyro.get_param_store().named_parameters():
         #     value.register_hook(lambda g, name_i=name_i: gradient_norms[name_i].append(g.norm().item()))
-        #map_estimates = guide(datasets,patristic_matrix_train,cladistic_matrix_train,batch_blosum=None) #only saving 1 sample
         map_estimates = {val: key.detach() for val, key in map_estimates.items()}
         sample_out_train = Draupnir.sample(map_estimates,
                                            1,
@@ -1550,7 +1555,7 @@ def draupnir_train_batching(train_load,
 
 
     map_estimates = None
-    total_n_steps= args.num_epochs * (n_train_seqs / build_config.batch_size)
+    total_n_steps = args.num_epochs * (n_train_seqs / (build_config.batch_size if build_config.batch_size < n_train_seqs else 1))
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "cladistic_matrix_full":additional_load.cladistic_matrix_full,
                    "cladistic_matrix_train":train_load.cladistic_matrix_train,
@@ -1560,8 +1565,8 @@ def draupnir_train_batching(train_load,
                    "map_estimates":map_estimates,
                    "guide":guide,
                    "args":args,
-                   "temp_anneal" : total_n_steps*0.8,
-                   "step": 0}
+                   "total_n_steps" : total_n_steps,
+                   "step": 1}
 
 
     # test_function_input = {"patristic_matrix_model":patristic_matrix_model,
@@ -1926,12 +1931,15 @@ def draupnir_train_batch_by_clade(train_load,
     #                                                                                                                 args)
 
     map_estimates = None
+    total_n_steps = args.num_epochs * (n_train_seqs / (build_config.batch_size if build_config.batch_size < n_train_seqs else 1))
     training_function_input = {"patristic_matrix_model":patristic_matrix_model,
                    "patristic_matrix_train": train_load.patristic_matrix_train,
                    "cladistic_matrix_full":additional_info.cladistic_matrix_full,
                    "dataset_train_blosum":dataset_train_blosum,
                    "train_loader":train_loader,
                    "map_estimates":map_estimates,
+                   "total_n_steps" : total_n_steps,
+                   "step": 1,
                    "args":args}
     training_function = DraupnirTrain.select_training_function(clades_dict,svi, training_function_input,svi_model_no_obs)
 
