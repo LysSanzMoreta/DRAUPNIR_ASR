@@ -2573,8 +2573,8 @@ def preparing_plots(samples_out,
                                                                 additional_load,
                                                                 additional_info,
                                                                 replacement_plots)
-        DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
 
+        DraupnirPlots.plot_entropies(name, entropies.detach().cpu().numpy(), results_dir, correspondence_dict)
         DraupnirPlots.plot_covariance(args, results_dir,samples_out.covariance.detach().cpu().numpy(),patristic_matrix_eval.numpy())
 
 

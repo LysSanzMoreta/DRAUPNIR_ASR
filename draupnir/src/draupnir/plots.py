@@ -395,7 +395,7 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
 
     aa_sequences_predictions = torch.cat((len_info, node_info, distance_info, aa_sequences_predictions), dim=2)
 
-    percent_id_df,incorrectly_predicted_sites_df, alignment_length =percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory)
+    percent_id_df,incorrectly_predicted_sites_df, alignment_length = percent_id_sampled_observed(dataset_test,aa_sequences_predictions,node_info,n_samples,node_names,results_directory)
     save_predictions_to_fasta(aa_sequences_predictions, aa_probs, name, node_names, results_directory)
 
     aa_sequences_predictions = aa_sequences_predictions.cpu().numpy()
@@ -403,7 +403,7 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
     n_test = dataset_test.shape[0]
     if n_test > 100:
         torch.manual_seed(0)
-        percentage_test = 50/n_test #get 50 seq only
+        percentage_test = 50/n_test #subset a few of the test sequences
         test_indx = (torch.rand(size=(n_test,)) < percentage_test).int().bool().to(dataset_test.device) #create n  (n= n internal nodes) random True and False, Supposedly 45% of the values will be 1(True)
         dataset_test = dataset_test[test_indx]
         nodes_indexes = dataset_test[:, 0, 1]
@@ -416,7 +416,9 @@ def plot_heatmap_and_incorrect_aminoacids(name,dataset_test,aa_sequences_predict
         nodes_indexes = dataset_test[:, 0, 1]  #test indexes
         dataset_children_predicted = aa_sequences_predictions[:,np.isin(aa_sequences_predictions[0, :, 1], nodes_indexes)]
 
-    plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load)
+
+    plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,alignment_length,additional_load,"Incorrectly_Predicted_Sites")
+    plot_incorrectly_predicted_aa(percent_id_df,results_directory,alignment_length,additional_load,"Percent_Identity")
 
     DraupnirUtils.heatmaps(dataset_children_predicted,
                            dataset_test,
@@ -1217,7 +1219,7 @@ def clean_and_realign_train(name,dataset_test,dataset_train,aa_sequences_predict
             plt.title(r"% ID of the predicted internal node (root) against the leaves; {}".format(additional_load.full_name))
             plt.savefig("{}/PercentID_node_{}_against_train_seq.pdf".format(results_dir,node_idx))
             plt.close()
-def plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,align_len, additional_load):
+def plot_incorrectly_predicted_aa_old(incorrectly_predicted_sites_df,results_directory,align_len, additional_load):
     """Plots a histogram with the number of incorrectly predicted sites per sequence
     :param pandas-dataframe incorrectly_predicted_sites_df
     :param str results_directory
@@ -1276,6 +1278,87 @@ def plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directo
     plt.setp(xtickNames, rotation=45, fontsize=8)
 
     plt.savefig("{}/IncorrectlyPredictedAA_BarPlot".format(results_directory))
+
+
+def plot_incorrectly_predicted_aa(incorrectly_predicted_sites_df,results_directory,align_len, additional_load, title):
+    """Plots a histogram with the number of incorrectly predicted sites per sequence
+    :param pandas-dataframe incorrectly_predicted_sites_df
+    :param str results_directory
+    :param align_len: alignment length
+    :param namedtuple additional_load
+    """
+    print("Building barplot for average pid or incorrectly predicted sites...")
+    average_incorrectly_predicted_sites = incorrectly_predicted_sites_df["Average"].values
+    try:
+        accuracy = len(np.where(average_incorrectly_predicted_sites < 75)[0]) / average_incorrectly_predicted_sites.shape[0]
+        print("Accuracy (% incorrect sites < 75)  : {}".format(accuracy))
+    except:
+        accuracy = 0.
+    folder_name =os.path.basename(results_directory)
+    data_name = ["Internal nodes" if folder_name.startswith("Test") else "Leaves nodes"][0]
+
+    #results_directory_abs = os.path.dirname(results_directory)
+    # text_file = open("{}/Hyperparameters_{}.txt".format(results_directory_abs, "_".join(results_directory_abs.split("_")[-5:])),"a")
+    # text_file.write("accuracy {} (% incorrect sites < 75) : {}\n".format(data_name,accuracy))
+    std_incorrectly_predicted_sites = incorrectly_predicted_sites_df["Std"].values
+
+    nodes_indexes = np.array(incorrectly_predicted_sites_df.index.str.split("//").str[1]).astype(float).tolist()
+    incorrectly_predicted_sites_df = incorrectly_predicted_sites_df.drop(["Average","Std"],axis=1)
+    incorrectly_predicted_sites = np.vstack([nodes_indexes,incorrectly_predicted_sites_df.values.T])
+    np.save(f"{results_directory}/{title}", incorrectly_predicted_sites)
+
+
+    fig = plt.figure(figsize=(14, 8))
+    ax = fig.add_subplot(111)
+
+    ## the data
+    N = average_incorrectly_predicted_sites.shape[0]
+    ## necessary variables
+    ind = np.arange(N) # the x locations for the groups
+    width = 0.35  # the width of the bars
+    blue, = sns.color_palette("muted", 1)
+    ## the bars
+    rects1 = ax.bar(ind, average_incorrectly_predicted_sites,
+                    width,
+                    color=blue,
+                    alpha=0.75,
+                    edgecolor="blue",
+                    yerr=std_incorrectly_predicted_sites,
+                    error_kw=dict(elinewidth=2, ecolor='red'))
+
+
+    DraupnirUtils.autolabel(rects1,ax)
+    # axes and labels
+    ax.set_xlim(-width, N* + width)
+    ax.set_ylim(0, align_len)
+    ylabel = {"Incorrectly_Predicted_Sites": "Number of incorrectly predicted sites per sequence",
+             "Percent_Identity": "Number of correctly predicted sites per sequence",
+
+              }
+    ax.set_ylabel(ylabel[title])
+
+
+
+
+    titlelabel = {
+        "Incorrectly_Predicted_Sites": f'Incorrectly predicted aa sites {data_name} \n Total Average : ' + str(round(average_incorrectly_predicted_sites.mean(),2)) + f' \n {additional_load.full_name}',
+        "Percent_Identity": f"Percent Identity {data_name} \n Total Average pid : " + str(round(average_incorrectly_predicted_sites.mean(),2)) + f' \n {additional_load.full_name}'
+    }
+    ax.set_title(titlelabel[title])
+
+    xTickMarks = incorrectly_predicted_sites_df.index.tolist()
+    ax.set_xticks(ind + width)
+    xtickNames = ax.set_xticklabels(xTickMarks)
+    plt.setp(xtickNames, rotation=45, fontsize=8)
+
+    plotname = {
+        "Incorrectly_Predicted_Sites": f"{results_directory}/IncorrectlyPredictedAA_BarPlot.png",
+        "Percent_Identity": f"{results_directory}/PercentID_BarPlot.png",
+    }
+
+    plt.savefig(plotname[title])
+
+
 def build_dataframes_overlapping_histograms(predictions_samples, dataset_train,dataset_test, name, num_samples,children_indexes,results_directory,aa_probs,correspondence_dict=None):
     #TODO: remove????
     print("Building Overlapping Histogram...")

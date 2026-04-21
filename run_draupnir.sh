@@ -1,6 +1,6 @@
 #nohup ./run_draupnir.sh > ~/output.log 2>&1 &
 #micromamba activate draupnir_xlstm2
-nepochs=5000
+nepochs=3000
 nsamples=200
 zdim=30
 
@@ -22,8 +22,8 @@ zdim=30
 #CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type cyclical
 #CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum False -draupnir-version 1 -covariance-prior 5 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type cyclical
 CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type cyclical
-CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type logistic
-CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type linear
+#CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type logistic
+#CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 1 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type linear
 #CUDA_VISIBLE_DEVICES=0 python Draupnir_example.py -name simulations_src_sh3_3 -n $nepochs -n-samples $nsamples -use-blosum True -draupnir-version 1 -covariance-prior 5 -bsize 50 -use-cuda True -generate-samples False -prediction-method test_batched_train_full -z-dim $zdim -kl-annealing-type cyclical
 
 

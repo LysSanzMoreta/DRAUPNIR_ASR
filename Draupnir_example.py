@@ -146,7 +146,6 @@ if __name__ == "__main__":
                         default=False,
                         help='True: Use a custom dataset (create your own dataset). First it will create a folder with the same name as args.dataset_name where to store the necessary files here: draupnir/src/draupnir/data) '
                              'False: Use a default dataset (those shown in the paper) (they will automatically be downloaded at draupnir/src/draupnir/data if they are not there already)')
-    parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
     parser.add_argument('--alignment-file', type=str2None, nargs='?',
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/PF0096/PF0096.mafft",
                         #default="/home/lys/Dropbox/PhD/DRAUPNIR_ASR/draupnir/src/draupnir/data/ABO/ABO_DATABASE_1011_cdhit1.0_mafft_70_wo_slash.fa",
@@ -174,14 +173,16 @@ if __name__ == "__main__":
                         help='Path to numpy array containing precomputed embeddings with shape [Nseqs, max_len + 1, feat_dim] (use with args.use_custom = True) with UNALIGNED sequences and NO tree (tree is inferred using IQtree). '
                              'In position data[:,0,0] place the node names of the leaves as specified in the fasta file and the tree') #todo: experimental, esm computed when building the dataset
 
-
     parser.add_argument('-build', '--build-dataset', default=False, type=str2bool,
                         help='True: Create and store the draupnir compatible dataset from a given alignment file/tree or the unaligned sequences;'
                              'False: Use previously stored data files under folder with -dataset-name or at draupnir/src/draupnir/data. '
                              'Once you have built the dataset once you do not have to do it again (if everything went fine), so do -build-dataset- = True one time and then keep it to False'
                              'Further customization can be found under draupnir/src/draupnir/datasets.py')
 
-    parser.add_argument('-bsize','--batch-size', default=50, type=str2None,nargs='?',help='set batch size.\n '
+    parser.add_argument('-n', '--num-epochs', default=2, type=int, help='number of training epochs')
+
+
+    parser.add_argument('-bsize','--batch-size', default=1, type=str2None,nargs='?',help='set batch size.\n '
                                                                 'Set to 1 to NOT batch (batch_size == 1, batch_size == entire dataset).\n '
                                                                 'Set to None it automatically suggests a batch size and activates batching (it is slower, only use for large datasets (+1000 seqs)).\n '
                                                                 'If batch_by_clade=True: 1 batch= 1 clade (size given by clades_dict).'
@@ -241,7 +242,7 @@ if __name__ == "__main__":
                              '5: minigru embeddings'
 
                         )
-    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="og", help= "Kernel function used to compute the covariance matrix of the OU process"
+    parser.add_argument('-covariance-prior', '--covariance-prior', type=str, default="5", help= "Kernel function used to compute the covariance matrix of the OU process"
                                                                             "og: Original prior with 3 parameters (sigma_n, sigma_f, lambda) to build a psd"
                                                                             "0: no hyperparameters for the OU kernel, svd decompositions"
                                                                             "1: removed alpha and sigma_n \n"
@@ -251,8 +252,9 @@ if __name__ == "__main__":
                                                                             "5: whitening trick via cholesky lower matrix decomposition, 1 lambda parameter")
 
     parser.add_argument('-likelihood-type', type=str, nargs='?', default="categorical",
-                        help='categorical:'
-                             'potts: ') #tdo: not finished
+                        help='Select different types of likelihood distributions, only available when draupnir_version = 1 \n'
+                             'categorical: Categorical likelihood computed directly frm the logits '
+                             'potts: Low rank potts pseudolikelihood') #tdo: not finished
 
 
     parser.add_argument('-one-hot','--one-hot-encoded', type=str2bool, nargs='?',
