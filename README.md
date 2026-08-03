@@ -5,6 +5,10 @@ DRAUPNIR: "Beta library version for performing ASR using a tree-structured Varia
 <img src="https://github.com/LysSanzMoreta/DRAUPNIR_ASR/blob/main/draupnir/src/draupnir/images/draupnir_logo.png" height="auto" width="790" style="border-radius:50%">
 </p>
 
+** WARNING **
+
+We have improved this version and would be soonish released. 
+
 **Extra requirements for tree inference:**
 
 #These are NOT necessary if you have your own tree file or for using the default datasets
